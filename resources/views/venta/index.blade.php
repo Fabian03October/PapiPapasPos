@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vender - posPapisV1</title>
+    @vite('resources/css/app.css')
+    <script>
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+<body class="bg-gray-100 dark:bg-zinc-950 min-h-screen">
+
+<div class="flex items-center justify-between p-3 border-b border-gray-200 dark:border-zinc-800 md:hidden">
+    <button id="menu-toggle" type="button" class="p-1 text-gray-700 dark:text-zinc-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+    </button>
+    <span class="font-semibold text-gray-900 dark:text-zinc-100">Vender</span>
+    <span class="w-6"></span>
+</div>
+
+<div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden"></div>
+
+<div class="grid grid-cols-1 md:grid-cols-[190px_1fr_280px] gap-4 p-4 md:h-screen">
+
+        <!-- Menú lateral -->
+        <div id="sidebar"
+             class="fixed md:static inset-y-0 left-0 z-40 w-64 md:w-auto
+                    -translate-x-full md:translate-x-0 transition-transform duration-200
+                    bg-gray-50 dark:bg-zinc-900 md:bg-transparent
+                    p-4 md:p-0
+                    flex flex-col gap-1">
+
+            <div class="flex items-center justify-between mb-3 md:hidden">
+                <p class="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide font-medium">Menú</p>
+                <button id="sidebar-close" type="button" class="text-gray-400 dark:text-zinc-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <p class="hidden md:block text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide font-medium mb-2 px-3">Menú</p>
+
+            <a href="{{ route('venta.index') }}" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-sm font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.976-4.766 2.53-7.352.104-.487-.263-.898-.762-.898H5.106M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
+                Vender
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-600 dark:text-zinc-400 text-sm hover:bg-gray-100 dark:hover:bg-zinc-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                </svg>
+                Corte de caja
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-600 dark:text-zinc-400 text-sm hover:bg-gray-100 dark:hover:bg-zinc-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                Ventas del día
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-gray-600 dark:text-zinc-400 text-sm hover:bg-gray-100 dark:hover:bg-zinc-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Cliente
+            </a>
+
+            <div class="mt-auto pt-3 border-t border-gray-200 dark:border-zinc-800">
+                <button id="theme-toggle" type="button" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-gray-500 dark:text-zinc-500 text-xs hover:bg-gray-100 dark:hover:bg-zinc-800 mb-1">
+                    <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                    </svg>
+                    <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 hidden" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                    <span id="theme-label">Modo oscuro</span>
+                </button>
+                @if (auth()->user()->role?->name === 'manager')
+                    <a href="/admin" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-gray-500 dark:text-zinc-500 text-xs hover:bg-gray-100 dark:hover:bg-zinc-800 mb-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Panel admin
+                    </a>
+                @endif
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-gray-500 dark:text-zinc-500 text-xs hover:bg-gray-100 dark:hover:bg-zinc-800">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        </svg>
+                        Cerrar sesión
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Categorías + productos -->
+        <div class="flex flex-col overflow-hidden">
+
+            <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="category-tabs">
+                <button
+                    class="category-tab px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap bg-blue-600 text-white"
+                    data-category="all">
+                    Todos
+                </button>
+                @foreach ($categories as $category)
+                    <button
+                        class="category-tab px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap bg-white dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-zinc-800"
+                        data-category="{{ $category->id }}">
+                        {{ $category->name }}
+                    </button>
+                @endforeach
+            </div>
+
+            <div class="relative mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                    type="text"
+                    id="product-search"
+                    placeholder="Buscar producto"
+                    class="w-full h-10 pl-9 pr-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 text-sm placeholder:text-gray-400 dark:placeholder:text-zinc-500">
+            </div>
+
+            <div class="overflow-y-auto flex-1">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="product-grid">
+                    @foreach ($products as $categoryId => $categoryProducts)
+                        @foreach ($categoryProducts as $product)
+                            <button
+                                type="button"
+                                class="product-card bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-3 text-center hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-sm transition"
+                                data-category="{{ $categoryId }}"
+                                data-name="{{ strtolower($product->name) }}"
+                                data-id="{{ $product->id }}">
+                                <div class="w-full aspect-square bg-gray-100 dark:bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-gray-400 dark:text-zinc-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 16.318A4.486 4.486 0 0012.016 15a4.486 4.486 0 00-3.198 1.318M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-medium text-gray-900 dark:text-zinc-100">{{ $product->name }}</p>
+                                <p class="text-xs text-gray-500 dark:text-zinc-500 mt-0.5">${{ number_format($product->base_price, 2) }}</p>
+                            </button>
+                        @endforeach
+                    @endforeach
+                </div>
+
+                <p id="no-products-msg" class="text-center text-sm text-gray-400 dark:text-zinc-600 mt-10 hidden">
+                    No hay productos en esta categoría
+                </p>
+            </div>
+        </div>
+
+        <!-- Carrito -->
+        <div class="bg-gray-50 dark:bg-zinc-900 rounded-xl p-4 flex flex-col">
+            <p class="text-sm font-medium mb-3 flex items-center gap-2 text-gray-900 dark:text-zinc-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.976-4.766 2.53-7.352.104-.487-.263-.898-.762-.898H5.106M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
+                Carrito
+            </p>
+
+            <div class="flex-1 flex items-center justify-center text-center" id="cart-empty">
+                <p class="text-sm text-gray-400 dark:text-zinc-600">Toca un producto<br>para agregarlo</p>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-zinc-800 pt-3 mt-3">
+                <div class="flex justify-between text-lg font-semibold mb-3 text-gray-900 dark:text-zinc-100">
+                    <span>Total</span>
+                    <span id="cart-total">$0.00</span>
+                </div>
+                <button class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-medium opacity-40 cursor-not-allowed" disabled>
+                    Cobrar
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Menú deslizante (solo celular) ---
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebarClose = document.getElementById('sidebar-close');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            backdrop.classList.remove('hidden');
+        }
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            backdrop.classList.add('hidden');
+        }
+
+        menuToggle?.addEventListener('click', openSidebar);
+        sidebarClose?.addEventListener('click', closeSidebar);
+        backdrop?.addEventListener('click', closeSidebar);
+
+        const tabs = document.querySelectorAll('.category-tab');
+        const products = document.querySelectorAll('.product-card');
+        const searchInput = document.getElementById('product-search');
+        const noProductsMsg = document.getElementById('no-products-msg');
+        let activeCategory = 'all';
+
+        function applyFilters() {
+            const search = searchInput.value.toLowerCase().trim();
+            let visibleCount = 0;
+
+            products.forEach(card => {
+                const matchesCategory = activeCategory === 'all' || card.dataset.category === activeCategory;
+                const matchesSearch = card.dataset.name.includes(search);
+                const visible = matchesCategory && matchesSearch;
+                card.classList.toggle('hidden', !visible);
+                if (visible) visibleCount++;
+            });
+
+            noProductsMsg.classList.toggle('hidden', visibleCount > 0);
+        }
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => {
+                    t.classList.remove('bg-blue-600', 'text-white');
+                    t.classList.add('bg-white', 'dark:bg-zinc-900', 'text-gray-600', 'dark:text-zinc-400', 'border', 'border-gray-200', 'dark:border-zinc-800');
+                });
+                tab.classList.add('bg-blue-600', 'text-white');
+                tab.classList.remove('bg-white', 'dark:bg-zinc-900', 'text-gray-600', 'dark:text-zinc-400', 'border', 'border-gray-200', 'dark:border-zinc-800');
+
+                activeCategory = tab.dataset.category;
+                applyFilters();
+            });
+        });
+
+        searchInput.addEventListener('input', applyFilters);
+
+        products.forEach(card => {
+            card.addEventListener('click', () => {
+                alert('Aquí se abrirá el popup de modificadores (lo hacemos mañana)');
+            });
+        });
+
+        // Toggle de modo oscuro
+        const themeToggle = document.getElementById('theme-toggle');
+        const iconMoon = document.getElementById('theme-icon-moon');
+        const iconSun = document.getElementById('theme-icon-sun');
+        const themeLabel = document.getElementById('theme-label');
+
+        function updateThemeLabel() {
+            const isDark = document.documentElement.classList.contains('dark');
+            iconMoon.classList.toggle('hidden', isDark);
+            iconSun.classList.toggle('hidden', !isDark);
+            themeLabel.textContent = isDark ? 'Modo claro' : 'Modo oscuro';
+        }
+        updateThemeLabel();
+
+        themeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            updateThemeLabel();
+        });
+    </script>
+</body>
+</html>

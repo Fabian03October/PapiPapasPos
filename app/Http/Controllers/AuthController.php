@@ -31,11 +31,15 @@ class AuthController extends Controller
 
         Auth::login($user);
 
+        $redirect = $user->role?->name === 'manager'
+            ? route('filament.admin.pages.dashboard')
+            : route('venta.index');
+
         return response()->json([
             'success' => true,
             'name' => $user->name,
             'role' => $user->role->name ?? 'Sin rol',
-            'redirect' => route('venta.index'),
+            'redirect' => $redirect,
         ]);
     }
 
