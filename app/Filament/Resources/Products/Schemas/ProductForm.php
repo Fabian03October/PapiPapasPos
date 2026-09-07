@@ -35,6 +35,13 @@ class ProductForm
                 Toggle::make('is_active')
                     ->label('Activo')
                     ->default(true),
+                Select::make('modifierGroups')
+                    ->label('Grupos de modificadores')
+                    ->relationship('modifierGroups', 'name')
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->helperText('Selecciona qué grupos (aderezos, salsas, etc.) aplican a este producto.'),
             ]);
     }
 }
