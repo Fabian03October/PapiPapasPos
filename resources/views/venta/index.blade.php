@@ -215,6 +215,56 @@
         </div>
     </div>
 
+    <!-- Popup de cobro -->
+    <div id="payment-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 w-full max-w-sm">
+
+            <div class="flex justify-between items-start mb-4">
+                <p class="text-lg font-semibold text-gray-900 dark:text-zinc-100">Cobrar</p>
+                <button id="payment-modal-close" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 dark:text-zinc-500 hover:bg-gray-100 dark:hover:bg-zinc-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-zinc-800 rounded-lg p-3 mb-4">
+                <div class="flex justify-between text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                    <span>Total</span>
+                    <span id="payment-total">$0.00</span>
+                </div>
+            </div>
+
+            <p class="text-sm font-medium mb-2 text-gray-900 dark:text-zinc-100">Método de pago</p>
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <button type="button" id="payment-method-efectivo" class="payment-method-btn h-14 rounded-lg border-2 border-blue-600 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-sm font-medium">
+                    💵 Efectivo
+                </button>
+                <button type="button" id="payment-method-tarjeta" class="payment-method-btn h-14 rounded-lg border border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 text-sm font-medium">
+                    💳 Tarjeta
+                </button>
+            </div>
+
+            <div id="cash-section">
+                <p class="text-sm font-medium mb-2 text-gray-900 dark:text-zinc-100">Monto recibido</p>
+                <div class="relative mb-2">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500">$</span>
+                    <input type="number" id="amount-received" step="0.01" class="w-full h-14 pl-7 pr-3 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 text-lg font-semibold">
+                </div>
+                <div class="flex gap-2 mb-4" id="quick-amounts"></div>
+
+                <div class="flex justify-between items-center bg-green-50 dark:bg-green-500/10 rounded-lg p-3 mb-4">
+                    <span class="text-sm font-medium text-green-700 dark:text-green-400">Cambio</span>
+                    <span id="change-amount" class="text-lg font-semibold text-green-700 dark:text-green-400">$0.00</span>
+                </div>
+            </div>
+
+            <button id="confirm-sale-btn" class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-medium">
+                ✓ Confirmar venta
+            </button>
+        </div>
+    </div>
+
     <script>
         // --- Menú deslizante (solo celular) ---
         const sidebar = document.getElementById('sidebar');
@@ -573,9 +623,95 @@
             });
         });
 
+        // --- POPUP DE COBRO ---
+        const paymentModal = document.getElementById('payment-modal');
+        const paymentModalClose = document.getElementById('payment-modal-close');
+        const paymentTotalEl = document.getElementById('payment-total');
+        const methodEfectivoBtn = document.getElementById('payment-method-efectivo');
+        const methodTarjetaBtn = document.getElementById('payment-method-tarjeta');
+        const cashSection = document.getElementById('cash-section');
+        const amountReceivedInput = document.getElementById('amount-received');
+        const quickAmountsEl = document.getElementById('quick-amounts');
+        const changeAmountEl = document.getElementById('change-amount');
+        const confirmSaleBtn = document.getElementById('confirm-sale-btn');
+
+        let selectedPaymentMethod = 'efectivo';
+        let currentCartTotal = 0;
+
         document.getElementById('cart-checkout').addEventListener('click', () => {
             if (cart.length === 0) return;
 
+            currentCartTotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
+            paymentTotalEl.textContent = formatMoney(currentCartTotal);
+            setPaymentMethod('efectivo');
+
+            amountReceivedInput.value = currentCartTotal.toFixed(2);
+            renderQuickAmounts();
+            updateChange();
+
+            paymentModal.classList.remove('hidden');
+            paymentModal.classList.add('flex');
+        });
+
+        paymentModalClose.addEventListener('click', () => {
+            paymentModal.classList.add('hidden');
+            paymentModal.classList.remove('flex');
+        });
+
+        function setPaymentMethod(method) {
+            selectedPaymentMethod = method;
+
+            if (method === 'efectivo') {
+                methodEfectivoBtn.classList.add('border-2', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-500/10', 'text-blue-600', 'dark:text-blue-400');
+                methodEfectivoBtn.classList.remove('border', 'border-gray-200', 'dark:border-zinc-700', 'text-gray-700', 'dark:text-zinc-300');
+                methodTarjetaBtn.classList.remove('border-2', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-500/10', 'text-blue-600', 'dark:text-blue-400');
+                methodTarjetaBtn.classList.add('border', 'border-gray-200', 'dark:border-zinc-700', 'text-gray-700', 'dark:text-zinc-300');
+                cashSection.classList.remove('hidden');
+            } else {
+                methodTarjetaBtn.classList.add('border-2', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-500/10', 'text-blue-600', 'dark:text-blue-400');
+                methodTarjetaBtn.classList.remove('border', 'border-gray-200', 'dark:border-zinc-700', 'text-gray-700', 'dark:text-zinc-300');
+                methodEfectivoBtn.classList.remove('border-2', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-500/10', 'text-blue-600', 'dark:text-blue-400');
+                methodEfectivoBtn.classList.add('border', 'border-gray-200', 'dark:border-zinc-700', 'text-gray-700', 'dark:text-zinc-300');
+                cashSection.classList.add('hidden');
+            }
+        }
+
+        methodEfectivoBtn.addEventListener('click', () => setPaymentMethod('efectivo'));
+        methodTarjetaBtn.addEventListener('click', () => setPaymentMethod('tarjeta'));
+
+        function renderQuickAmounts() {
+            const amounts = new Set();
+            amounts.add(Math.ceil(currentCartTotal));
+            [20, 50, 100, 200, 500].forEach(denom => {
+                const rounded = Math.ceil(currentCartTotal / denom) * denom;
+                if (rounded > currentCartTotal) amounts.add(rounded);
+            });
+
+            const sorted = Array.from(amounts).sort((a, b) => a - b).slice(0, 4);
+
+            quickAmountsEl.innerHTML = sorted.map(amt => `
+                <button type="button" class="quick-amount-btn flex-1 h-10 rounded-lg border border-gray-200 dark:border-zinc-700 text-sm text-gray-700 dark:text-zinc-300" data-amount="${amt}">
+                    $${amt}
+                </button>
+            `).join('');
+
+            quickAmountsEl.querySelectorAll('.quick-amount-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    amountReceivedInput.value = btn.dataset.amount;
+                    updateChange();
+                });
+            });
+        }
+
+        function updateChange() {
+            const received = parseFloat(amountReceivedInput.value) || 0;
+            const change = received - currentCartTotal;
+            changeAmountEl.textContent = formatMoney(change >= 0 ? change : 0);
+        }
+
+        amountReceivedInput.addEventListener('input', updateChange);
+
+        confirmSaleBtn.addEventListener('click', () => {
             const payload = {
                 items: cart.map(item => ({
                     product_id: item.productId,
@@ -583,6 +719,7 @@
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
                 })),
+                payment_method: selectedPaymentMethod,
             };
 
             fetch('{{ route("venta.cobrar") }}', {
@@ -597,16 +734,31 @@
             .then(res => res.json().then(data => ({ status: res.status, data })))
             .then(({ status, data }) => {
                 if (status === 200 && data.success) {
-                    alert('Venta registrada — Folio #' + data.folio + ' — Total $' + data.total.toFixed(2));
                     cart = [];
                     renderCart();
+                    paymentModal.classList.add('hidden');
+                    paymentModal.classList.remove('flex');
+                    showSuccessToast(data.folio, data.total);
                 } else {
                     alert('Error al guardar la venta: ' + (data.message || 'intenta de nuevo'));
                 }
             });
         });
 
+        function showSuccessToast(folio, total) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2';
+            toast.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                Venta registrada — Folio #${folio} — Total ${formatMoney(total)}
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
         renderCart();
     </script>
 </body>
-</html>
+</html> 

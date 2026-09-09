@@ -23,6 +23,7 @@ class SaleController extends Controller
             'items.*.modifier_ids' => 'array',
             'items.*.modifier_ids.*' => 'exists:modifiers,id',
             'items.*.qty' => 'required|integer|min:1',
+            'payment_method' => 'required|in:efectivo,tarjeta',
         ]);
 
         $cashSession = CashSession::open();
@@ -35,7 +36,6 @@ class SaleController extends Controller
             $subtotal = 0;
             $itemsData = [];
 
-            // Recalculamos los precios en el servidor (nunca confiamos ciegamente en lo que manda el navegador)
             foreach ($request->items as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 $unitPrice = (float) $product->base_price;
@@ -68,7 +68,7 @@ class SaleController extends Controller
                 ];
             }
 
-            $total = $subtotal; // sin descuento por ahora
+            $total = $subtotal;
 
             $sale = Sale::create([
                 'folio' => 'TMP',
@@ -78,7 +78,7 @@ class SaleController extends Controller
                 'subtotal' => $subtotal,
                 'discount' => 0,
                 'total' => $total,
-                'payment_method' => 'efectivo', // se ajusta el 14 sep con la pantalla de cobro real
+                'payment_method' => $request->payment_method,
             ]);
 
             $sale->update(['folio' => str_pad($sale->id, 4, '0', STR_PAD_LEFT)]);

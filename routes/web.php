@@ -12,6 +12,7 @@ Route::get('/', function () {
 
 Route::get('/login', [AuthController::class, 'showPinLogin'])->name('login.pin');
 Route::post('/login', [AuthController::class, 'loginPin'])->name('login.pin.submit');
+Route::post('/login/cambiar-pin', [AuthController::class, 'changePin'])->name('login.change-pin')->middleware('auth');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware('auth')->group(function () {
@@ -22,4 +23,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/venta/productos/{product}', [VentaController::class, 'productDetails'])->name('venta.product.details');
 
     Route::post('/venta/cobrar', [SaleController::class, 'store'])->name('venta.cobrar');
+    
 });

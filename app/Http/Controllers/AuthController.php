@@ -31,6 +31,15 @@ class AuthController extends Controller
 
         Auth::login($user);
 
+        if ($user->must_change_pin) {
+            return response()->json([
+                'success' => true,
+                'name' => $user->name,
+                'role' => $user->role->name ?? 'Sin rol',
+                'mustChangePin' => true,
+            ]);
+        }
+
         $redirect = $user->role?->name === 'manager'
             ? route('filament.admin.pages.dashboard')
             : route('venta.index');
@@ -39,6 +48,28 @@ class AuthController extends Controller
             'success' => true,
             'name' => $user->name,
             'role' => $user->role->name ?? 'Sin rol',
+            'mustChangePin' => false,
+            'redirect' => $redirect,
+        ]);
+    }
+
+    public function changePin(Request $request)
+    {
+        $request->validate([
+            'new_pin' => 'required|digits:4',
+        ]);
+
+        $user = auth()->user();
+        $user->pin = $request->new_pin;
+        $user->must_change_pin = false;
+        $user->save();
+
+        $redirect = $user->role?->name === 'manager'
+            ? route('filament.admin.pages.dashboard')
+            : route('venta.index');
+
+        return response()->json([
+            'success' => true,
             'redirect' => $redirect,
         ]);
     }
