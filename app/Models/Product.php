@@ -29,4 +29,9 @@ class Product extends Model
     {
         return $this->belongsToMany(ModifierGroup::class, 'product_modifier_group');
     }
+
+    public function recipeItems()
+    {
+        return $this->hasMany(RecipeItem::class);
+    }
 }
