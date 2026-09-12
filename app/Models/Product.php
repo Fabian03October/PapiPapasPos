@@ -34,4 +34,10 @@ class Product extends Model
     {
         return $this->hasMany(RecipeItem::class);
     }
+
+    public function promotions()
+    {
+        return $this->belongsToMany(Promotion::class, 'promotion_products')
+            ->withPivot('qty_required');
+    }
 }
