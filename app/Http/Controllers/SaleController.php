@@ -13,35 +13,19 @@ use App\Models\RecipeItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemModifier;
+use App\Services\PromotionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SaleController extends Controller
 {
-    public function store(Request $request)
+    protected function buildItemsData(array $requestItems): array
     {
-        $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.variant_id' => 'nullable|exists:product_variants,id',
-            'items.*.modifier_ids' => 'array',
-            'items.*.modifier_ids.*' => 'exists:modifiers,id',
-            'items.*.qty' => 'required|integer|min:1',
-            'payment_method' => 'required|in:efectivo,tarjeta',
-        ]);
-
-        $cashSession = CashSession::open();
-
-        if (! $cashSession) {
-            return response()->json(['success' => false, 'message' => 'No hay una caja abierta'], 422);
-        }
-
-        // --- Paso 1: calcular precios Y consumo de insumos, antes de guardar nada ---
         $subtotal = 0;
         $itemsData = [];
-        $ingredientConsumption = []; // [ingredient_id => cantidad total necesaria]
+        $ingredientConsumption = [];
 
-        foreach ($request->items as $item) {
+        foreach ($requestItems as $item) {
             $product = Product::findOrFail($item['product_id']);
             $unitPrice = (float) $product->base_price;
             $qty = (int) $item['qty'];
@@ -72,32 +56,22 @@ class SaleController extends Controller
                 'modifiers' => $modifiers,
             ];
 
-            // Receta base del producto (variant_id nulo)
-            $baseRecipe = RecipeItem::where('product_id', $product->id)
-                ->whereNull('variant_id')
-                ->get();
-
+            $baseRecipe = RecipeItem::where('product_id', $product->id)->whereNull('variant_id')->get();
             foreach ($baseRecipe as $recipeItem) {
                 $ingredientConsumption[$recipeItem->ingredient_id] =
                     ($ingredientConsumption[$recipeItem->ingredient_id] ?? 0) + ($recipeItem->qty * $qty);
             }
 
-            // Receta adicional de la variante (se suma a la base)
             if ($variant) {
-                $variantRecipe = RecipeItem::where('product_id', $product->id)
-                    ->where('variant_id', $variant->id)
-                    ->get();
-
+                $variantRecipe = RecipeItem::where('product_id', $product->id)->where('variant_id', $variant->id)->get();
                 foreach ($variantRecipe as $recipeItem) {
                     $ingredientConsumption[$recipeItem->ingredient_id] =
                         ($ingredientConsumption[$recipeItem->ingredient_id] ?? 0) + ($recipeItem->qty * $qty);
                 }
             }
 
-            // Receta de cada modificador elegido
             foreach ($modifiers as $modifier) {
                 $modifierRecipe = ModifierRecipeItem::where('modifier_id', $modifier->id)->get();
-
                 foreach ($modifierRecipe as $recipeItem) {
                     $ingredientConsumption[$recipeItem->ingredient_id] =
                         ($ingredientConsumption[$recipeItem->ingredient_id] ?? 0) + ($recipeItem->qty * $qty);
@@ -105,7 +79,61 @@ class SaleController extends Controller
             }
         }
 
-        // --- Paso 2: validar que haya suficiente stock de cada insumo ---
+        return [$subtotal, $itemsData, $ingredientConsumption];
+    }
+
+    /**
+     * Calcula subtotal, descuento y total SIN guardar nada — para mostrarle
+     * al cajero el precio real antes de confirmar la venta.
+     */
+    public function preview(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.variant_id' => 'nullable|exists:product_variants,id',
+            'items.*.modifier_ids' => 'array',
+            'items.*.qty' => 'required|integer|min:1',
+        ]);
+
+        [$subtotal, $itemsData] = $this->buildItemsData($request->items);
+
+        $promoResult = (new PromotionService)->evaluate($itemsData);
+        $discount = min($promoResult['discount'], $subtotal);
+        $total = $subtotal - $discount;
+
+        return response()->json([
+            'subtotal' => round($subtotal, 2),
+            'discount' => round($discount, 2),
+            'total' => round($total, 2),
+            'applied_promotions' => $promoResult['applied'],
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.variant_id' => 'nullable|exists:product_variants,id',
+            'items.*.modifier_ids' => 'array',
+            'items.*.modifier_ids.*' => 'exists:modifiers,id',
+            'items.*.qty' => 'required|integer|min:1',
+            'payment_method' => 'required|in:efectivo,tarjeta',
+        ]);
+
+        $cashSession = CashSession::open();
+
+        if (! $cashSession) {
+            return response()->json(['success' => false, 'message' => 'No hay una caja abierta'], 422);
+        }
+
+        [$subtotal, $itemsData, $ingredientConsumption] = $this->buildItemsData($request->items);
+
+        $promoResult = (new PromotionService)->evaluate($itemsData);
+        $discount = min($promoResult['discount'], $subtotal);
+        $total = $subtotal - $discount;
+
         foreach ($ingredientConsumption as $ingredientId => $neededQty) {
             $ingredient = Ingredient::find($ingredientId);
 
@@ -117,16 +145,15 @@ class SaleController extends Controller
             }
         }
 
-        // --- Paso 3: guardar todo dentro de una transacción ---
-        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $itemsData, $ingredientConsumption) {
+        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption) {
             $sale = Sale::create([
                 'folio' => 'TMP',
                 'user_id' => auth()->id(),
                 'cash_session_id' => $cashSession->id,
                 'status' => 'pagada',
                 'subtotal' => $subtotal,
-                'discount' => 0,
-                'total' => $subtotal,
+                'discount' => $discount,
+                'total' => $total,
                 'payment_method' => $request->payment_method,
             ]);
 
@@ -151,7 +178,6 @@ class SaleController extends Controller
                 }
             }
 
-            // Descontar inventario y registrar el movimiento
             foreach ($ingredientConsumption as $ingredientId => $consumedQty) {
                 $ingredient = Ingredient::find($ingredientId);
 

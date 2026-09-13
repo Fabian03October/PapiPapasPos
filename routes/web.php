@@ -24,4 +24,6 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/venta/cobrar', [SaleController::class, 'store'])->name('venta.cobrar');
     
+    Route::post('/venta/promociones/preview', [SaleController::class, 'preview'])->name('venta.promotions.preview');
+    
 });

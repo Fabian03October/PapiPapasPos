@@ -13,11 +13,14 @@ class CategoryForm
         return $schema
             ->components([
                 TextInput::make('name')
+                    ->label('Nombre')
                     ->required(),
                 TextInput::make('sort_order')
+                    ->label('Orden de aparición')
                     ->numeric()
                     ->default(0),
                 Toggle::make('is_active')
+                    ->label('Activa')
                     ->default(true),
             ]);
     }

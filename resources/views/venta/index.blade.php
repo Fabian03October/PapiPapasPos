@@ -27,7 +27,6 @@
 
     <div class="grid grid-cols-1 md:grid-cols-[190px_1fr_280px] gap-4 p-4 md:h-screen">
 
-        <!-- Menú lateral -->
         <div id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-64 md:w-auto
                     -translate-x-full md:translate-x-0 transition-transform duration-200
                     bg-gray-50 dark:bg-zinc-900 md:bg-transparent
@@ -100,7 +99,6 @@
             </div>
         </div>
 
-        <!-- Categorías + productos -->
         <div class="flex flex-col overflow-hidden">
 
             <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="category-tabs">
@@ -144,7 +142,6 @@
             </div>
         </div>
 
-        <!-- Carrito -->
         <div class="bg-gray-50 dark:bg-zinc-900 rounded-xl p-4 flex flex-col">
             <div class="flex items-center justify-between mb-3">
                 <p class="text-sm font-medium flex items-center gap-2 text-gray-900 dark:text-zinc-100">
@@ -176,7 +173,6 @@
 
     </div>
 
-    <!-- Popup de modificadores -->
     <div id="modifier-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
         <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 w-full max-w-md max-h-[85vh] overflow-y-auto">
 
@@ -215,7 +211,6 @@
         </div>
     </div>
 
-    <!-- Popup de cobro -->
     <div id="payment-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
         <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 w-full max-w-sm">
 
@@ -229,7 +224,15 @@
             </div>
 
             <div class="bg-gray-50 dark:bg-zinc-800 rounded-lg p-3 mb-4">
-                <div class="flex justify-between text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                <div class="flex justify-between text-sm text-gray-500 dark:text-zinc-400 mb-1">
+                    <span>Subtotal</span>
+                    <span id="payment-subtotal">$0.00</span>
+                </div>
+                <div id="payment-discount-row" class="flex justify-between text-sm text-green-600 dark:text-green-400 mb-1 hidden">
+                    <span id="payment-discount-label">Descuento</span>
+                    <span id="payment-discount">-$0.00</span>
+                </div>
+                <div class="flex justify-between text-lg font-semibold text-gray-900 dark:text-zinc-100 border-t border-gray-200 dark:border-zinc-700 pt-2 mt-1">
                     <span>Total</span>
                     <span id="payment-total">$0.00</span>
                 </div>
@@ -266,7 +269,6 @@
     </div>
 
     <script>
-        // --- Menú deslizante (solo celular) ---
         const sidebar = document.getElementById('sidebar');
         const backdrop = document.getElementById('sidebar-backdrop');
         const menuToggle = document.getElementById('menu-toggle');
@@ -286,7 +288,6 @@
         if (sidebarClose) sidebarClose.addEventListener('click', closeSidebar);
         if (backdrop) backdrop.addEventListener('click', closeSidebar);
 
-        // --- Categorías + búsqueda ---
         const tabs = document.querySelectorAll('.category-tab');
         const productCards = document.querySelectorAll('.product-card');
         const searchInput = document.getElementById('product-search');
@@ -324,7 +325,6 @@
 
         searchInput.addEventListener('input', applyFilters);
 
-        // --- Modo oscuro ---
         const themeToggle = document.getElementById('theme-toggle');
         const iconMoon = document.getElementById('theme-icon-moon');
         const iconSun = document.getElementById('theme-icon-sun');
@@ -344,7 +344,6 @@
             updateThemeLabel();
         });
 
-        // --- CARRITO ---
         let cart = [];
         let cartItemIdCounter = 1;
 
@@ -415,7 +414,6 @@
             renderCart();
         });
 
-        // --- POPUP DE MODIFICADORES ---
         const modal = document.getElementById('modifier-modal');
         const modalLoading = document.getElementById('modal-loading');
         const modalBody = document.getElementById('modal-body');
@@ -623,7 +621,6 @@
             });
         });
 
-        // --- POPUP DE COBRO ---
         const paymentModal = document.getElementById('payment-modal');
         const paymentModalClose = document.getElementById('payment-modal-close');
         const paymentTotalEl = document.getElementById('payment-total');
@@ -641,16 +638,49 @@
         document.getElementById('cart-checkout').addEventListener('click', () => {
             if (cart.length === 0) return;
 
-            currentCartTotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
-            paymentTotalEl.textContent = formatMoney(currentCartTotal);
-            setPaymentMethod('efectivo');
+            const previewPayload = {
+                items: cart.map(item => ({
+                    product_id: item.productId,
+                    variant_id: item.variantId,
+                    modifier_ids: item.modifierIds,
+                    qty: item.qty,
+                })),
+            };
 
-            amountReceivedInput.value = currentCartTotal.toFixed(2);
-            renderQuickAmounts();
-            updateChange();
+            fetch('{{ route("venta.promotions.preview") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(previewPayload),
+            })
+            .then(res => res.json())
+            .then(data => {
+                currentCartTotal = data.total;
 
-            paymentModal.classList.remove('hidden');
-            paymentModal.classList.add('flex');
+                document.getElementById('payment-subtotal').textContent = formatMoney(data.subtotal);
+
+                const discountRow = document.getElementById('payment-discount-row');
+                if (data.discount > 0) {
+                    document.getElementById('payment-discount').textContent = '-' + formatMoney(data.discount);
+                    document.getElementById('payment-discount-label').textContent =
+                        'Descuento' + (data.applied_promotions.length ? ' (' + data.applied_promotions.join(', ') + ')' : '');
+                    discountRow.classList.remove('hidden');
+                } else {
+                    discountRow.classList.add('hidden');
+                }
+
+                paymentTotalEl.textContent = formatMoney(currentCartTotal);
+                setPaymentMethod('efectivo');
+                amountReceivedInput.value = currentCartTotal.toFixed(2);
+                renderQuickAmounts();
+                updateChange();
+
+                paymentModal.classList.remove('hidden');
+                paymentModal.classList.add('flex');
+            });
         });
 
         paymentModalClose.addEventListener('click', () => {
@@ -761,4 +791,4 @@
         renderCart();
     </script>
 </body>
-</html> 
+</html>
