@@ -43,4 +43,13 @@ class CashSession extends Model
     {
         return static::whereNull('closed_at')->latest('opened_at')->first();
     }
+
+    public function calculateExpectedCash(): float
+    {
+        $cashSales = $this->sales()->where('payment_method', 'efectivo')->sum('total');
+        $ingresos = $this->movements()->where('type', 'ingreso')->sum('amount');
+        $gastos = $this->movements()->where('type', 'gasto')->sum('amount');
+
+        return (float) $this->opening_amount + (float) $cashSales + (float) $ingresos - (float) $gastos;
+    }
 }

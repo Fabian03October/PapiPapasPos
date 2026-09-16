@@ -120,6 +120,7 @@ class SaleController extends Controller
             'items.*.modifier_ids.*' => 'exists:modifiers,id',
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:efectivo,tarjeta',
+            'customer_id' => 'nullable|exists:customers,id',
         ]);
 
         $cashSession = CashSession::open();
@@ -150,6 +151,7 @@ class SaleController extends Controller
                 'folio' => 'TMP',
                 'user_id' => auth()->id(),
                 'cash_session_id' => $cashSession->id,
+                'customer_id' => $request->customer_id,
                 'status' => 'pagada',
                 'subtotal' => $subtotal,
                 'discount' => $discount,

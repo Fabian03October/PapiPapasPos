@@ -43,6 +43,7 @@
             </div>
 
             <p class="text-center text-xs text-gray-400 dark:text-zinc-500 mt-5">{{ now()->translatedFormat('l, j \d\e F') }}</p>
+            <a href="{{ route('forgot-pin.show') }}" class="block text-center text-xs text-blue-600 dark:text-blue-400 mt-3">¿Olvidaste tu PIN?</a>
         </div>
 
         <!-- Estado 2: verificando -->

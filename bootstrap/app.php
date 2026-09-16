@@ -14,7 +14,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'login/cambiar-pin',
         ]);
+        
+        $middleware->validateCsrfTokens(except: [
+            'login/cambiar-pin',
+            'login/olvide-pin',
+            'login/restablecer-pin',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
+    

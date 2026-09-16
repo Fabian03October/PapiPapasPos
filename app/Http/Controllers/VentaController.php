@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\CustomerQrMail;
 use App\Models\CashSession;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class VentaController extends Controller
 {
@@ -57,6 +61,77 @@ class VentaController extends Controller
                         'price_delta' => (float) $m->price_delta,
                     ]),
                 ]),
+        ]);
+    }
+
+    public function clientePage()
+    {
+        return view('venta.cliente');
+    }
+
+    public function selectCustomer(Customer $customer)
+    {
+        session([
+            'selected_customer_id' => $customer->id,
+            'selected_customer_name' => $customer->name,
+        ]);
+
+        return redirect()->route('venta.index');
+    }
+
+    public function clearCustomer()
+    {
+        session()->forget(['selected_customer_id', 'selected_customer_name']);
+
+        return redirect()->route('venta.index');
+    }
+
+    public function findCustomerByQr(string $qrCode)
+    {
+        $customer = Customer::where('qr_code', $qrCode)->first();
+
+        if (! $customer) {
+            return response()->json(['found' => false], 404);
+        }
+
+        return response()->json([
+            'found' => true,
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+        ]);
+    }
+
+    public function searchCustomers(Request $request)
+    {
+        $search = $request->query('q', '');
+
+        $customers = Customer::where('name', 'like', "%{$search}%")
+            ->orWhere('phone', 'like', "%{$search}%")
+            ->limit(10)
+            ->get(['id', 'name', 'phone']);
+
+        return response()->json($customers);
+    }
+
+    public function quickRegisterCustomer(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'email' => 'nullable|email',
+        ]);
+
+        $customer = Customer::create($request->only('name', 'phone', 'email'));
+
+        if ($customer->email) {
+            Mail::to($customer->email)->send(new CustomerQrMail($customer));
+        }
+
+        return response()->json([
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
         ]);
     }
 }

@@ -48,9 +48,16 @@
             </div>
         @endif
 
-        <button id="submit-btn" class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-medium">
+        <button id="submit-btn" class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-medium mb-3">
             Iniciar turno
         </button>
+
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="block w-full text-center text-xs text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 py-1">
+                Cerrar sesión
+            </button>
+        </form>
     </div>
 
     <script>
