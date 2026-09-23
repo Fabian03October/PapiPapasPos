@@ -23,9 +23,14 @@ class CustomersTable
                 TextColumn::make('email')
                     ->label('Correo')
                     ->searchable(),
-                TextColumn::make('loyalty_cards_count')
-                    ->label('Tarjetas')
-                    ->counts('loyaltyCards'),
+                TextColumn::make('current_level')
+                    ->label('Nivel')
+                    ->badge()
+                    ->sortable(),
+                TextColumn::make('current_visits')
+                    ->label('Progreso')
+                    ->formatStateUsing(fn (int $state) => "{$state} / 8 visitas")
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Cliente desde')
                     ->date('d/M/Y')

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Promotions\Schemas;
 
+use App\Models\Modifier;
 use App\Models\Product;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
@@ -26,28 +27,29 @@ class PromotionForm
                     ->schema([
                         TextInput::make('name')
                             ->label('Nombre')
-                            ->placeholder('Ej. Martes de 2x1, Papas a $30')
+                            ->placeholder('Ej. Martes de 2x1, Papas a $30, Salchicha gratis los martes')
                             ->required()
                             ->columnSpanFull(),
 
                         Select::make('type')
                             ->label('Tipo de promoción')
                             ->options([
-                                'percent_off_sale' => 'Descuento por porcentaje',
+                                'percent_off_sale' => 'Descuento % (a toda la venta, a productos o a extras)',
                                 'fixed_price_combo' => 'Combo a precio fijo (2 o más productos)',
                                 'fixed_price_single' => 'Precio especial de un solo producto',
                             ])
                             ->required()
                             ->live()
                             ->columnSpanFull()
-                            ->helperText('Descuento %: aplica a toda la venta o a productos específicos. Combo: precio fijo para 2+ productos. Precio especial: un solo producto cambia de precio temporalmente.'),
+                            ->helperText('Descuento %: aplica a toda la venta, a productos específicos, o a extras/modificadores específicos (usa 100% para "gratis"). Combo y precio especial siguen siendo solo por producto.'),
 
                         TextInput::make('percent_value')
                             ->label('Porcentaje de descuento')
                             ->numeric()
                             ->suffix('%')
                             ->visible(fn (Get $get) => $get('type') === 'percent_off_sale')
-                            ->required(fn (Get $get) => $get('type') === 'percent_off_sale'),
+                            ->required(fn (Get $get) => $get('type') === 'percent_off_sale')
+                            ->helperText('Usa 100 si el extra o producto debe quedar totalmente gratis.'),
 
                         TextInput::make('combo_price')
                             ->label('Precio fijo')
@@ -85,8 +87,27 @@ class PromotionForm
                             ->addActionLabel('Agregar producto')
                             ->defaultItems(0)
                             ->helperText(fn (Get $get) => $get('type') === 'percent_off_sale'
-                                ? 'Opcional: si no agregas ninguno, el descuento aplica a toda la venta.'
+                                ? 'Opcional: si no agregas ninguno (ni tampoco extras abajo), el descuento aplica a toda la venta.'
                                 : 'Agrega cada producto que forme parte de esta promoción, con la cantidad necesaria.'),
+                    ]),
+
+                Section::make('Extras / modificadores')
+                    ->description('Para descuentos o "gratis" sobre un extra específico (ej. salchicha extra), sin importar en qué producto se agregue.')
+                    ->visible(fn (Get $get) => $get('type') === 'percent_off_sale')
+                    ->schema([
+                        Repeater::make('modifiers')
+                            ->label('')
+                            ->schema([
+                                Select::make('modifier_id')
+                                    ->label('Extra / modificador')
+                                    ->options(fn () => Modifier::with('group')->get()
+                                        ->mapWithKeys(fn (Modifier $m) => [$m->id => ($m->group->name ?? '') . ' — ' . $m->name]))
+                                    ->required()
+                                    ->searchable(),
+                            ])
+                            ->addActionLabel('Agregar extra')
+                            ->defaultItems(0)
+                            ->helperText('Si además llenaste "Productos" arriba, el descuento solo aplicará cuando el extra se agregue a uno de esos productos. Si dejas "Productos" vacío, aplica al extra en cualquier producto.'),
                     ]),
 
                 Section::make('Vigencia')

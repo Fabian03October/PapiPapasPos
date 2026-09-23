@@ -32,4 +32,14 @@ class Sale extends Model
     {
         return $this->hasMany(SaleItem::class);
     }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+        public function incidents()
+    {
+        return $this->hasMany(SaleIncident::class);
+    }
 }

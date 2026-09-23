@@ -166,6 +166,10 @@
                     <span id="payment-discount-label">Descuento</span>
                     <span id="payment-discount">-$0.00</span>
                 </div>
+                <div id="payment-gift-row" class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 mb-1 hidden bg-amber-50 dark:bg-amber-500/10 rounded p-2">
+                    <span>🎁</span>
+                    <span id="payment-gift-text">Regalo por fidelidad</span>
+                </div>
                 <div class="flex justify-between text-lg font-semibold text-gray-900 dark:text-zinc-100 border-t border-gray-200 dark:border-zinc-700 pt-2 mt-1">
                     <span>Total</span>
                     <span id="payment-total">$0.00</span>
@@ -551,7 +555,7 @@
         let selectedPaymentMethod = 'efectivo';
         let currentCartTotal = 0;
 
-        document.getElementById('cart-checkout').addEventListener('click', () => {
+                document.getElementById('cart-checkout').addEventListener('click', () => {
             if (cart.length === 0) return;
 
             const previewPayload = {
@@ -561,6 +565,7 @@
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
                 })),
+                customer_id: selectedCustomer ? selectedCustomer.id : null,
             };
 
             fetch('{{ route("venta.promotions.preview") }}', {
@@ -578,14 +583,37 @@
 
                 document.getElementById('payment-subtotal').textContent = formatMoney(data.subtotal);
 
+                const discountLabels = [...data.applied_promotions];
+                if (data.loyalty && data.loyalty.type === 'discount') {
+                    discountLabels.push(data.loyalty.description || 'fidelidad');
+                }
+                if (data.loyalty && data.loyalty.type === 'gift' && data.loyalty.free_product_in_cart) {
+                    discountLabels.push(data.loyalty.description || 'regalo de fidelidad');
+                }
+
                 const discountRow = document.getElementById('payment-discount-row');
                 if (data.discount > 0) {
                     document.getElementById('payment-discount').textContent = '-' + formatMoney(data.discount);
                     document.getElementById('payment-discount-label').textContent =
-                        'Descuento' + (data.applied_promotions.length ? ' (' + data.applied_promotions.join(', ') + ')' : '');
+                        'Descuento' + (discountLabels.length ? ' (' + discountLabels.join(', ') + ')' : '');
                     discountRow.classList.remove('hidden');
                 } else {
                     discountRow.classList.add('hidden');
+                }
+
+                const giftRow = document.getElementById('payment-gift-row');
+                if (data.loyalty && data.loyalty.type === 'gift') {
+                    if (data.loyalty.free_product_in_cart) {
+                        document.getElementById('payment-gift-text').textContent =
+                            '🎁 ' + (data.loyalty.description || 'Producto gratis') ;
+                    } else {
+                        document.getElementById('payment-gift-text').textContent =
+                            (data.loyalty.description || 'Producto gratis') +
+                            (data.loyalty.free_product_name ? ': agrega "' + data.loyalty.free_product_name + '" al carrito para descontarlo' : '');
+                    }
+                    giftRow.classList.remove('hidden');
+                } else {
+                    giftRow.classList.add('hidden');
                 }
 
                 paymentTotalEl.textContent = formatMoney(currentCartTotal);
@@ -686,6 +714,14 @@
                     paymentModal.classList.add('hidden');
                     paymentModal.classList.remove('flex');
                     showSuccessToast(data.folio, data.total);
+
+                    if (selectedCustomer) {
+                        fetch('{{ route("venta.customers.clear") }}', {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        });
+                        selectedCustomer = null;
+                        updateCustomerBadge();
+                    }
                 } else {
                     alert('Error al guardar la venta: ' + (data.message || 'intenta de nuevo'));
                 }

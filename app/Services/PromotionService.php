@@ -11,7 +11,7 @@ class PromotionService
      * Evalúa todas las promociones activas contra el carrito y devuelve
      * el descuento total a aplicar (sumando todas las que apliquen).
      *
-     * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total']
+     * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total', 'modifiers']
      * @return array  ['discount' => float, 'applied' => array de nombres de promociones aplicadas]
      */
     public function evaluate(array $itemsData): array
@@ -26,7 +26,7 @@ class PromotionService
             ->where(function ($q) use ($now) {
                 $q->whereNull('valid_until')->orWhereDate('valid_until', '>=', $now);
             })
-            ->with('products')
+            ->with(['products', 'modifiers'])
             ->get()
             ->filter(function (Promotion $promo) use ($todayDow, $now) {
                 if (! empty($promo->days_of_week) && ! in_array($todayDow, $promo->days_of_week)) {
@@ -66,14 +66,37 @@ class PromotionService
 
     protected function evaluatePercentOff(Promotion $promo, array $itemsData): float
     {
-        if ($promo->products->isEmpty()) {
-            // Sin productos específicos: aplica a toda la venta
+        $hasProductScope = $promo->products->isNotEmpty();
+        $hasModifierScope = $promo->modifiers->isNotEmpty();
+
+        // Sin productos ni extras específicos: aplica a toda la venta
+        if (! $hasProductScope && ! $hasModifierScope) {
             $scopeSubtotal = collect($itemsData)->sum('line_total');
-        } else {
-            $productIds = $promo->products->pluck('id')->all();
-            $scopeSubtotal = collect($itemsData)
-                ->filter(fn ($item) => in_array($item['product_id'], $productIds))
-                ->sum('line_total');
+
+            return $scopeSubtotal * ((float) $promo->percent_value / 100);
+        }
+
+        $productIds = $promo->products->pluck('id')->all();
+        $modifierIds = $promo->modifiers->pluck('id')->all();
+        $scopeSubtotal = 0;
+
+        foreach ($itemsData as $item) {
+            $matchesProduct = ! $hasProductScope || in_array($item['product_id'], $productIds);
+
+            if (! $matchesProduct) {
+                continue;
+            }
+
+            if ($hasModifierScope) {
+                // Descuento sobre el costo del extra dentro de esta línea, no sobre el producto completo
+                foreach ($item['modifiers'] as $modifier) {
+                    if (in_array($modifier->id, $modifierIds)) {
+                        $scopeSubtotal += (float) $modifier->price_delta * $item['qty'];
+                    }
+                }
+            } else {
+                $scopeSubtotal += $item['line_total'];
+            }
         }
 
         return $scopeSubtotal * ((float) $promo->percent_value / 100);

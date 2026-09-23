@@ -34,4 +34,9 @@ class Promotion extends Model
         return $this->belongsToMany(Product::class, 'promotion_products')
             ->withPivot('qty_required');
     }
+
+    public function modifiers()
+    {
+        return $this->belongsToMany(Modifier::class, 'promotion_modifiers');
+    }
 }

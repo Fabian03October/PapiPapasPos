@@ -6,6 +6,7 @@ use App\Http\Controllers\VentaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ForgotPinController;
+use App\Http\Controllers\SaleIncidentController;
 
 Route::get('/', function () {
     return redirect()->route('login.pin');
@@ -44,5 +45,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/venta/clientes/buscar', [VentaController::class, 'searchCustomers'])->name('venta.customers.search');
     Route::get('/venta/clientes/qr/{qrCode}', [VentaController::class, 'findCustomerByQr'])->name('venta.customers.byqr');
     Route::post('/venta/clientes', [VentaController::class, 'quickRegisterCustomer'])->name('venta.customers.store');
+
+    Route::get('/venta/historial', [SaleIncidentController::class, 'shiftHistory'])->name('venta.historial');
+    Route::post('/venta/incidencias', [SaleIncidentController::class, 'store'])->name('venta.incidencias.store');
 
 });

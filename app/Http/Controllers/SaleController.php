@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashSession;
+use App\Models\Customer;
 use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Modifier;
@@ -13,6 +14,7 @@ use App\Models\RecipeItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemModifier;
+use App\Services\LoyaltyService;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -83,8 +85,8 @@ class SaleController extends Controller
     }
 
     /**
-     * Calcula subtotal, descuento y total SIN guardar nada — para mostrarle
-     * al cajero el precio real antes de confirmar la venta.
+     * Calcula subtotal, descuento (promociones + fidelidad) y total SIN guardar
+     * nada — para mostrarle al cajero el precio real antes de confirmar la venta.
      */
     public function preview(Request $request)
     {
@@ -94,12 +96,24 @@ class SaleController extends Controller
             'items.*.variant_id' => 'nullable|exists:product_variants,id',
             'items.*.modifier_ids' => 'array',
             'items.*.qty' => 'required|integer|min:1',
+            'customer_id' => 'nullable|exists:customers,id',
         ]);
 
         [$subtotal, $itemsData] = $this->buildItemsData($request->items);
 
         $promoResult = (new PromotionService)->evaluate($itemsData);
         $discount = min($promoResult['discount'], $subtotal);
+
+        $loyaltyPreview = null;
+        if ($request->customer_id) {
+            $customer = Customer::findOrFail($request->customer_id);
+            $loyaltyPreview = (new LoyaltyService)->preview($customer, $subtotal - $discount, $itemsData);
+
+            if ($loyaltyPreview['discount_amount'] > 0) {
+                $discount = min($discount + $loyaltyPreview['discount_amount'], $subtotal);
+            }
+        }
+
         $total = $subtotal - $discount;
 
         return response()->json([
@@ -107,6 +121,7 @@ class SaleController extends Controller
             'discount' => round($discount, 2),
             'total' => round($total, 2),
             'applied_promotions' => $promoResult['applied'],
+            'loyalty' => $loyaltyPreview,
         ]);
     }
 
@@ -133,6 +148,17 @@ class SaleController extends Controller
 
         $promoResult = (new PromotionService)->evaluate($itemsData);
         $discount = min($promoResult['discount'], $subtotal);
+
+        $customer = $request->customer_id ? Customer::findOrFail($request->customer_id) : null;
+        $loyaltyPreview = null;
+
+        if ($customer) {
+            $loyaltyPreview = (new LoyaltyService)->preview($customer, $subtotal - $discount, $itemsData);
+
+            if ($loyaltyPreview['discount_amount'] > 0) {
+                $discount = min($discount + $loyaltyPreview['discount_amount'], $subtotal);
+            }
+        }
         $total = $subtotal - $discount;
 
         foreach ($ingredientConsumption as $ingredientId => $neededQty) {
@@ -146,7 +172,7 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption) {
+        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview) {
             $sale = Sale::create([
                 'folio' => 'TMP',
                 'user_id' => auth()->id(),
@@ -196,6 +222,10 @@ class SaleController extends Controller
                 $ingredient->decrement('stock_qty', $consumedQty);
             }
 
+            if ($customer && $loyaltyPreview) {
+                (new LoyaltyService)->applyVisit($customer, $sale, $loyaltyPreview);
+            }
+
             return $sale;
         });
 
@@ -203,6 +233,7 @@ class SaleController extends Controller
             'success' => true,
             'folio' => $sale->folio,
             'total' => (float) $sale->total,
+            'loyalty' => $loyaltyPreview,
         ]);
     }
 }

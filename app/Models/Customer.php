@@ -12,6 +12,8 @@ class Customer extends Model
         'phone',
         'email',
         'qr_code',
+        'current_level',
+        'current_visits',
     ];
 
     protected static function booted(): void
@@ -23,13 +25,18 @@ class Customer extends Model
         });
     }
 
-    public function loyaltyCards()
-    {
-        return $this->hasMany(CustomerLoyaltyCard::class);
-    }
-
     public function sales()
     {
         return $this->hasMany(Sale::class);
+    }
+
+    public function loyaltyRedemptions()
+    {
+        return $this->hasMany(CustomerLoyaltyRedemption::class);
+    }
+
+    public function currentLoyaltyLevel(): ?LoyaltyLevel
+    {
+        return LoyaltyLevel::forLevelNumber($this->current_level);
     }
 }

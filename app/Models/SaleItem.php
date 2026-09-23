@@ -13,6 +13,7 @@ class SaleItem extends Model
         'qty',
         'unit_price',
         'line_total',
+        'cancelled_at',
     ];
 
     public function sale()
@@ -33,5 +34,12 @@ class SaleItem extends Model
     public function modifiers()
     {
         return $this->hasMany(SaleItemModifier::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'cancelled_at' => 'datetime',
+        ];
     }
 }

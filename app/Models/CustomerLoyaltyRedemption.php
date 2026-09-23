@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class CustomerLoyaltyRedemption extends Model
 {
     protected $fillable = [
-        'customer_loyalty_card_id',
-        'milestone_id',
+        'customer_id',
+        'loyalty_level_id',
+        'type',
         'redeemed_at',
         'sale_id',
         'sale_item_id',
@@ -22,14 +23,14 @@ class CustomerLoyaltyRedemption extends Model
         ];
     }
 
-    public function customerLoyaltyCard()
+    public function customer()
     {
-        return $this->belongsTo(CustomerLoyaltyCard::class);
+        return $this->belongsTo(Customer::class);
     }
 
-    public function milestone()
+    public function loyaltyLevel()
     {
-        return $this->belongsTo(LoyaltyCardMilestone::class, 'milestone_id');
+        return $this->belongsTo(LoyaltyLevel::class);
     }
 
     public function sale()
