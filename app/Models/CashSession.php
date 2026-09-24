@@ -39,6 +39,11 @@ class CashSession extends Model
         return $this->hasMany(CashMovement::class);
     }
 
+    public function inventoryCount()
+    {
+        return $this->hasOne(InventoryCount::class);
+    }
+
     public static function open(): ?self
     {
         return static::whereNull('closed_at')->latest('opened_at')->first();

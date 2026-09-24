@@ -16,8 +16,13 @@ class InventoryStatsOverview extends BaseWidget
         $service = ReportMetricsService::fromFilters($this->filters);
         $retention = $service->customerRetention();
 
+        $shrinkage = $service->shrinkageValue();
+
         return [
             Stat::make('Valor de inventario', '$' . number_format($service->inventoryValue(), 2)),
+            Stat::make('Mermas del periodo', '$' . number_format($shrinkage, 2))
+                ->description($shrinkage > 0 ? 'Ver detalle en Conteos de inventario' : 'Sin mermas registradas')
+                ->color($shrinkage > 0 ? 'danger' : 'success'),
             Stat::make('Clientes nuevos', $retention['new']),
             Stat::make('Clientes recurrentes', $retention['recurring']),
         ];

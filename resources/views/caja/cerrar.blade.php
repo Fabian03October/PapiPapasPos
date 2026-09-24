@@ -18,7 +18,7 @@
         @include('partials.sidebar', ['active' => 'caja', 'pageTitle' => 'Cerrar caja'])
 
         <div class="overflow-y-auto">
-            <div class="max-w-2xl">
+            <div class="max-w-4xl">
 
                 <a href="{{ route('caja.resumen') }}" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-zinc-400 mb-4">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -27,25 +27,32 @@
                     Regresar
                 </a>
 
-                <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 mb-4">
-                    <p class="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-1">Conteo de efectivo</p>
-                    <p class="text-xs text-gray-400 dark:text-zinc-500 mb-4">Cuenta cuántas piezas de cada tipo tienes</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-1">Conteo de efectivo</p>
+                        <p class="text-xs text-gray-400 dark:text-zinc-500 mb-4">Cuenta cuántas piezas de cada tipo tienes</p>
 
-                    <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-                        </svg>
-                        Billetes
+                        <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                            </svg>
+                            Billetes
+                        </div>
+                        <div class="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-3 gap-2" id="bills-grid"></div>
                     </div>
-                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4" id="bills-grid"></div>
 
-                    <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Monedas
+                    <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5">
+                        <p class="hidden lg:block lg:invisible text-sm font-semibold mb-1">Conteo de efectivo</p>
+                        <p class="hidden lg:block lg:invisible text-xs mb-4">Cuenta cuántas piezas de cada tipo tienes</p>
+
+                        <div class="flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Monedas
+                        </div>
+                        <div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-3 gap-2" id="coins-grid"></div>
                     </div>
-                    <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" id="coins-grid"></div>
                 </div>
 
                 <div class="bg-white dark:bg-zinc-900 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-3">

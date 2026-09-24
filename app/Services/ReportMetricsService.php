@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Ingredient;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -127,6 +128,14 @@ class ReportMetricsService
             ->whereColumn('stock_qty', '<=', 'min_stock')
             ->orderBy('stock_qty')
             ->get();
+    }
+
+    public function shrinkageValue(): float
+    {
+        return (float) InventoryMovement::where('type', 'merma')
+            ->whereBetween('created_at', [$this->from, $this->until])
+            ->selectRaw('COALESCE(SUM(ABS(qty) * unit_cost), 0) as value')
+            ->value('value');
     }
 
     public function inventoryValue(): float

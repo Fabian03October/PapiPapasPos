@@ -18,7 +18,7 @@
         @include('partials.sidebar', ['active' => 'caja', 'pageTitle' => 'Corte de caja'])
 
         <div class="overflow-y-auto">
-            <div class="max-w-3xl">
+            <div class="max-w-6xl">
 
                 <div class="flex items-center justify-between mb-4">
                     <p class="text-lg font-semibold text-gray-900 dark:text-zinc-100 hidden md:block">Corte de caja</p>
@@ -115,7 +115,7 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('caja.cerrar') }}" class="flex items-center justify-center gap-2 w-full bg-red-600 text-white rounded-xl py-3.5 text-sm font-medium">
+                        <a href="{{ route('caja.cerrar.inventario') }}" class="flex items-center justify-center gap-2 w-full bg-red-600 text-white rounded-xl py-3.5 text-sm font-medium">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                             </svg>

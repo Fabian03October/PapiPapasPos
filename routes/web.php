@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/caja', [CajaController::class, 'resumen'])->name('caja.resumen');
     Route::post('/caja/movimientos', [CajaController::class, 'addMovement'])->name('caja.movimientos.store');
+    Route::get('/caja/cerrar/inventario', [CajaController::class, 'showInventoryCount'])->name('caja.cerrar.inventario');
+    Route::post('/caja/cerrar/inventario', [CajaController::class, 'storeInventoryCount'])->name('caja.cerrar.inventario.store');
     Route::get('/caja/cerrar', [CajaController::class, 'showClose'])->name('caja.cerrar');
     Route::post('/caja/cerrar', [CajaController::class, 'closeStore'])->name('caja.cerrar.store');
 
