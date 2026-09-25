@@ -240,11 +240,64 @@ class CajaController extends Controller
             'counted_amount' => $countedAmount,
             'difference' => $difference,
             'closed_at' => now(),
+            'closed_by' => auth()->id(),
         ]);
 
         return response()->json([
             'success' => true,
+            'session_id' => $session->id,
             'redirect' => route('caja.abrir'),
+        ]);
+    }
+
+    public function reporteCierre(CashSession $session)
+    {
+        $session->load(['user', 'closedByUser']);
+
+        $sales = $session->sales()->where('status', '!=', 'cancelada')->get();
+        $cashSales = $sales->where('payment_method', 'efectivo');
+        $cardSales = $sales->where('payment_method', 'tarjeta');
+
+        $ingresos = $session->movements()->where('type', 'ingreso')->sum('amount');
+        $gastos = $session->movements()->where('type', 'gasto')->sum('amount');
+
+        $lowStock = Ingredient::where('is_active', true)
+            ->whereColumn('stock_qty', '<=', 'min_stock')
+            ->orderBy('stock_qty')
+            ->get();
+
+        $mermas = InventoryMovement::where('type', 'merma')
+            ->whereBetween('created_at', [$session->opened_at, $session->closed_at ?? now()])
+            ->with('ingredient')
+            ->get()
+            ->filter(fn ($movement) => $movement->ingredient !== null)
+            ->groupBy('ingredient_id')
+            ->map(function ($movements) {
+                $ingredient = $movements->first()->ingredient;
+
+                return (object) [
+                    'name' => $ingredient->name,
+                    'unit' => $ingredient->unit,
+                    'qty' => $movements->sum(fn ($m) => abs($m->qty)),
+                    'value' => $movements->sum(fn ($m) => abs($m->qty) * (float) $m->unit_cost),
+                ];
+            })
+            ->sortByDesc('value')
+            ->values();
+
+        return view('tickets.cierre-caja', [
+            'session' => $session,
+            'salesCount' => $sales->count(),
+            'cashCount' => $cashSales->count(),
+            'cashTotal' => $cashSales->sum('total'),
+            'cardCount' => $cardSales->count(),
+            'cardTotal' => $cardSales->sum('total'),
+            'grandTotal' => $sales->sum('total'),
+            'ingresos' => $ingresos,
+            'gastos' => $gastos,
+            'lowStock' => $lowStock,
+            'mermas' => $mermas,
+            'mermasTotal' => $mermas->sum('value'),
         ]);
     }
 }

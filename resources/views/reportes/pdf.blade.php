@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: sans-serif; font-size: 12px; color: #111; }
-        h1 { font-size: 18px; margin-bottom: 0; }
-        h2 { font-size: 14px; margin-top: 24px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        body { font-family: sans-serif; font-size: 12px; color: #18181b; }
+        h1 { font-size: 18px; margin-bottom: 0; color: #1d4ed8; }
+        h2 { font-size: 14px; margin-top: 24px; margin-bottom: 6px; border-bottom: 2px solid #2563eb; padding-bottom: 4px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        th, td { border: 1px solid #ddd; padding: 5px 8px; text-align: left; }
-        th { background: #f3f3f3; }
-        .muted { color: #666; font-size: 11px; }
+        th, td { border: 1px solid #e4e4e7; padding: 5px 8px; text-align: left; }
+        th { background: #f4f4f5; }
+        .muted { color: #71717a; font-size: 11px; }
     </style>
 </head>
 <body>

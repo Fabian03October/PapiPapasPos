@@ -20,6 +20,10 @@ class SaleIncidentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedExclamationTriangle;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Ventas';
+
+    protected static ?int $navigationSort = 1;
+
     protected static ?string $navigationLabel = 'Incidencias';
     protected static ?string $modelLabel = 'incidencia';
     protected static ?string $pluralModelLabel = 'incidencias';

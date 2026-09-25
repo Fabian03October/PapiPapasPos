@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ForgotPinController;
 use App\Http\Controllers\SaleIncidentController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\PrintStationController;
 
 Route::get('/', function () {
     return redirect()->route('login.pin');
@@ -32,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/caja/cerrar/inventario', [CajaController::class, 'storeInventoryCount'])->name('caja.cerrar.inventario.store');
     Route::get('/caja/cerrar', [CajaController::class, 'showClose'])->name('caja.cerrar');
     Route::post('/caja/cerrar', [CajaController::class, 'closeStore'])->name('caja.cerrar.store');
+    Route::get('/caja/{session}/reporte-cierre', [CajaController::class, 'reporteCierre'])->name('caja.reporte-cierre');
 
     Route::get('/venta', [VentaController::class, 'index'])->name('venta.index');
     Route::get('/venta/productos/{product}', [VentaController::class, 'productDetails'])->name('venta.product.details');
@@ -51,4 +54,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/venta/historial', [SaleIncidentController::class, 'shiftHistory'])->name('venta.historial');
     Route::post('/venta/incidencias', [SaleIncidentController::class, 'store'])->name('venta.incidencias.store');
 
+    Route::get('/venta/{sale}/ticket', [TicketController::class, 'venta'])->name('venta.ticket');
+    Route::get('/venta/{sale}/comanda', [TicketController::class, 'comanda'])->name('venta.comanda');
+
+    Route::get('/impresion/pendientes', [PrintStationController::class, 'pending'])->name('print-station.pending');
+    Route::post('/impresion/{sale}/marcar', [PrintStationController::class, 'markPrinted'])->name('print-station.mark');
 });

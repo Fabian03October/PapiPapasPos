@@ -231,6 +231,7 @@ class SaleController extends Controller
 
         return response()->json([
             'success' => true,
+            'sale_id' => $sale->id,
             'folio' => $sale->folio,
             'total' => (float) $sale->total,
             'loyalty' => $loyaltyPreview,

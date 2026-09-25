@@ -30,9 +30,11 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login(PinRedirectLogin::class)
+            ->brandName('Papi Papas')
             ->colors([
                 'primary' => Color::Blue,
             ])
+            ->navigationGroups(['Catálogo', 'Inventario', 'Clientes', 'Ventas', 'Administración'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([

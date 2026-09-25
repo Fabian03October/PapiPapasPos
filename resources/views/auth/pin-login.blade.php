@@ -1,108 +1,66 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión - posPapisV1</title>
-    @vite('resources/css/app.css')
-    <script>
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        }
-    </script>
-</head>
-<body class="bg-gray-100 dark:bg-zinc-950 min-h-screen flex items-center justify-center">
+<x-layouts.guest title="Iniciar sesión - posPapisV1">
 
-    <div class="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl p-7 shadow-lg relative overflow-hidden">
+    <x-card padding="p-7" class="w-full max-w-sm shadow-lg relative overflow-hidden">
 
         <!-- Estado 1: escribiendo PIN -->
         <div id="pin-screen">
-            <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+            <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-primary-50 dark:bg-primary-500/10 flex items-center justify-center">
                 <span class="text-2xl">☀️</span>
             </div>
 
-            <p class="text-center text-lg font-semibold text-gray-900 dark:text-zinc-100">Bienvenido de vuelta</p>
-            <p class="text-center text-sm text-gray-500 dark:text-zinc-400 mb-6">Que tengas un gran turno hoy</p>
+            <p class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100">Bienvenido de vuelta</p>
+            <p class="text-center text-sm text-neutral-500 dark:text-neutral-400 mb-6">Que tengas un gran turno hoy</p>
 
             <p id="pin-error" class="text-center text-sm text-red-500 dark:text-red-400 mb-3 hidden">PIN incorrecto</p>
 
-            <div class="flex justify-center gap-3 mb-6" id="pin-dots">
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-            </div>
+            <x-pin-dots id="pin-dots" class="mb-6" />
 
-            <div class="grid grid-cols-3 gap-2.5">
-                @foreach ([1,2,3,4,5,6,7,8,9] as $n)
-                    <button type="button" class="pin-key h-14 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-lg font-medium text-gray-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600">{{ $n }}</button>
-                @endforeach
-                <div></div>
-                <button type="button" class="pin-key h-14 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-lg font-medium text-gray-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 dark:active:bg-zinc-600">0</button>
-                <button type="button" id="pin-backspace" class="h-14 rounded-lg text-gray-400 dark:text-zinc-500 hover:bg-gray-100 dark:hover:bg-zinc-800">⌫</button>
-            </div>
+            <x-pin-keypad key-class="pin-key" backspace-id="pin-backspace" />
 
-            <p class="text-center text-xs text-gray-400 dark:text-zinc-500 mt-5">{{ now()->translatedFormat('l, j \d\e F') }}</p>
-            <a href="{{ route('forgot-pin.show') }}" class="block text-center text-xs text-blue-600 dark:text-blue-400 mt-3">¿Olvidaste tu PIN?</a>
+            <p class="text-center text-xs text-neutral-400 dark:text-neutral-500 mt-5">{{ now()->translatedFormat('l, j \d\e F') }}</p>
+            <a href="{{ route('forgot-pin.show') }}" class="block text-center text-xs text-primary-600 dark:text-primary-400 mt-3">¿Olvidaste tu PIN?</a>
         </div>
 
         <!-- Estado 2: verificando -->
         <div id="checking-screen" class="hidden text-center py-8">
-            <p class="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-4">Verificando</p>
-            <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                <div class="w-6 h-6 border-2 border-blue-500 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500 uppercase tracking-wide mb-4">Verificando</p>
+            <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-primary-50 dark:bg-primary-500/10 flex items-center justify-center">
+                <div class="w-6 h-6 border-2 border-primary-500 dark:border-primary-400 border-t-transparent rounded-full animate-spin"></div>
             </div>
         </div>
 
         <!-- Estado 3: éxito -->
         <div id="success-screen" class="hidden text-center py-8">
-            <p class="text-xs text-gray-400 dark:text-zinc-500 uppercase tracking-wide mb-4">PIN correcto</p>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500 uppercase tracking-wide mb-4">PIN correcto</p>
             <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center">
                 <span class="text-2xl text-green-500 dark:text-green-400">✓</span>
             </div>
-            <p id="success-name" class="text-lg font-semibold text-gray-900 dark:text-zinc-100">Hola,</p>
-            <p id="success-role" class="text-sm text-gray-500 dark:text-zinc-400 mb-5"></p>
-            <div class="h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+            <p id="success-name" class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Hola,</p>
+            <p id="success-role" class="text-sm text-neutral-500 dark:text-neutral-400 mb-5"></p>
+            <div class="h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                 <div id="success-bar" class="h-full bg-green-500 rounded-full" style="width: 0%"></div>
             </div>
-            <p class="text-xs text-gray-400 dark:text-zinc-500 mt-3">Entrando…</p>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500 mt-3">Entrando…</p>
         </div>
 
         <!-- Estado 4: elegir PIN nuevo (obligatorio) -->
         <div id="change-pin-screen" class="hidden">
-            <p class="text-center text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-1">Elige tu PIN personal</p>
-            <p class="text-center text-sm text-gray-500 dark:text-zinc-400 mb-6">Este PIN será solo tuyo, nadie más lo sabrá</p>
+            <p class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Elige tu PIN personal</p>
+            <p class="text-center text-sm text-neutral-500 dark:text-neutral-400 mb-6">Este PIN será solo tuyo, nadie más lo sabrá</p>
 
             <p id="change-pin-error" class="text-center text-sm text-red-500 dark:text-red-400 mb-3 hidden"></p>
 
-            <p class="text-xs text-gray-400 dark:text-zinc-500 text-center mb-2">Nuevo PIN</p>
-            <div class="flex justify-center gap-3 mb-5" id="new-pin-dots">
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-            </div>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500 text-center mb-2">Nuevo PIN</p>
+            <x-pin-dots id="new-pin-dots" class="mb-5" />
 
-            <p class="text-xs text-gray-400 dark:text-zinc-500 text-center mb-2">Confirma tu PIN</p>
-            <div class="flex justify-center gap-3 mb-6" id="confirm-pin-dots">
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-                <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-zinc-600 dot"></div>
-            </div>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500 text-center mb-2">Confirma tu PIN</p>
+            <x-pin-dots id="confirm-pin-dots" class="mb-6" />
 
-            <div class="grid grid-cols-3 gap-2.5">
-                @foreach ([1,2,3,4,5,6,7,8,9] as $n)
-                    <button type="button" class="change-pin-key h-14 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-lg font-medium text-gray-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-700">{{ $n }}</button>
-                @endforeach
-                <div></div>
-                <button type="button" class="change-pin-key h-14 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-lg font-medium text-gray-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-700">0</button>
-                <button type="button" id="change-pin-backspace" class="h-14 rounded-lg text-gray-400 dark:text-zinc-500 hover:bg-gray-100 dark:hover:bg-zinc-800">⌫</button>
-            </div>
+            <x-pin-keypad key-class="change-pin-key" backspace-id="change-pin-backspace" />
         </div>
+    </x-card>
 
-    </div>
-
+    <script src="{{ asset('js/pin-input.js') }}"></script>
     <script>
         const dots = document.querySelectorAll('#pin-dots .dot');
         const pinScreen = document.getElementById('pin-screen');
@@ -112,15 +70,7 @@
         let pin = '';
 
         function renderDots() {
-            dots.forEach((dot, i) => {
-                if (i < pin.length) {
-                    dot.classList.add('bg-blue-600', 'border-blue-600');
-                    dot.classList.remove('border-gray-300', 'dark:border-zinc-600');
-                } else {
-                    dot.classList.remove('bg-blue-600', 'border-blue-600');
-                    dot.classList.add('border-gray-300', 'dark:border-zinc-600');
-                }
-            });
+            PinInput.renderDots(dots, pin.length);
         }
 
         function resetPin() {
@@ -204,20 +154,8 @@
         let stage = 'new'; // 'new' o 'confirm'
 
         function renderChangePinDots() {
-            newPinDots.forEach((dot, i) => {
-                const filled = i < newPin.length;
-                dot.classList.toggle('bg-blue-600', filled);
-                dot.classList.toggle('border-blue-600', filled);
-                dot.classList.toggle('border-gray-300', !filled);
-                dot.classList.toggle('dark:border-zinc-600', !filled);
-            });
-            confirmPinDots.forEach((dot, i) => {
-                const filled = i < confirmPin.length;
-                dot.classList.toggle('bg-blue-600', filled);
-                dot.classList.toggle('border-blue-600', filled);
-                dot.classList.toggle('border-gray-300', !filled);
-                dot.classList.toggle('dark:border-zinc-600', !filled);
-            });
+            PinInput.renderDots(newPinDots, newPin.length);
+            PinInput.renderDots(confirmPinDots, confirmPin.length);
         }
 
         document.querySelectorAll('.change-pin-key').forEach(key => {
@@ -285,5 +223,4 @@
             });
         }
     </script>
-</body>
-</html>
+</x-layouts.guest>

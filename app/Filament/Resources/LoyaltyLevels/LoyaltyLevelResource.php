@@ -18,15 +18,17 @@ class LoyaltyLevelResource extends Resource
 {
     protected static ?string $model = LoyaltyLevel::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Clientes';
+
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $recordTitleAttribute = 'level_number';
 
     protected static ?string $navigationLabel = 'Niveles de fidelidad';
     protected static ?string $modelLabel = 'nivel de fidelidad';
     protected static ?string $pluralModelLabel = 'niveles de fidelidad';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Clientes';
 
     public static function form(Schema $schema): Schema
     {

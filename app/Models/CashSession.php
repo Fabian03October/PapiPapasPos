@@ -8,6 +8,7 @@ class CashSession extends Model
 {
     protected $fillable = [
         'user_id',
+        'closed_by',
         'opening_amount',
         'opened_at',
         'closed_at',
@@ -27,6 +28,11 @@ class CashSession extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function closedByUser()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 
     public function sales()

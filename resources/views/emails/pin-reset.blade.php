@@ -15,14 +15,14 @@
                     </tr>
                     <tr>
                         <td style="padding: 32px; text-align: center;">
-                            <p style="margin: 0 0 8px; font-size: 18px; color: #111827;">¡Hola, {{ $user->name }}!</p>
-                            <p style="margin: 0 0 24px; font-size: 14px; color: #6b7280;">
+                            <p style="margin: 0 0 8px; font-size: 18px; color: #18181b;">¡Hola, {{ $user->name }}!</p>
+                            <p style="margin: 0 0 24px; font-size: 14px; color: #71717a;">
                                 Pediste restablecer tu PIN. Da clic en el botón para elegir uno nuevo. Este enlace expira en 1 hora.
                             </p>
                             <a href="{{ $resetUrl }}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: bold;">
                                 Elegir nuevo PIN
                             </a>
-                            <p style="margin: 24px 0 0; font-size: 12px; color: #9ca3af;">
+                            <p style="margin: 24px 0 0; font-size: 12px; color: #a1a1aa;">
                                 Si tú no pediste esto, ignora este correo — tu PIN actual sigue funcionando normal.
                             </p>
                         </td>

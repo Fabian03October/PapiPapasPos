@@ -19,6 +19,10 @@ class InventoryCountResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventario';
+
+    protected static ?int $navigationSort = 2;
+
     protected static ?string $navigationLabel = 'Conteos de inventario';
     protected static ?string $modelLabel = 'conteo de inventario';
     protected static ?string $pluralModelLabel = 'conteos de inventario';

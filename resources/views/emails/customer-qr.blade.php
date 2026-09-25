@@ -15,12 +15,12 @@
                     </tr>
                     <tr>
                         <td style="padding: 32px; text-align: center;">
-                            <p style="margin: 0 0 8px; font-size: 18px; color: #111827;">¡Hola, {{ $customer->name }}!</p>
-                            <p style="margin: 0 0 24px; font-size: 14px; color: #6b7280;">
-                                Este es tu taregeta de fidelidad. Muéstralo cada vez que vengas para sumar sellos y desbloquear premios.
+                            <p style="margin: 0 0 8px; font-size: 18px; color: #18181b;">¡Hola, {{ $customer->name }}!</p>
+                            <p style="margin: 0 0 24px; font-size: 14px; color: #71717a;">
+                                Esta es tu tarjeta de fidelidad. Muéstrala cada vez que vengas para sumar sellos y desbloquear premios.
                             </p>
                             <img src="data:image/svg+xml;base64,{{ $qrBase64 }}" alt="Código QR" style="width: 220px; height: 220px;">
-                            <p style="margin: 24px 0 0; font-size: 12px; color: #9ca3af;">
+                            <p style="margin: 24px 0 0; font-size: 12px; color: #a1a1aa;">
                                 Guarda este correo — el cajero solo necesita escanear este código.
                             </p>
                         </td>

@@ -42,4 +42,11 @@ class Sale extends Model
     {
         return $this->hasMany(SaleIncident::class);
     }
+
+    protected function casts(): array
+    {
+        return [
+            'printed_at' => 'datetime',
+        ];
+    }
 }

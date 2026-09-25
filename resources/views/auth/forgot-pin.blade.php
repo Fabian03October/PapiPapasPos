@@ -1,33 +1,20 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Olvidé mi PIN - posPapisV1</title>
-    @vite('resources/css/app.css')
-    <script>
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        }
-    </script>
-</head>
-<body class="bg-gray-100 dark:bg-zinc-950 min-h-screen flex items-center justify-center p-4">
+<x-layouts.guest title="Olvidé mi PIN - posPapisV1">
 
-    <div class="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl p-7 shadow-lg">
+    <x-card padding="p-7" class="w-full max-w-sm shadow-lg">
 
         <div id="form-screen">
-            <p class="text-center text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-1">¿Olvidaste tu PIN?</p>
-            <p class="text-center text-sm text-gray-500 dark:text-zinc-400 mb-6">Escribe tu correo y te mandamos un enlace para elegir uno nuevo.</p>
+            <p class="text-center text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">¿Olvidaste tu PIN?</p>
+            <p class="text-center text-sm text-neutral-500 dark:text-neutral-400 mb-6">Escribe tu correo y te mandamos un enlace para elegir uno nuevo.</p>
 
-            <label class="text-sm text-gray-500 dark:text-zinc-400 block mb-1.5">Correo</label>
+            <label class="text-sm text-neutral-500 dark:text-neutral-400 block mb-1.5">Correo</label>
             <input type="email" id="email-input" placeholder="tucorreo@ejemplo.com"
-                class="w-full h-12 px-3 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 text-sm mb-4">
+                class="w-full h-12 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm mb-4">
 
-            <button id="submit-btn" class="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-medium">
+            <x-button id="submit-btn">
                 Enviar enlace
-            </button>
+            </x-button>
 
-            <a href="{{ route('login.pin') }}" class="block text-center text-sm text-gray-500 dark:text-zinc-400 mt-4">
+            <a href="{{ route('login.pin') }}" class="block text-center text-sm text-neutral-500 dark:text-neutral-400 mt-4">
                 ← Regresar al login
             </a>
         </div>
@@ -36,11 +23,11 @@
             <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center">
                 <span class="text-2xl text-green-500 dark:text-green-400">✓</span>
             </div>
-            <p class="text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-1">Revisa tu correo</p>
-            <p class="text-sm text-gray-500 dark:text-zinc-400 mb-6">Si ese correo existe en el sistema, te mandamos un enlace para restablecer tu PIN.</p>
-            <a href="{{ route('login.pin') }}" class="text-sm text-blue-600 dark:text-blue-400">← Regresar al login</a>
+            <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Revisa tu correo</p>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-6">Si ese correo existe en el sistema, te mandamos un enlace para restablecer tu PIN.</p>
+            <a href="{{ route('login.pin') }}" class="text-sm text-primary-600 dark:text-primary-400">← Regresar al login</a>
         </div>
-    </div>
+    </x-card>
 
     <script>
         document.getElementById('submit-btn').addEventListener('click', () => {
@@ -63,5 +50,4 @@
             });
         });
     </script>
-</body>
-</html>
+</x-layouts.guest>
