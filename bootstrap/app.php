@@ -18,6 +18,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // bloquea por contenido mixto y la página se ve sin estilos.
         $middleware->trustProxies(at: '*');
 
+        // Laravel intenta redirigir a la ruta llamada "login" por defecto
+        // cuando una peticion no autenticada choca con el middleware auth.
+        // Aqui esa ruta se llama "login.pin" - sin esto, cualquier sesion
+        // vencida (o invalidada por rotar APP_KEY) tronaba con
+        // "Route [login] not defined" en vez de mandar limpio al PIN.
+        $middleware->redirectGuestsTo(fn () => route('login.pin'));
+
         $middleware->validateCsrfTokens(except: [
             'login/cambiar-pin',
         ]);
