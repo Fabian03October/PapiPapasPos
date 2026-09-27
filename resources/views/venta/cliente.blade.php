@@ -92,12 +92,14 @@
         });
 
         let html5QrCode = null;
+        let scanLocked = false;
 
         function stopScanner() {
             if (html5QrCode) {
                 html5QrCode.stop().catch(() => {});
                 html5QrCode = null;
             }
+            scanLocked = false;
         }
 
         function startScanner() {
@@ -108,15 +110,29 @@
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: 220 },
                 (decodedText) => {
+                    // html5-qrcode sigue decodificando el mismo código cada
+                    // ~100ms mientras siga frente a la cámara. Sin este
+                    // candado, cada decodificación disparaba un fetch nuevo
+                    // y el mensaje más reciente pisaba al anterior antes de
+                    // poder leerlo — se veía como si nunca encontrara nada.
+                    if (scanLocked) return;
+                    scanLocked = true;
+
                     qrStatus.textContent = 'Buscando cliente…';
                     fetch('/venta/clientes/qr/' + encodeURIComponent(decodedText))
                         .then(res => res.json().then(data => ({ status: res.status, data })))
                         .then(({ status, data }) => {
                             if (status === 200 && data.found) {
                                 window.location.href = '/venta/cliente/seleccionar/' + data.id;
-                            } else {
-                                qrStatus.textContent = 'No se encontró ningún cliente con ese código.';
+                                return;
                             }
+
+                            qrStatus.textContent = 'No se encontró ningún cliente con ese código.';
+                            setTimeout(() => { scanLocked = false; }, 1500);
+                        })
+                        .catch(() => {
+                            qrStatus.textContent = 'Error buscando al cliente, intenta de nuevo.';
+                            scanLocked = false;
                         });
                 },
                 () => {}
