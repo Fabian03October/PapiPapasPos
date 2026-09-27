@@ -29,11 +29,18 @@ class PrintStationController extends Controller
         return response()->json(['sales' => $sales]);
     }
 
+    /**
+     * Reclama la venta de forma atómica antes de imprimirla: el UPDATE con
+     * WHERE printed_at IS NULL solo puede "ganarlo" una petición cuando dos
+     * dispositivos/pestañas revisan pendientes casi al mismo tiempo — evita
+     * que ambos la impriman.
+     */
     public function markPrinted(Sale $sale)
     {
-        $sale->printed_at = now();
-        $sale->save();
+        $claimed = Sale::whereKey($sale->id)
+            ->whereNull('printed_at')
+            ->update(['printed_at' => now()]);
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'claimed' => (bool) $claimed]);
     }
 }

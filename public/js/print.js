@@ -54,15 +54,22 @@
             const data = await res.json();
 
             for (const sale of data.sales || []) {
-                // Se marca ANTES de imprimir (no despues) para que, si el
+                // Se reclama ANTES de imprimir (no despues) para que, si el
                 // siguiente chequeo arranca mientras esta venta todavia se
                 // esta imprimiendo (ticket + comanda tardan varios segundos),
-                // no la vuelva a agarrar y la imprima doble.
-                await fetch(`/impresion/${sale.id}/marcar`, {
+                // no la vuelva a agarrar y la imprima doble. El servidor
+                // marca esto de forma atomica (UPDATE ... WHERE printed_at
+                // IS NULL), asi que si otra pestaña u otro dispositivo la
+                // reclamo primero, "claimed" viene en false y no imprimimos.
+                const markRes = await fetch(`/impresion/${sale.id}/marcar`, {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
                 });
-                await printSaleDocuments(sale.id);
+                const markData = await markRes.json();
+
+                if (markData.claimed) {
+                    await printSaleDocuments(sale.id);
+                }
             }
         } catch (err) {
             console.error('Error revisando impresiones pendientes:', err);

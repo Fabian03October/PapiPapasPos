@@ -9,6 +9,7 @@ use App\Http\Controllers\ForgotPinController;
 use App\Http\Controllers\SaleIncidentController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PrintStationController;
+use App\Http\Controllers\CustomerRegistrationController;
 
 Route::get('/', function () {
     return redirect()->route('login.pin');
@@ -22,6 +23,10 @@ Route::get('/login/olvide-pin', [ForgotPinController::class, 'showRequestForm'])
 Route::post('/login/olvide-pin', [ForgotPinController::class, 'sendResetLink'])->name('forgot-pin.send');
 Route::get('/login/restablecer-pin/{token}', [ForgotPinController::class, 'showResetForm'])->name('forgot-pin.reset.show');
 Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])->name('forgot-pin.reset');
+
+Route::get('/registro', [CustomerRegistrationController::class, 'showForm'])->name('registro.form');
+Route::post('/registro', [CustomerRegistrationController::class, 'store'])->name('registro.store')->middleware('throttle:registro');
+Route::get('/registro/confirmacion/{qrCode}', [CustomerRegistrationController::class, 'confirmation'])->name('registro.confirmacion');
 
 
 Route::middleware('auth')->group(function () {
@@ -49,7 +54,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/venta/clientes/buscar', [VentaController::class, 'searchCustomers'])->name('venta.customers.search');
     Route::get('/venta/clientes/qr/{qrCode}', [VentaController::class, 'findCustomerByQr'])->name('venta.customers.byqr');
-    Route::post('/venta/clientes', [VentaController::class, 'quickRegisterCustomer'])->name('venta.customers.store');
 
     Route::get('/venta/historial', [SaleIncidentController::class, 'shiftHistory'])->name('venta.historial');
     Route::post('/venta/incidencias', [SaleIncidentController::class, 'store'])->name('venta.incidencias.store');

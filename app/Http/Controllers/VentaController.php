@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\CustomerQrMail;
 use App\Models\CashSession;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 
 class VentaController extends Controller
 {
@@ -112,26 +110,5 @@ class VentaController extends Controller
             ->get(['id', 'name', 'phone']);
 
         return response()->json($customers);
-    }
-
-    public function quickRegisterCustomer(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email',
-        ]);
-
-        $customer = Customer::create($request->only('name', 'phone', 'email'));
-
-        if ($customer->email) {
-            Mail::to($customer->email)->send(new CustomerQrMail($customer));
-        }
-
-        return response()->json([
-            'id' => $customer->id,
-            'name' => $customer->name,
-            'phone' => $customer->phone,
-        ]);
     }
 }
