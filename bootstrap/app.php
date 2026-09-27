@@ -11,6 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Railway (como cualquier PaaS) recibe las peticiones por HTTPS en su
+        // borde y se las manda al contenedor por HTTP simple. Sin esto,
+        // Laravel no detecta que la conexión original era HTTPS y genera
+        // todas las URLs (CSS, JS, links) con http:// - el navegador las
+        // bloquea por contenido mixto y la página se ve sin estilos.
+        $middleware->trustProxies(at: '*');
+
         $middleware->validateCsrfTokens(except: [
             'login/cambiar-pin',
         ]);
