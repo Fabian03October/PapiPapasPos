@@ -7,11 +7,18 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "ext-gd": "*",
+        "ext-intl": "*",
+        "ext-pdo_mysql": "*",
+        "ext-zip": "*",
         "barryvdh/laravel-dompdf": "^3.1",
         "filament/filament": "^5.7",
+        "firebase/php-jwt": "^7.2",
+        "google/auth": "^1.55",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
+        "resend/resend-php": "^1.16",
         "simplesoftwareio/simple-qrcode": "^4.2"
     },
     "require-dev": {
