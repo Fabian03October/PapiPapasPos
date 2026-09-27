@@ -62,6 +62,36 @@ class LoyaltyService
     }
 
     /**
+     * A diferencia de preview() (que solo clasifica si la SIGUIENTE visita exacta
+     * es premio), esto calcula cuál es el próximo premio en general y cuántas
+     * visitas faltan para llegar, sin importar en qué visita vaya el cliente.
+     *
+     * @return array{label: string, visits_remaining: int}
+     */
+    public function nextRewardSummary(Customer $customer): array
+    {
+        $level = $customer->currentLoyaltyLevel();
+        $visits = $customer->current_visits;
+
+        if ($visits < self::VISITS_FOR_DISCOUNT) {
+            $target = self::VISITS_FOR_DISCOUNT;
+            $label = $level
+                ? ($level->discount_description ?: $level->discount_percent . '% de descuento')
+                : 'Descuento';
+        } else {
+            $target = self::VISITS_FOR_GIFT;
+            $label = $level
+                ? ($level->gift_description ?: 'Producto gratis')
+                : 'Producto gratis';
+        }
+
+        return [
+            'label' => $label,
+            'visits_remaining' => max(0, $target - $visits),
+        ];
+    }
+
+    /**
      * Guarda el resultado de una visita ya calculada con preview(): registra el
      * canje (si aplica) y avanza al cliente (suma visita, o resetea y sube de
      * nivel si llegó a la visita 8).

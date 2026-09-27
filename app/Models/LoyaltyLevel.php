@@ -31,8 +31,12 @@ class LoyaltyLevel extends Model
         return $this->hasMany(CustomerLoyaltyRedemption::class);
     }
 
-    public static function forLevelNumber(int $levelNumber): ?self
+    public static function forLevelNumber(?int $levelNumber): ?self
     {
+        if ($levelNumber === null) {
+            return null;
+        }
+
         return static::where('level_number', $levelNumber)->first();
     }
 }

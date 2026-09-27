@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class Customer extends Model
 {
@@ -38,5 +39,10 @@ class Customer extends Model
     public function currentLoyaltyLevel(): ?LoyaltyLevel
     {
         return LoyaltyLevel::forLevelNumber($this->current_level);
+    }
+
+    public function loyaltyQrBase64(int $size = 280): string
+    {
+        return base64_encode(QrCode::format('svg')->size($size)->margin(1)->generate($this->qr_code));
     }
 }

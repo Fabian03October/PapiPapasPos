@@ -70,7 +70,7 @@ class PromotionForm
                     ->description('Qué productos forman parte de esta promoción.')
                     ->schema([
                         Repeater::make('products')
-                            ->label('')
+                            ->hiddenLabel()
                             ->schema([
                                 Select::make('product_id')
                                     ->label('Producto')
@@ -96,7 +96,7 @@ class PromotionForm
                     ->visible(fn (Get $get) => $get('type') === 'percent_off_sale')
                     ->schema([
                         Repeater::make('modifiers')
-                            ->label('')
+                            ->hiddenLabel()
                             ->schema([
                                 Select::make('modifier_id')
                                     ->label('Extra / modificador')
