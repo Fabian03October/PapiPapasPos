@@ -12,7 +12,12 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             UserSeeder::class,
-            DemoCatalogSeeder::class,
         ]);
+
+        // Catálogo de ejemplo (categorías/productos falsos) solo para
+        // desarrollo local - nunca en producción.
+        if (! app()->environment('production')) {
+            $this->call(DemoCatalogSeeder::class);
+        }
     }
 }
