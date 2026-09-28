@@ -1,0 +1,5 @@
+# El build de PHP de Railway (Nixpacks) no trae mysqldump por default, y
+# spatie/laravel-backup lo necesita para respaldar la base de datos.
+# aptPkgs se suma a lo que Nixpacks ya detecta solo (no lo reemplaza).
+[phases.setup]
+aptPkgs = ["default-mysql-client"]
