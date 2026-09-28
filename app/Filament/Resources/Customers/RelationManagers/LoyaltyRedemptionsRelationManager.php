@@ -40,12 +40,30 @@ class LoyaltyRedemptionsRelationManager extends RelationManager
                     ->label('Descuento aplicado')
                     ->money('MXN')
                     ->placeholder('—'),
-                TextColumn::make('redeemed_at')
-                    ->label('Fecha')
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'pending' => 'Pendiente',
+                        'redeemed' => 'Canjeado',
+                        default => $state,
+                    })
+                    ->color(fn (string $state) => $state === 'pending' ? 'warning' : 'success'),
+                TextColumn::make('earned_at')
+                    ->label('Se ganó')
                     ->dateTime('d/M/Y H:i')
                     ->sortable(),
+                TextColumn::make('expires_at')
+                    ->label('Vence')
+                    ->dateTime('d/M/Y H:i')
+                    ->placeholder('—'),
+                TextColumn::make('redeemed_at')
+                    ->label('Se canjeó')
+                    ->dateTime('d/M/Y H:i')
+                    ->placeholder('Aún no canjeado')
+                    ->sortable(),
             ])
-            ->defaultSort('redeemed_at', 'desc')
+            ->defaultSort('earned_at', 'desc')
             ->headerActions([
                 //
             ])

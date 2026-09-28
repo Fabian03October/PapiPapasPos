@@ -10,8 +10,12 @@ class CustomerLoyaltyRedemption extends Model
         'customer_id',
         'loyalty_level_id',
         'type',
+        'status',
+        'earned_at',
+        'expires_at',
         'redeemed_at',
         'sale_id',
+        'redeemed_sale_id',
         'sale_item_id',
         'discount_applied',
     ];
@@ -19,6 +23,8 @@ class CustomerLoyaltyRedemption extends Model
     protected function casts(): array
     {
         return [
+            'earned_at' => 'datetime',
+            'expires_at' => 'datetime',
             'redeemed_at' => 'datetime',
         ];
     }
@@ -36,6 +42,11 @@ class CustomerLoyaltyRedemption extends Model
     public function sale()
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function redeemedSale()
+    {
+        return $this->belongsTo(Sale::class, 'redeemed_sale_id');
     }
 
     public function saleItem()

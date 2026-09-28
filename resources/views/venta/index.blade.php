@@ -158,6 +158,21 @@
             </div>
         </div>
 
+        <!-- Pregunta de canje de premio: solo aparece si hay uno disponible -->
+        <div id="reward-prompt" class="hidden bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 mb-4">
+            <p id="reward-prompt-text" class="text-sm text-amber-700 dark:text-amber-400 mb-1 font-medium"></p>
+            <p id="reward-prompt-expires" class="text-xs text-amber-600 dark:text-amber-500 mb-2 hidden"></p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">¿El cliente quiere canjearlo ahora?</p>
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="reward-answer-yes" class="reward-answer-btn h-10 rounded-lg border text-sm font-medium border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                    Sí, canjear
+                </button>
+                <button type="button" id="reward-answer-no" class="reward-answer-btn h-10 rounded-lg border text-sm font-medium border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                    No, después
+                </button>
+            </div>
+        </div>
+
         <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Método de pago</p>
         <div class="grid grid-cols-2 gap-2 mb-4">
             <button type="button" id="payment-method-efectivo" class="payment-method-btn h-12 rounded-lg border-2 border-primary-600 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 text-sm font-medium">
@@ -543,11 +558,16 @@
 
         let selectedPaymentMethod = 'efectivo';
         let currentCartTotal = 0;
+        let rewardAnswer = null; // null = sin responder, true/false = ya contestó
 
-        document.getElementById('cart-checkout').addEventListener('click', () => {
-            if (cart.length === 0) return;
+        const rewardPrompt = document.getElementById('reward-prompt');
+        const rewardPromptText = document.getElementById('reward-prompt-text');
+        const rewardPromptExpires = document.getElementById('reward-prompt-expires');
+        const rewardAnswerYesBtn = document.getElementById('reward-answer-yes');
+        const rewardAnswerNoBtn = document.getElementById('reward-answer-no');
 
-            const previewPayload = {
+        function buildPreviewPayload(redeemReward) {
+            return {
                 items: cart.map(item => ({
                     product_id: item.productId,
                     variant_id: item.variantId,
@@ -555,8 +575,31 @@
                     qty: item.qty,
                 })),
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
+                redeem_reward: redeemReward,
             };
+        }
 
+        function updateRewardAnswerButtons() {
+            [[rewardAnswerYesBtn, true], [rewardAnswerNoBtn, false]].forEach(([btn, value]) => {
+                const active = rewardAnswer === value;
+                btn.classList.toggle('border-2', active);
+                btn.classList.toggle('border-primary-600', active);
+                btn.classList.toggle('bg-primary-50', active);
+                btn.classList.toggle('dark:bg-primary-500/10', active);
+                btn.classList.toggle('text-primary-600', active);
+                btn.classList.toggle('dark:text-primary-400', active);
+                btn.classList.toggle('border', !active);
+                btn.classList.toggle('border-neutral-200', !active);
+                btn.classList.toggle('dark:border-neutral-700', !active);
+                btn.classList.toggle('text-neutral-700', !active);
+                btn.classList.toggle('dark:text-neutral-300', !active);
+            });
+
+            confirmSaleBtn.disabled = rewardPrompt.classList.contains('hidden') ? false : rewardAnswer === null;
+            confirmSaleBtn.classList.toggle('opacity-50', confirmSaleBtn.disabled);
+        }
+
+        function loadPaymentPreview(redeemReward) {
             fetch('{{ route("venta.promotions.preview") }}', {
                 method: 'POST',
                 headers: {
@@ -564,7 +607,7 @@
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify(previewPayload),
+                body: JSON.stringify(buildPreviewPayload(redeemReward)),
             })
             .then(res => res.json())
             .then(data => {
@@ -573,11 +616,10 @@
                 document.getElementById('payment-subtotal').textContent = formatMoney(data.subtotal);
 
                 const discountLabels = [...data.applied_promotions];
-                if (data.loyalty && data.loyalty.type === 'discount') {
+                // Solo se menciona "fidelidad" en la etiqueta si de verdad
+                // ya se contestó que sí y por eso está incluido en el monto.
+                if (redeemReward && data.loyalty && data.loyalty.type === 'discount') {
                     discountLabels.push(data.loyalty.description || 'fidelidad');
-                }
-                if (data.loyalty && data.loyalty.type === 'gift' && data.loyalty.free_product_in_cart) {
-                    discountLabels.push(data.loyalty.description || 'regalo de fidelidad');
                 }
 
                 const discountRow = document.getElementById('payment-discount-row');
@@ -591,7 +633,7 @@
                 }
 
                 const giftRow = document.getElementById('payment-gift-row');
-                if (data.loyalty && data.loyalty.type === 'gift') {
+                if (redeemReward && data.loyalty && data.loyalty.type === 'gift') {
                     if (data.loyalty.free_product_in_cart) {
                         document.getElementById('payment-gift-text').textContent =
                             '🎁 ' + (data.loyalty.description || 'Producto gratis') ;
@@ -605,15 +647,57 @@
                     giftRow.classList.add('hidden');
                 }
 
+                // Pregunta de canje: aparece si hay un premio disponible
+                // (nuevo de esta visita o uno pendiente de antes) y el
+                // cajero todavía no ha contestado en este cobro.
+                if (data.loyalty && data.loyalty.type && rewardAnswer === null) {
+                    const isPending = data.loyalty.source === 'pending';
+                    rewardPromptText.textContent = isPending
+                        ? 'Este cliente tiene un premio pendiente de antes: ' + (data.loyalty.description || 'premio de fidelidad') + '.'
+                        : 'Este cliente ganó un premio en esta visita: ' + (data.loyalty.description || 'premio de fidelidad') + '.';
+
+                    if (isPending && data.loyalty.expires_at) {
+                        const expires = new Date(data.loyalty.expires_at);
+                        rewardPromptExpires.textContent = 'Vence el ' + expires.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' }) + '.';
+                        rewardPromptExpires.classList.remove('hidden');
+                    } else {
+                        rewardPromptExpires.classList.add('hidden');
+                    }
+
+                    rewardPrompt.classList.remove('hidden');
+                } else if (! (data.loyalty && data.loyalty.type)) {
+                    rewardPrompt.classList.add('hidden');
+                }
+
+                updateRewardAnswerButtons();
+
                 paymentTotalEl.textContent = formatMoney(currentCartTotal);
-                setPaymentMethod('efectivo');
                 amountReceivedInput.value = currentCartTotal.toFixed(2);
                 renderQuickAmounts();
                 updateChange();
-
-                paymentModal.classList.remove('hidden');
-                paymentModal.classList.add('flex');
             });
+        }
+
+        rewardAnswerYesBtn.addEventListener('click', () => {
+            rewardAnswer = true;
+            loadPaymentPreview(true);
+        });
+
+        rewardAnswerNoBtn.addEventListener('click', () => {
+            rewardAnswer = false;
+            loadPaymentPreview(false);
+        });
+
+        document.getElementById('cart-checkout').addEventListener('click', () => {
+            if (cart.length === 0) return;
+
+            rewardAnswer = null;
+            rewardPrompt.classList.add('hidden');
+            setPaymentMethod('efectivo');
+            loadPaymentPreview(false);
+
+            paymentModal.classList.remove('hidden');
+            paymentModal.classList.add('flex');
         });
 
         paymentModalClose.addEventListener('click', () => {
@@ -675,6 +759,8 @@
         amountReceivedInput.addEventListener('input', updateChange);
 
         confirmSaleBtn.addEventListener('click', () => {
+            if (confirmSaleBtn.disabled) return;
+
             const payload = {
                 items: cart.map(item => ({
                     product_id: item.productId,
@@ -684,6 +770,7 @@
                 })),
                 payment_method: selectedPaymentMethod,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
+                redeem_reward: rewardAnswer === true,
             };
 
             fetch('{{ route("venta.cobrar") }}', {

@@ -104,13 +104,17 @@ class SaleController extends Controller
         $promoResult = (new PromotionService)->evaluate($itemsData);
         $discount = min($promoResult['discount'], $subtotal);
 
-        $loyaltyPreview = null;
+        $redeemNow = $request->boolean('redeem_reward');
+        $reward = null;
+
         if ($request->customer_id) {
             $customer = Customer::findOrFail($request->customer_id);
-            $loyaltyPreview = (new LoyaltyService)->preview($customer, $subtotal - $discount, $itemsData);
+            $loyaltyService = new LoyaltyService;
+            $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
+            [$reward] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
 
-            if ($loyaltyPreview['discount_amount'] > 0) {
-                $discount = min($discount + $loyaltyPreview['discount_amount'], $subtotal);
+            if ($redeemNow && $reward && $reward['discount_amount'] > 0) {
+                $discount = min($discount + $reward['discount_amount'], $subtotal);
             }
         }
 
@@ -121,8 +125,33 @@ class SaleController extends Controller
             'discount' => round($discount, 2),
             'total' => round($total, 2),
             'applied_promotions' => $promoResult['applied'],
-            'loyalty' => $loyaltyPreview,
+            'loyalty' => $reward,
         ]);
+    }
+
+    /**
+     * Decide qué premio de fidelidad ofrecerle al cajero para esta venta:
+     * prioriza uno que se gane justo en esta visita; si no hay, ofrece el
+     * pendiente más viejo del cliente (de una visita anterior que no se
+     * canjeó en el momento), si tiene uno sin vencer.
+     *
+     * @return array{0: ?array, 1: ?\App\Models\CustomerLoyaltyRedemption}
+     */
+    protected function resolveReward(LoyaltyService $loyaltyService, Customer $customer, array $loyaltyPreview, float $baseAmount, array $itemsData): array
+    {
+        if ($loyaltyPreview['type']) {
+            return [[...$loyaltyPreview, 'source' => 'new'], null];
+        }
+
+        $pending = $loyaltyService->pendingRewardFor($customer);
+
+        if (! $pending) {
+            return [null, null];
+        }
+
+        $reward = $loyaltyService->rewardAmountFor($pending, $baseAmount, $itemsData);
+
+        return [[...$reward, 'source' => 'pending', 'expires_at' => $pending->expires_at?->toIso8601String()], $pending];
     }
 
     public function store(Request $request)
@@ -136,6 +165,7 @@ class SaleController extends Controller
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:efectivo,tarjeta',
             'customer_id' => 'nullable|exists:customers,id',
+            'redeem_reward' => 'nullable|boolean',
         ]);
 
         $cashSession = CashSession::open();
@@ -150,13 +180,20 @@ class SaleController extends Controller
         $discount = min($promoResult['discount'], $subtotal);
 
         $customer = $request->customer_id ? Customer::findOrFail($request->customer_id) : null;
-        $loyaltyPreview = null;
+        $redeemNow = $request->boolean('redeem_reward');
+        $loyaltyService = new LoyaltyService;
+        $reward = null;
+        $pendingRedemption = null;
 
         if ($customer) {
-            $loyaltyPreview = (new LoyaltyService)->preview($customer, $subtotal - $discount, $itemsData);
+            // preview() se recalcula aquí (independiente del de arriba en
+            // preview()) para no confiar en nada que haya mandado el
+            // cliente - el servidor es quien decide qué premio aplica.
+            $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
+            [$reward, $pendingRedemption] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
 
-            if ($loyaltyPreview['discount_amount'] > 0) {
-                $discount = min($discount + $loyaltyPreview['discount_amount'], $subtotal);
+            if ($redeemNow && $reward && $reward['discount_amount'] > 0) {
+                $discount = min($discount + $reward['discount_amount'], $subtotal);
             }
         }
         $total = $subtotal - $discount;
@@ -172,7 +209,7 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview) {
+        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
             $sale = Sale::create([
                 'folio' => 'TMP',
                 'user_id' => auth()->id(),
@@ -223,7 +260,15 @@ class SaleController extends Controller
             }
 
             if ($customer && $loyaltyPreview) {
-                (new LoyaltyService)->applyVisit($customer, $sale, $loyaltyPreview);
+                // Avanza visitas/nivel siempre - el canje (si esta visita
+                // ganó uno nuevo) queda pendiente o inmediato según
+                // $redeemNow. Si el premio que se canjeó era uno viejo
+                // pendiente (no de esta visita), se resuelve aparte abajo.
+                $loyaltyService->applyVisit($customer, $sale, $loyaltyPreview, $redeemNow);
+
+                if ($pendingRedemption && $redeemNow) {
+                    $loyaltyService->redeemPending($pendingRedemption, $sale, $reward['discount_amount']);
+                }
             }
 
             return $sale;
@@ -234,7 +279,7 @@ class SaleController extends Controller
             'sale_id' => $sale->id,
             'folio' => $sale->folio,
             'total' => (float) $sale->total,
-            'loyalty' => $loyaltyPreview,
+            'loyalty' => $reward,
         ]);
     }
 }

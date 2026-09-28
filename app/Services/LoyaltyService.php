@@ -12,6 +12,7 @@ class LoyaltyService
 {
     public const VISITS_FOR_DISCOUNT = 4;
     public const VISITS_FOR_GIFT = 8;
+    public const PENDING_REWARD_DAYS = 7;
 
     /**
      * Calcula qué pasaría con la SIGUIENTE visita de este cliente, sin guardar nada.
@@ -38,24 +39,9 @@ class LoyaltyService
         }
 
         if ($nextVisit === self::VISITS_FOR_DISCOUNT) {
-            $result['type'] = 'discount';
-            $result['discount_amount'] = round($baseAmount * ((float) $level->discount_percent / 100), 2);
-            $result['description'] = $level->discount_description ?: $level->discount_percent . '% de descuento';
+            $result = [...$result, ...$this->computeReward($level, 'discount', $baseAmount, $itemsData)];
         } elseif ($nextVisit === self::VISITS_FOR_GIFT) {
-            $result['type'] = 'gift';
-            $result['free_product_name'] = $level->freeProduct?->name;
-            $result['description'] = $level->gift_description ?: 'Producto gratis';
-
-            if ($level->free_product_id) {
-                foreach ($itemsData as $item) {
-                    if ((int) $item['product_id'] === (int) $level->free_product_id) {
-                        // Se regala solo 1 unidad, aunque el carrito tenga más.
-                        $result['discount_amount'] = round((float) $item['unit_price'], 2);
-                        $result['free_product_in_cart'] = true;
-                        break;
-                    }
-                }
-            }
+            $result = [...$result, ...$this->computeReward($level, 'gift', $baseAmount, $itemsData)];
         }
 
         return $result;
@@ -92,20 +78,93 @@ class LoyaltyService
     }
 
     /**
-     * Guarda el resultado de una visita ya calculada con preview(): registra el
-     * canje (si aplica) y avanza al cliente (suma visita, o resetea y sube de
-     * nivel si llegó a la visita 8).
+     * El canje pendiente (ganado pero aún no reclamado, sin vencer) más
+     * antiguo de este cliente, si tiene alguno.
      */
-    public function applyVisit(Customer $customer, Sale $sale, array $preview): void
+    public function pendingRewardFor(Customer $customer): ?CustomerLoyaltyRedemption
+    {
+        return CustomerLoyaltyRedemption::where('customer_id', $customer->id)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', Carbon::now())
+            ->oldest('earned_at')
+            ->first();
+    }
+
+    /**
+     * Calcula cuánto valdría, contra el carrito ACTUAL, un canje pendiente
+     * que se ganó en una visita anterior (con un carrito distinto).
+     */
+    public function rewardAmountFor(CustomerLoyaltyRedemption $redemption, float $baseAmount, array $itemsData): array
+    {
+        $level = $redemption->loyaltyLevel;
+
+        if (! $level) {
+            return ['discount_amount' => 0, 'description' => null, 'free_product_name' => null, 'free_product_in_cart' => false];
+        }
+
+        return $this->computeReward($level, $redemption->type, $baseAmount, $itemsData);
+    }
+
+    /**
+     * @return array{type: string, discount_amount: float, description: string, free_product_name: ?string, free_product_in_cart: bool}
+     */
+    protected function computeReward(LoyaltyLevel $level, string $type, float $baseAmount, array $itemsData): array
+    {
+        if ($type === 'discount') {
+            return [
+                'type' => 'discount',
+                'discount_amount' => round($baseAmount * ((float) $level->discount_percent / 100), 2),
+                'description' => $level->discount_description ?: $level->discount_percent . '% de descuento',
+                'free_product_name' => null,
+                'free_product_in_cart' => false,
+            ];
+        }
+
+        $result = [
+            'type' => 'gift',
+            'discount_amount' => 0,
+            'description' => $level->gift_description ?: 'Producto gratis',
+            'free_product_name' => $level->freeProduct?->name,
+            'free_product_in_cart' => false,
+        ];
+
+        if ($level->free_product_id) {
+            foreach ($itemsData as $item) {
+                if ((int) $item['product_id'] === (int) $level->free_product_id) {
+                    // Se regala solo 1 unidad, aunque el carrito tenga más.
+                    $result['discount_amount'] = round((float) $item['unit_price'], 2);
+                    $result['free_product_in_cart'] = true;
+                    break;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Guarda el resultado de una visita ya calculada con preview(): el
+     * avance de visitas/nivel del cliente SIEMPRE ocurre, sin importar si
+     * el premio se canjea en el momento o no. Si esta visita ganó un
+     * premio nuevo, se registra: canjeado de inmediato si $redeemNow,
+     * o pendiente (con una semana para reclamarlo) si no.
+     */
+    public function applyVisit(Customer $customer, Sale $sale, array $preview, bool $redeemNow): void
     {
         if ($preview['type'] && $preview['level_id']) {
+            $now = Carbon::now();
+
             CustomerLoyaltyRedemption::create([
                 'customer_id' => $customer->id,
                 'loyalty_level_id' => $preview['level_id'],
                 'type' => $preview['type'],
-                'redeemed_at' => Carbon::now(),
+                'status' => $redeemNow ? 'redeemed' : 'pending',
+                'earned_at' => $now,
+                'expires_at' => $now->copy()->addDays(self::PENDING_REWARD_DAYS),
+                'redeemed_at' => $redeemNow ? $now : null,
                 'sale_id' => $sale->id,
-                'discount_applied' => $preview['discount_amount'] > 0 ? $preview['discount_amount'] : null,
+                'redeemed_sale_id' => $redeemNow ? $sale->id : null,
+                'discount_applied' => $redeemNow && $preview['discount_amount'] > 0 ? $preview['discount_amount'] : null,
             ]);
         }
 
@@ -119,5 +178,19 @@ class LoyaltyService
         } else {
             $customer->update(['current_visits' => $preview['next_visit']]);
         }
+    }
+
+    /**
+     * Marca como canjeado un premio que se había quedado pendiente de una
+     * visita anterior, aplicado ahora en una venta distinta.
+     */
+    public function redeemPending(CustomerLoyaltyRedemption $redemption, Sale $sale, float $discountAmount): void
+    {
+        $redemption->update([
+            'status' => 'redeemed',
+            'redeemed_at' => Carbon::now(),
+            'redeemed_sale_id' => $sale->id,
+            'discount_applied' => $discountAmount > 0 ? $discountAmount : null,
+        ]);
     }
 }
