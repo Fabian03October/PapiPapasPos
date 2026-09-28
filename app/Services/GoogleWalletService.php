@@ -103,11 +103,12 @@ class GoogleWalletService
             'id' => $this->classId(),
             'issuerName' => $settings->issuer_name,
             'programName' => $settings->program_name,
-            // 'underReview' es lo que le pone el watermark "[SOLO PARA
-            // PRUEBAS]" a la tarjeta - 'approved' lo quita para las
-            // cuentas normales de Wallet API (no requiere aprobacion
-            // manual de Google para esto, a diferencia de Google Pay).
-            'reviewStatus' => 'approved',
+            // Google rechaza 'approved' desde la API para cuentas nuevas
+            // (probado en vivo: 400 "Invalid review status APPROVED. Use
+            // UNDER_REVIEW instead."). El watermark "[SOLO PARA PRUEBAS]"
+            // solo se quita cuando Google aprueba la cuenta de negocio a
+            // traves de su propio proceso de revision, no por API.
+            'reviewStatus' => 'underReview',
             'hexBackgroundColor' => $settings->hex_background_color,
         ];
 
