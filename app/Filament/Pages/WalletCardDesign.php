@@ -8,6 +8,7 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -40,6 +41,7 @@ class WalletCardDesign extends Page
             'hex_background_color' => $settings->hex_background_color,
             'logo_path' => $settings->logo_path,
             'hero_image_path' => $settings->hero_image_path,
+            'contact_info' => $settings->contact_info,
         ]);
     }
 
@@ -68,6 +70,11 @@ class WalletCardDesign extends Page
                     ->disk('public')
                     ->directory('wallet')
                     ->visibility('public'),
+                Textarea::make('contact_info')
+                    ->label('Información de contacto')
+                    ->helperText('Se muestra en la tarjeta. Puedes usar emojis, ej. "📍 Av. Principal 123 · 📞 555-123-4567".')
+                    ->rows(3)
+                    ->columnSpanFull(),
             ])
             ->statePath('data');
     }

@@ -15,6 +15,7 @@ class WalletCardSettings extends Model
         'logo_path',
         'hero_image_path',
         'hex_background_color',
+        'contact_info',
     ];
 
     public static function current(): self

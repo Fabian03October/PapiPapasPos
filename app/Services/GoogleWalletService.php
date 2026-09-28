@@ -131,6 +131,16 @@ class GoogleWalletService
             ]];
         }
 
+        // Siempre se manda (aunque sea vacío) para que borrar el texto de
+        // contacto también lo quite de Google, no solo dejarlo de mandar.
+        $payload['textModulesData'] = $settings->contact_info
+            ? [[
+                'id' => 'contact_info',
+                'header' => 'Contacto',
+                'body' => $settings->contact_info,
+            ]]
+            : [];
+
         $token = $this->accessToken();
 
         if (! $token) {
