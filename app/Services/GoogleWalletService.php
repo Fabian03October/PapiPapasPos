@@ -155,10 +155,20 @@ class GoogleWalletService
             return ['success' => false, 'error' => 'No se pudo autenticar con Google'];
         }
 
-        $response = Http::withToken($token)->patch(self::BASE_URL."/loyaltyClass/{$this->classId()}", $payload);
+        // Con timeout explícito y try/catch: sin esto, si Google se tarda
+        // en validar/descargar las imágenes, la petición se queda colgada
+        // hasta que PHP la mata de golpe a los 30s con un error fatal que
+        // no se puede atrapar - en vez de un mensaje de error normal.
+        try {
+            $response = Http::withToken($token)->timeout(20)->patch(self::BASE_URL."/loyaltyClass/{$this->classId()}", $payload);
 
-        if ($response->status() === 404) {
-            $response = Http::withToken($token)->post(self::BASE_URL.'/loyaltyClass', $payload);
+            if ($response->status() === 404) {
+                $response = Http::withToken($token)->timeout(20)->post(self::BASE_URL.'/loyaltyClass', $payload);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Google Wallet: excepción al crear/actualizar la clase', ['error' => $e->getMessage()]);
+
+            return ['success' => false, 'error' => 'Google tardó demasiado en responder (revisa que las imágenes no sean muy pesadas) o hubo un problema de conexión: '.$e->getMessage()];
         }
 
         if ($response->failed()) {
@@ -189,10 +199,19 @@ class GoogleWalletService
             return;
         }
 
-        $response = Http::withToken($token)->patch(
-            self::BASE_URL."/loyaltyObject/{$this->objectId($customer)}",
-            $this->buildLoyaltyObjectPayload($customer)
-        );
+        try {
+            $response = Http::withToken($token)->timeout(20)->patch(
+                self::BASE_URL."/loyaltyObject/{$this->objectId($customer)}",
+                $this->buildLoyaltyObjectPayload($customer)
+            );
+        } catch (\Throwable $e) {
+            Log::error('Google Wallet: excepción al actualizar el pase del cliente', [
+                'customer_id' => $customer->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
 
         if ($response->status() === 404) {
             return;
@@ -239,7 +258,7 @@ class GoogleWalletService
         ];
 
         try {
-            $response = Http::withToken($token)->post(self::BASE_URL.$path, $payload);
+            $response = Http::withToken($token)->timeout(20)->post(self::BASE_URL.$path, $payload);
         } catch (\Throwable $e) {
             Log::error('Google Wallet: excepción al mandar mensaje', ['error' => $e->getMessage()]);
 
