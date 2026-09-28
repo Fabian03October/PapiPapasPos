@@ -52,14 +52,19 @@ class WalletCardDesign extends Page
                 ColorPicker::make('hex_background_color')->label('Color de fondo de la tarjeta'),
                 FileUpload::make('logo_path')
                     ->label('Logotipo')
-                    ->image()
+                    ->helperText('PNG, JPG, WEBP o SVG.')
+                    // Sin ->image()/->acceptedFileTypes(): esos validan el
+                    // tipo de archivo detectando el contenido real del
+                    // archivo en el servidor, y en Railway a veces falla y
+                    // rechaza imágenes genuinas (ya lo confirmamos con dos
+                    // archivos distintos). Es un campo que solo usa el
+                    // manager, así que no hace falta esa validación estricta.
                     ->disk('public')
                     ->directory('wallet')
                     ->visibility('public'),
                 FileUpload::make('hero_image_path')
                     ->label('Imagen de banner (opcional)')
-                    ->helperText('Aparece como fondo arriba del logo en la tarjeta.')
-                    ->image()
+                    ->helperText('Aparece como fondo arriba del logo en la tarjeta. PNG, JPG, WEBP o SVG.')
                     ->disk('public')
                     ->directory('wallet')
                     ->visibility('public'),
