@@ -103,12 +103,6 @@ class GoogleWalletService
             'id' => $this->classId(),
             'issuerName' => $settings->issuer_name,
             'programName' => $settings->program_name,
-            // Google rechaza 'approved' desde la API para cuentas nuevas
-            // (probado en vivo: 400 "Invalid review status APPROVED. Use
-            // UNDER_REVIEW instead."). El watermark "[SOLO PARA PRUEBAS]"
-            // solo se quita cuando Google aprueba la cuenta de negocio a
-            // traves de su propio proceso de revision, no por API.
-            'reviewStatus' => 'underReview',
             'hexBackgroundColor' => $settings->hex_background_color,
         ];
 
@@ -143,10 +137,19 @@ class GoogleWalletService
             return ['success' => false, 'error' => 'No se pudo autenticar con Google'];
         }
 
+        // reviewStatus no va en el PATCH: omitirlo deja como está lo que
+        // Google ya tenga (que puede haber pasado a 'approved' por su
+        // propio proceso de revisión) - si lo mandáramos siempre en cada
+        // guardado, le resetearíamos el estado a 'underReview' sin querer
+        // cada vez que el manager edite el diseño. Solo se manda al CREAR
+        // la clase por primera vez, porque ahí Google sí lo exige.
         $response = Http::withToken($token)->patch(self::BASE_URL."/loyaltyClass/{$this->classId()}", $payload);
 
         if ($response->status() === 404) {
-            $response = Http::withToken($token)->post(self::BASE_URL.'/loyaltyClass', $payload);
+            $response = Http::withToken($token)->post(self::BASE_URL.'/loyaltyClass', [
+                ...$payload,
+                'reviewStatus' => 'underReview',
+            ]);
         }
 
         if ($response->failed()) {
