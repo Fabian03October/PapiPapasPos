@@ -108,7 +108,7 @@
 
         <div id="modal-body" class="hidden space-y-4">
             <div id="modal-variants-section" class="hidden">
-                <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Tamaño <span class="text-neutral-400 dark:text-neutral-500 font-normal">· elige 1</span></p>
+                <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Opciones <span class="text-neutral-400 dark:text-neutral-500 font-normal">· elige 1</span></p>
                 <div id="modal-variants" class="flex gap-2 flex-wrap"></div>
             </div>
 
@@ -382,7 +382,17 @@
 
             if (currentProduct.variants.length > 0) {
                 modalVariantsSection.classList.remove('hidden');
-                selectedVariant = currentProduct.variants[0].id;
+
+                // Solo se pone la variante por default la primera vez que se
+                // abre el modal (selectedVariant viene en null desde
+                // openModal). Si ya se puso, renderModal() se vuelve a
+                // llamar cada vez que el cajero elige una - sin este check,
+                // aqui mismo se pisaba la eleccion y siempre regresaba a la
+                // primera opcion.
+                if (selectedVariant === null) {
+                    selectedVariant = currentProduct.variants[0].id;
+                }
+
                 modalVariants.innerHTML = currentProduct.variants.map(v => `
                     <button type="button" data-variant-id="${v.id}"
                         class="variant-btn px-4 py-2 rounded-full text-sm border ${v.id === selectedVariant ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'}">
