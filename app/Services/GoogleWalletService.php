@@ -104,6 +104,14 @@ class GoogleWalletService
             'issuerName' => $settings->issuer_name,
             'programName' => $settings->program_name,
             'hexBackgroundColor' => $settings->hex_background_color,
+            // Se manda en CADA guardado (no solo al crear): un intento
+            // anterior llegó a guardar 'approved' del lado de Google antes
+            // de que la API rechazara la respuesta, dejando la clase
+            // atascada - Google seguía revisando ese valor guardado y
+            // rechazando cualquier actualización futura, aunque el código
+            // ya no mandara 'approved'. Forzar 'underReview' aquí corrige
+            // ese estado atascado.
+            'reviewStatus' => 'underReview',
         ];
 
         if ($logoUrl = $settings->logo_url) {
@@ -147,19 +155,10 @@ class GoogleWalletService
             return ['success' => false, 'error' => 'No se pudo autenticar con Google'];
         }
 
-        // reviewStatus no va en el PATCH: omitirlo deja como está lo que
-        // Google ya tenga (que puede haber pasado a 'approved' por su
-        // propio proceso de revisión) - si lo mandáramos siempre en cada
-        // guardado, le resetearíamos el estado a 'underReview' sin querer
-        // cada vez que el manager edite el diseño. Solo se manda al CREAR
-        // la clase por primera vez, porque ahí Google sí lo exige.
         $response = Http::withToken($token)->patch(self::BASE_URL."/loyaltyClass/{$this->classId()}", $payload);
 
         if ($response->status() === 404) {
-            $response = Http::withToken($token)->post(self::BASE_URL.'/loyaltyClass', [
-                ...$payload,
-                'reviewStatus' => 'underReview',
-            ]);
+            $response = Http::withToken($token)->post(self::BASE_URL.'/loyaltyClass', $payload);
         }
 
         if ($response->failed()) {
