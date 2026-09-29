@@ -184,6 +184,7 @@ class SaleController extends Controller
         $loyaltyService = new LoyaltyService;
         $reward = null;
         $pendingRedemption = null;
+        $loyaltyPreview = null;
 
         if ($customer) {
             // preview() se recalcula aquí (independiente del de arriba en
