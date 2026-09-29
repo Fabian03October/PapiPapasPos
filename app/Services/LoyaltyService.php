@@ -29,6 +29,7 @@ class LoyaltyService
             'type' => null,
             'discount_amount' => 0,
             'description' => null,
+            'free_product_id' => null,
             'free_product_name' => null,
             'free_product_in_cart' => false,
             'level_id' => $level?->id,
@@ -99,14 +100,14 @@ class LoyaltyService
         $level = $redemption->loyaltyLevel;
 
         if (! $level) {
-            return ['discount_amount' => 0, 'description' => null, 'free_product_name' => null, 'free_product_in_cart' => false];
+            return ['discount_amount' => 0, 'description' => null, 'free_product_id' => null, 'free_product_name' => null, 'free_product_in_cart' => false];
         }
 
         return $this->computeReward($level, $redemption->type, $baseAmount, $itemsData);
     }
 
     /**
-     * @return array{type: string, discount_amount: float, description: string, free_product_name: ?string, free_product_in_cart: bool}
+     * @return array{type: string, discount_amount: float, description: string, free_product_id: ?int, free_product_name: ?string, free_product_in_cart: bool}
      */
     protected function computeReward(LoyaltyLevel $level, string $type, float $baseAmount, array $itemsData): array
     {
@@ -115,6 +116,7 @@ class LoyaltyService
                 'type' => 'discount',
                 'discount_amount' => round($baseAmount * ((float) $level->discount_percent / 100), 2),
                 'description' => $level->discount_description ?: $level->discount_percent . '% de descuento',
+                'free_product_id' => null,
                 'free_product_name' => null,
                 'free_product_in_cart' => false,
             ];
@@ -124,6 +126,7 @@ class LoyaltyService
             'type' => 'gift',
             'discount_amount' => 0,
             'description' => $level->gift_description ?: 'Producto gratis',
+            'free_product_id' => $level->free_product_id,
             'free_product_name' => $level->freeProduct?->name,
             'free_product_in_cart' => false,
         ];

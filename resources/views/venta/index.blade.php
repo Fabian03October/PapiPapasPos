@@ -246,6 +246,7 @@
         // --- CARRITO ---
         let cart = [];
         let cartItemIdCounter = 1;
+        let autoGiftCartId = null; // cartId del premio de fidelidad que el sistema agregó solo
         let selectedCustomer = @if(session('selected_customer_id')) { id: {{ session('selected_customer_id') }}, name: @json(session('selected_customer_name')) } @else null @endif;
 
         const cartEmpty = document.getElementById('cart-empty');
@@ -315,7 +316,9 @@
 
             document.querySelectorAll('.cart-remove-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    cart = cart.filter(item => item.cartId !== Number(btn.dataset.cartId));
+                    const removedId = Number(btn.dataset.cartId);
+                    cart = cart.filter(item => item.cartId !== removedId);
+                    if (autoGiftCartId === removedId) autoGiftCartId = null;
                     renderCart();
                 });
             });
@@ -323,6 +326,7 @@
 
         cartClearBtn.addEventListener('click', () => {
             cart = [];
+            autoGiftCartId = null;
             renderCart();
         });
 
@@ -600,6 +604,15 @@
         }
 
         function loadPaymentPreview(redeemReward) {
+            // Se limpia ANTES de armar la petición para no re-mandar en el
+            // payload un premio que ya no aplica (ej. si el cajero cambió
+            // de "Sí" a "No" el canje).
+            if (autoGiftCartId !== null) {
+                cart = cart.filter(item => item.cartId !== autoGiftCartId);
+                autoGiftCartId = null;
+                renderCart();
+            }
+
             fetch('{{ route("venta.promotions.preview") }}', {
                 method: 'POST',
                 headers: {
@@ -630,6 +643,27 @@
                     discountRow.classList.remove('hidden');
                 } else {
                     discountRow.classList.add('hidden');
+                }
+
+                // Si el premio es un producto gratis y el cajero no lo había
+                // puesto en el carrito, el servidor ya lo agregó solo (para
+                // que de verdad se descuente y se imprima en el ticket) -
+                // aquí solo se refleja esa misma pieza en el carrito visible.
+                if (redeemReward && data.auto_added_gift) {
+                    autoGiftCartId = cartItemIdCounter++;
+                    cart.push({
+                        cartId: autoGiftCartId,
+                        productId: data.auto_added_gift.product_id,
+                        name: data.auto_added_gift.name,
+                        variantId: null,
+                        variantName: null,
+                        modifierIds: [],
+                        modifierNames: ['🎁 Premio de fidelidad, gratis'],
+                        notes: '',
+                        qty: 1,
+                        lineTotal: 0,
+                    });
+                    renderCart();
                 }
 
                 const giftRow = document.getElementById('payment-gift-row');

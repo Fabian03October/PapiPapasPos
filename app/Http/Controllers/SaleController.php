@@ -106,12 +106,17 @@ class SaleController extends Controller
 
         $redeemNow = $request->boolean('redeem_reward');
         $reward = null;
+        $autoAddedGift = null;
 
         if ($request->customer_id) {
             $customer = Customer::findOrFail($request->customer_id);
             $loyaltyService = new LoyaltyService;
             $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
             [$reward] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
+
+            if ($redeemNow && $reward && $reward['type'] === 'gift' && ! $reward['free_product_in_cart']) {
+                [$subtotal, $itemsData, , $reward, $autoAddedGift] = $this->applyGiftAutoAdd($reward, $subtotal, $itemsData, []);
+            }
 
             if ($redeemNow && $reward && $reward['discount_amount'] > 0) {
                 $discount = min($discount + $reward['discount_amount'], $subtotal);
@@ -126,7 +131,45 @@ class SaleController extends Controller
             'total' => round($total, 2),
             'applied_promotions' => $promoResult['applied'],
             'loyalty' => $reward,
+            'auto_added_gift' => $autoAddedGift,
         ]);
+    }
+
+    /**
+     * Cuando el cajero acepta un premio de "producto gratis" pero ese
+     * producto todavía no está en el carrito, se agrega solo (1 pieza,
+     * gratis) para que de verdad se refleje en el ticket - antes el
+     * sistema solo le avisaba al cajero que lo agregara a mano, y si se le
+     * olvidaba, el cliente se quedaba sin su premio sin que nadie se diera cuenta.
+     *
+     * @return array{0: float, 1: array, 2: array, 3: array, 4: ?array} [$subtotal, $itemsData, $ingredientConsumption, $reward, $autoAddedGift]
+     */
+    protected function applyGiftAutoAdd(array $reward, float $subtotal, array $itemsData, array $ingredientConsumption): array
+    {
+        $product = $reward['free_product_id'] ? Product::find($reward['free_product_id']) : null;
+
+        if (! $product) {
+            return [$subtotal, $itemsData, $ingredientConsumption, $reward, null];
+        }
+
+        [$giftSubtotal, $giftItemsData, $giftConsumption] = $this->buildItemsData([
+            ['product_id' => $product->id, 'variant_id' => null, 'modifier_ids' => [], 'qty' => 1],
+        ]);
+
+        foreach ($giftConsumption as $ingredientId => $qty) {
+            $ingredientConsumption[$ingredientId] = ($ingredientConsumption[$ingredientId] ?? 0) + $qty;
+        }
+
+        $reward['discount_amount'] = round($giftSubtotal, 2);
+        $reward['free_product_in_cart'] = true;
+
+        return [
+            $subtotal + $giftSubtotal,
+            [...$itemsData, ...$giftItemsData],
+            $ingredientConsumption,
+            $reward,
+            ['product_id' => $product->id, 'name' => $product->name, 'unit_price' => $giftSubtotal],
+        ];
     }
 
     /**
@@ -192,6 +235,15 @@ class SaleController extends Controller
             // cliente - el servidor es quien decide qué premio aplica.
             $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
             [$reward, $pendingRedemption] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
+
+            if ($redeemNow && $reward && $reward['type'] === 'gift' && ! $reward['free_product_in_cart']) {
+                [$subtotal, $itemsData, $ingredientConsumption, $reward] =
+                    $this->applyGiftAutoAdd($reward, $subtotal, $itemsData, $ingredientConsumption);
+
+                if ($loyaltyPreview['type'] === 'gift') {
+                    $loyaltyPreview['discount_amount'] = $reward['discount_amount'];
+                }
+            }
 
             if ($redeemNow && $reward && $reward['discount_amount'] > 0) {
                 $discount = min($discount + $reward['discount_amount'], $subtotal);
