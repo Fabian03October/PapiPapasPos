@@ -12,6 +12,7 @@ class LoyaltyLevel extends Model
         'discount_description',
         'free_product_id',
         'gift_description',
+        'is_active',
     ];
 
     protected function casts(): array

@@ -15,7 +15,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class CustomersTable
@@ -45,9 +47,17 @@ class CustomersTable
                     ->label('Cliente desde')
                     ->date('d/M/Y')
                     ->sortable(),
+                IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean(),
             ])
             ->filters([
-                //
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos')
+                    ->placeholder('Todos')
+                    ->default(true),
             ])
             ->recordActions([
                 Action::make('wallet_link')

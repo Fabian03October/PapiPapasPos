@@ -33,7 +33,14 @@ class VentaController extends Controller
 
     public function productDetails(Product $product)
     {
-        $product->load(['variants', 'modifierGroups.modifiers']);
+        // Solo variantes/grupos/modificadores activos - desactivar algo
+        // desde el panel debe quitarlo de la venta también, no solo del
+        // panel.
+        $product->load([
+            'variants' => fn ($q) => $q->where('is_active', true),
+            'modifierGroups' => fn ($q) => $q->where('is_active', true),
+            'modifierGroups.modifiers' => fn ($q) => $q->where('is_active', true),
+        ]);
 
         return response()->json([
             'id' => $product->id,
@@ -45,6 +52,9 @@ class VentaController extends Controller
                 'price_delta' => (float) $v->price_delta,
             ]),
             'modifier_groups' => $product->modifierGroups
+                // Un grupo sin ningún modificador activo no sirve de nada
+                // mostrarlo (y si era obligatorio, bloquearía la venta).
+                ->filter(fn ($g) => $g->modifiers->isNotEmpty())
                 ->sortBy('sort_order')
                 ->values()
                 ->map(fn ($g) => [
@@ -86,7 +96,7 @@ class VentaController extends Controller
 
     public function findCustomerByQr(string $qrCode)
     {
-        $customer = Customer::where('qr_code', $qrCode)->first();
+        $customer = Customer::where('qr_code', $qrCode)->where('is_active', true)->first();
 
         if (! $customer) {
             return response()->json(['found' => false], 404);
@@ -104,8 +114,11 @@ class VentaController extends Controller
     {
         $search = $request->query('q', '');
 
-        $customers = Customer::where('name', 'like', "%{$search}%")
-            ->orWhere('phone', 'like', "%{$search}%")
+        $customers = Customer::where('is_active', true)
+            ->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            })
             ->limit(10)
             ->get(['id', 'name', 'phone']);
 

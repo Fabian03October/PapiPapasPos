@@ -29,6 +29,9 @@ class ModifierGroupForm
                         Toggle::make('is_required')
                             ->label('Obligatorio')
                             ->default(false),
+                        Toggle::make('is_active')
+                            ->label('Activo')
+                            ->default(true),
                     ]),
 
                 Section::make('Reglas de selección')

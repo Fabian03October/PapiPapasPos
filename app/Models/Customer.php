@@ -15,6 +15,7 @@ class Customer extends Model
         'qr_code',
         'current_level',
         'current_visits',
+        'is_active',
     ];
 
     protected static function booted(): void

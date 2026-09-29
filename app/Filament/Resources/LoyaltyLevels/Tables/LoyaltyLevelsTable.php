@@ -5,7 +5,9 @@ namespace App\Filament\Resources\LoyaltyLevels\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class LoyaltyLevelsTable
@@ -25,10 +27,18 @@ class LoyaltyLevelsTable
                     ->label('Regalo (visita 8)')
                     ->description(fn (\App\Models\LoyaltyLevel $record) => $record->freeProduct?->name)
                     ->placeholder('Sin descripción'),
+                IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean(),
             ])
             ->defaultSort('level_number')
             ->filters([
-                //
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos')
+                    ->placeholder('Todos')
+                    ->default(true),
             ])
             ->recordActions([
                 EditAction::make(),

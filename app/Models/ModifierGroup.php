@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ModifierGroup extends Model
 {
-    protected $fillable = ['name', 'min_select', 'max_select', 'is_required', 'sort_order'];
+    protected $fillable = ['name', 'min_select', 'max_select', 'is_required', 'sort_order', 'is_active'];
 
     public function modifiers()
     {

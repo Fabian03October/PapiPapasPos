@@ -5,6 +5,7 @@ namespace App\Filament\Resources\LoyaltyLevels\Schemas;
 use App\Models\Product;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -48,6 +49,10 @@ class LoyaltyLevelForm
                             ->label('Descripción del regalo')
                             ->placeholder('Ej. Orden grande de salchipapas gratis')
                             ->helperText('Así se le muestra al cajero/cliente.'),
+                        Toggle::make('is_active')
+                            ->label('Activo')
+                            ->default(true)
+                            ->columnSpanFull(),
                     ]),
             ]);
     }

@@ -8,9 +8,12 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class ModifiersRelationManager extends RelationManager
@@ -32,6 +35,9 @@ class ModifiersRelationManager extends RelationManager
                     ->numeric()
                     ->prefix('$')
                     ->default(0),
+                Toggle::make('is_active')
+                    ->label('Activo')
+                    ->default(true),
             ]);
     }
 
@@ -47,9 +53,17 @@ class ModifiersRelationManager extends RelationManager
                     ->label('Precio extra')
                     ->money('MXN')
                     ->sortable(),
+                IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean(),
             ])
             ->filters([
-                //
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos')
+                    ->placeholder('Todos')
+                    ->default(true),
             ])
             ->headerActions([
                 CreateAction::make(),
