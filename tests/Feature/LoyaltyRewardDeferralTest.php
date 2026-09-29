@@ -154,4 +154,27 @@ class LoyaltyRewardDeferralTest extends TestCase
         $expired->refresh();
         $this->assertSame('pending', $expired->status);
     }
+
+    /**
+     * Regresión real: $loyaltyPreview solo se definía dentro del
+     * if ($customer), pero el closure de la transacción la capturaba
+     * siempre con use() - en una venta SIN cliente (la mayoría de las
+     * ventas reales), esto tronaba con "Undefined variable" en producción.
+     */
+    public function test_una_venta_sin_cliente_se_guarda_bien(): void
+    {
+        $user = $this->cajero();
+        $this->openCashSession($user);
+        $product = $this->product(100);
+
+        $response = $this->actingAs($user)->postJson('/venta/cobrar', [
+            'items' => [['product_id' => $product->id, 'qty' => 1]],
+            'payment_method' => 'efectivo',
+            'customer_id' => null,
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+        $this->assertEquals(100.0, $response->json('total'));
+    }
 }
