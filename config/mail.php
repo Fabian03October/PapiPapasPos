@@ -65,6 +65,13 @@ return [
             'transport' => 'resend',
         ],
 
+        // Brevo por su API HTTPS (no SMTP directo - Railway bloquea/cuelga
+        // esas conexiones salientes). Registrado en AppServiceProvider.
+        'brevo' => [
+            'transport' => 'brevo',
+            'key' => env('BREVO_API_KEY'),
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
