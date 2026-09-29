@@ -29,6 +29,15 @@ class WalletCardDesign extends Page
 
     protected static ?string $title = 'Diseño de tarjeta';
 
+    // Escondida del menú por ahora: el guardado de imágenes sigue fallando
+    // en producción (Google tarda demasiado en validarlas y la petición
+    // truena). Se retoma en la v2. La página sigue funcionando si alguien
+    // entra directo a la URL, solo no aparece en la navegación.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public ?array $data = [];
 
     public function mount(): void
