@@ -12,6 +12,7 @@ use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class IngredientsTable
@@ -50,7 +51,12 @@ class IngredientsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos')
+                    ->placeholder('Todos')
+                    ->default(true),
             ])
             ->recordActions([
                 Action::make('registrarEntrada')
