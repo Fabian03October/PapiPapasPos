@@ -23,17 +23,20 @@ class PromotionsTable
                     ->label('Tipo')
                     ->badge()
                     ->formatStateUsing(fn (string $state) => match ($state) {
-                        'percent_off_sale' => 'Descuento %',
-                        'fixed_price_combo' => 'Combo',
-                        'fixed_price_single' => 'Precio especial',
+                        'free' => 'Gratis',
+                        'discount' => 'Precio fijo o descuento',
                         default => $state,
                     })
-                    ->color(fn (string $state) => match ($state) {
-                        'percent_off_sale' => 'info',
-                        'fixed_price_combo' => 'warning',
-                        'fixed_price_single' => 'success',
-                        default => 'gray',
-                    }),
+                    ->color(fn (string $state) => $state === 'free' ? 'success' : 'info'),
+                TextColumn::make('scope')
+                    ->label('Alcance')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'product' => 'Producto',
+                        'modifier' => 'Extra/modificador',
+                        default => $state,
+                    })
+                    ->color('gray'),
                 TextColumn::make('percent_value')
                     ->label('Descuento')
                     ->suffix('%')

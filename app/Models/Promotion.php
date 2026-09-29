@@ -9,6 +9,8 @@ class Promotion extends Model
     protected $fillable = [
         'name',
         'type',
+        'scope',
+        'discount_mode',
         'percent_value',
         'combo_price',
         'valid_from',

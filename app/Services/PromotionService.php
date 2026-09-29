@@ -46,11 +46,7 @@ class PromotionService
         $appliedNames = [];
 
         foreach ($activePromotions as $promo) {
-            if ($promo->type === 'percent_off_sale') {
-                $discount = $this->evaluatePercentOff($promo, $itemsData);
-            } else {
-                $discount = $this->evaluateFixedPrice($promo, $itemsData);
-            }
+            $discount = $this->evaluatePromotion($promo, $itemsData);
 
             if ($discount > 0) {
                 $totalDiscount += $discount;
@@ -64,44 +60,96 @@ class PromotionService
         ];
     }
 
-    protected function evaluatePercentOff(Promotion $promo, array $itemsData): float
+    protected function evaluatePromotion(Promotion $promo, array $itemsData): float
     {
-        $hasProductScope = $promo->products->isNotEmpty();
-        $hasModifierScope = $promo->modifiers->isNotEmpty();
+        if ($promo->scope === 'modifier') {
+            return $this->evaluateModifierScope($promo, $itemsData);
+        }
 
-        // Sin productos ni extras específicos: aplica a toda la venta
-        if (! $hasProductScope && ! $hasModifierScope) {
+        if ($promo->type === 'discount' && $promo->discount_mode === 'fixed_price') {
+            return $this->evaluateFixedPrice($promo, $itemsData);
+        }
+
+        return $this->evaluateProductScope($promo, $itemsData);
+    }
+
+    /**
+     * "Producto gratis" (100%) o "descuento %" aplicado a productos
+     * completos (o a toda la venta si no se especificó ningún producto).
+     */
+    protected function evaluateProductScope(Promotion $promo, array $itemsData): float
+    {
+        $percent = $promo->type === 'free' ? 100 : (float) $promo->percent_value;
+        $hasProductScope = $promo->products->isNotEmpty();
+
+        if (! $hasProductScope) {
             $scopeSubtotal = collect($itemsData)->sum('line_total');
 
-            return $scopeSubtotal * ((float) $promo->percent_value / 100);
+            return $scopeSubtotal * ($percent / 100);
         }
 
         $productIds = $promo->products->pluck('id')->all();
-        $modifierIds = $promo->modifiers->pluck('id')->all();
         $scopeSubtotal = 0;
 
         foreach ($itemsData as $item) {
-            $matchesProduct = ! $hasProductScope || in_array($item['product_id'], $productIds);
-
-            if (! $matchesProduct) {
-                continue;
-            }
-
-            if ($hasModifierScope) {
-                // Descuento sobre el costo del extra dentro de esta línea, no sobre el producto completo
-                foreach ($item['modifiers'] as $modifier) {
-                    if (in_array($modifier->id, $modifierIds)) {
-                        $scopeSubtotal += (float) $modifier->price_delta * $item['qty'];
-                    }
-                }
-            } else {
+            if (in_array($item['product_id'], $productIds)) {
                 $scopeSubtotal += $item['line_total'];
             }
         }
 
-        return $scopeSubtotal * ((float) $promo->percent_value / 100);
+        return $scopeSubtotal * ($percent / 100);
     }
 
+    /**
+     * Descuento limitado a un extra/modificador específico (nunca toca el
+     * precio del producto base ni de otros extras) - "gratis", "% de
+     * descuento" o "precio fijo" para ESE extra. Si además se llenaron
+     * "Productos", se restringe a cuando el extra se agrega a alguno de
+     * esos productos (opcional, no es la forma principal de definir el
+     * alcance).
+     */
+    protected function evaluateModifierScope(Promotion $promo, array $itemsData): float
+    {
+        $modifierIds = $promo->modifiers->pluck('id')->all();
+
+        if (empty($modifierIds)) {
+            return 0;
+        }
+
+        $hasProductScope = $promo->products->isNotEmpty();
+        $productIds = $promo->products->pluck('id')->all();
+        $discount = 0;
+
+        foreach ($itemsData as $item) {
+            if ($hasProductScope && ! in_array($item['product_id'], $productIds)) {
+                continue;
+            }
+
+            foreach ($item['modifiers'] as $modifier) {
+                if (! in_array($modifier->id, $modifierIds)) {
+                    continue;
+                }
+
+                $price = (float) $modifier->price_delta;
+
+                if ($promo->type === 'free') {
+                    $discount += $price * $item['qty'];
+                } elseif ($promo->discount_mode === 'percent') {
+                    $discount += $price * $item['qty'] * ((float) $promo->percent_value / 100);
+                } else { // fixed_price: el extra pasa a costar $combo_price fijo
+                    $discount += max(0, $price - (float) $promo->combo_price) * $item['qty'];
+                }
+            }
+        }
+
+        return $discount;
+    }
+
+    /**
+     * Combo/precio especial: 1 o más productos completos a un precio fijo
+     * total, sin importar la suma de sus partes. Solo aplica a productos
+     * (nunca a extras/modificadores sueltos).
+     */
     protected function evaluateFixedPrice(Promotion $promo, array $itemsData): float
     {
         if ($promo->products->isEmpty()) {
