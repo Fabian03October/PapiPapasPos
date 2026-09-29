@@ -12,6 +12,8 @@ class EditPromotion extends EditRecord
 
     protected array $pendingProducts = [];
 
+    protected array $pendingModifiers = [];
+
     protected function getHeaderActions(): array
     {
         return [
@@ -26,13 +28,18 @@ class EditPromotion extends EditRecord
             'qty_required' => $product->pivot->qty_required,
         ])->toArray();
 
+        $data['modifiers'] = $this->record->modifiers->map(fn ($modifier) => [
+            'modifier_id' => $modifier->id,
+        ])->toArray();
+
         return $data;
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $this->pendingProducts = $data['products'] ?? [];
-        unset($data['products']);
+        $this->pendingModifiers = $data['modifiers'] ?? [];
+        unset($data['products'], $data['modifiers']);
 
         return $data;
     }
@@ -48,6 +55,10 @@ class EditPromotion extends EditRecord
         }
 
         $this->record->products()->sync($syncData);
+
+        $this->record->modifiers()->sync(
+            collect($this->pendingModifiers)->pluck('modifier_id')->filter()->all()
+        );
     }
 
     protected function getRedirectUrl(): string

@@ -11,10 +11,13 @@ class CreatePromotion extends CreateRecord
 
     protected array $pendingProducts = [];
 
+    protected array $pendingModifiers = [];
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $this->pendingProducts = $data['products'] ?? [];
-        unset($data['products']);
+        $this->pendingModifiers = $data['modifiers'] ?? [];
+        unset($data['products'], $data['modifiers']);
 
         return $data;
     }
@@ -30,6 +33,10 @@ class CreatePromotion extends CreateRecord
         }
 
         $this->record->products()->sync($syncData);
+
+        $this->record->modifiers()->sync(
+            collect($this->pendingModifiers)->pluck('modifier_id')->filter()->all()
+        );
     }
 
     protected function getRedirectUrl(): string
