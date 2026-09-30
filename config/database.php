@@ -60,6 +60,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // Railway usa un certificado autofirmado para MySQL - mysqldump
+            // (a diferencia de PDO arriba) sí lo rechaza por default al
+            // respaldar, así que se le dice que no verifique el certificado.
+            'dump' => [
+                'skip_ssl' => true,
+            ],
         ],
 
         'mariadb' => [
