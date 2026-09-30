@@ -16,6 +16,7 @@ class ReportExport implements WithMultipleSheets
             new ReportSalesTrendSheet($this->service),
             new ReportTopProductsSheet($this->service),
             new ReportLowStockSheet($this->service),
+            new ReportIngredientMovementsSheet($this->service),
             new ReportEmployeeSalesSheet($this->service),
             new ReportFrequentCustomersSheet($this->service),
         ];

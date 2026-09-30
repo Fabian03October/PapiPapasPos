@@ -22,6 +22,7 @@
         $trend = $service->salesTrend();
         $topProducts = $service->topProducts(10);
         $lowStock = $service->lowStockIngredients();
+        $ingredientMovements = $service->ingredientMovements();
         $employees = $service->salesByEmployee();
         $frequentCustomers = $service->frequentCustomers(10);
     @endphp
@@ -66,6 +67,22 @@
             </tr>
         @empty
             <tr><td colspan="4">Sin alertas por el momento.</td></tr>
+        @endforelse
+    </table>
+
+    <h2>Movimiento de insumos</h2>
+    <table>
+        <tr><th>Insumo</th><th>Entradas</th><th>Salidas (venta)</th><th>Merma</th><th>Unidad</th></tr>
+        @forelse ($ingredientMovements as $row)
+            <tr>
+                <td>{{ $row->name }}</td>
+                <td>{{ number_format($row->entradas, 2) }}</td>
+                <td>{{ number_format($row->salidas, 2) }}</td>
+                <td>{{ number_format($row->merma, 2) }}</td>
+                <td>{{ $row->unit }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="5">Sin insumos activos.</td></tr>
         @endforelse
     </table>
 

@@ -130,6 +130,34 @@ class ReportMetricsService
             ->get();
     }
 
+    /**
+     * Por insumo, cuánto entró (compras), cuánto salió por venta, y cuánta
+     * merma hubo en el periodo - reutiliza los mismos movimientos que ya se
+     * registran al vender, al comprar, y al cerrar turno/aprobar una
+     * incidencia, sin necesidad de capturar nada aparte.
+     */
+    public function ingredientMovementsQuery()
+    {
+        $movementSum = fn (string $type, string $expression) => InventoryMovement::query()
+            ->whereColumn('ingredient_id', 'ingredients.id')
+            ->where('type', $type)
+            ->whereBetween('created_at', [$this->from, $this->until])
+            ->selectRaw("COALESCE(SUM($expression), 0)");
+
+        return Ingredient::query()
+            ->where('is_active', true)
+            ->select('ingredients.*')
+            ->selectSub($movementSum('compra', 'qty'), 'entradas')
+            ->selectSub($movementSum('venta', 'ABS(qty)'), 'salidas')
+            ->selectSub($movementSum('merma', 'ABS(qty)'), 'merma')
+            ->orderBy('name');
+    }
+
+    public function ingredientMovements()
+    {
+        return $this->ingredientMovementsQuery()->get();
+    }
+
     public function shrinkageValue(): float
     {
         return (float) InventoryMovement::where('type', 'merma')

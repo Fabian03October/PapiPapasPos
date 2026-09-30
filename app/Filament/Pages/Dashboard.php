@@ -83,6 +83,7 @@ class Dashboard extends \Filament\Pages\Dashboard
             \App\Filament\Widgets\PeakHoursChart::class,
             \App\Filament\Widgets\TopProductsChart::class,
             \App\Filament\Widgets\InventoryStatsOverview::class,
+            \App\Filament\Widgets\IngredientMovementsTable::class,
             \App\Filament\Widgets\LowStockTable::class,
             \App\Filament\Widgets\DeadStockTable::class,
             \App\Filament\Widgets\EmployeeSalesTable::class,
