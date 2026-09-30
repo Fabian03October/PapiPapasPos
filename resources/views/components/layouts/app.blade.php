@@ -52,6 +52,16 @@
                     </button>
                 </div>
 
+                <div class="flex items-start justify-between gap-2 pb-3 mb-3 border-b border-neutral-100 dark:border-neutral-800">
+                    <div class="min-w-0">
+                        <p class="text-sm text-neutral-700 dark:text-neutral-300">Estación de impresión</p>
+                        <p class="text-xs text-neutral-400 dark:text-neutral-500">Actívalo SOLO en la compu conectada a la impresora, nunca en un celular.</p>
+                    </div>
+                    <button id="print-station-toggle" type="button" role="switch" class="shrink-0 w-10 h-6 rounded-full relative transition-colors bg-neutral-200 dark:bg-neutral-700">
+                        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+                    </button>
+                </div>
+
                 <div class="flex flex-col gap-0.5">
                     @if (auth()->user()->role?->name === 'manager')
                     <a href="/admin" class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
@@ -88,5 +98,6 @@
 
     <script src="{{ asset('js/toast.js') }}"></script>
     <script src="{{ asset('js/sidebar.js') }}"></script>
+    <script src="{{ asset('js/print-station-toggle.js') }}"></script>
 </body>
 </html>

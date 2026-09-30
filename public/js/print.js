@@ -33,16 +33,39 @@
         await printUrl(`/venta/${saleId}/comanda`);
     }
 
-    window.PrintDocs = { printUrl, printSaleDocuments };
+    window.PrintDocs = { printUrl, printSaleDocuments, isPrintStation, setPrintStation };
 
     /**
      * Estación de impresión: revisa cada pocos segundos si hay ventas nuevas
      * sin imprimir de la caja abierta y las imprime sola — sin importar desde
-     * qué dispositivo se registraron. Corre siempre, en todos los
-     * dispositivos: solo la(s) compu(s) con una impresora térmica
-     * configurada como predeterminada producen un ticket real.
+     * qué dispositivo se registraron.
+     *
+     * IMPORTANTE: antes esto corría en TODOS los dispositivos sin distinción
+     * (la idea era que solo produce un ticket real la(s) compu(s) con
+     * impresora configurada). El problema real: el servidor reclama cada
+     * venta una sola vez (para no imprimirla doble), así que si el celular
+     * del cajero alcanzaba a "reclamarla" primero (aunque no imprimiera
+     * nada), la compu de la impresora real ya no la veía como pendiente —
+     * el ticket se perdía sin avisar a nadie. Por eso ahora solo corre en
+     * el dispositivo que se marque explícitamente como estación (ver el
+     * interruptor "Estación de impresión" en el menú de usuario).
      */
     const STATION_INTERVAL_MS = 4000;
+    const PRINT_STATION_KEY = 'papispapas_es_estacion_impresion';
+
+    function isPrintStation() {
+        try {
+            return localStorage.getItem(PRINT_STATION_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setPrintStation(enabled) {
+        try {
+            localStorage.setItem(PRINT_STATION_KEY, enabled ? '1' : '0');
+        } catch (e) {}
+    }
 
     function csrfToken() {
         return document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -81,5 +104,7 @@
         setTimeout(stationTick, STATION_INTERVAL_MS);
     }
 
-    stationTick();
+    if (isPrintStation()) {
+        stationTick();
+    }
 })(window);
