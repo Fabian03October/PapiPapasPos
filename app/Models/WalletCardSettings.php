@@ -18,9 +18,16 @@ class WalletCardSettings extends Model
         'contact_info',
     ];
 
+    /**
+     * Fila única de configuración. Ojo: buscarla por id=1 se rompe en
+     * cuanto esa fila deja de tener exactamente ese id (ej. un rollback de
+     * transacción en pruebas hace que MySQL nunca reutilice el 1) - cada
+     * llamada crearía una fila nueva en vez de reusar la guardada. Por eso
+     * se toma "la primera que exista", sin asumir cuál id tiene.
+     */
     public static function current(): self
     {
-        return static::firstOrCreate(['id' => 1], [
+        return static::first() ?? static::create([
             'program_name' => config('services.google_wallet.program_name'),
             'issuer_name' => config('services.google_wallet.issuer_name'),
             'hex_background_color' => config('services.google_wallet.hex_background_color'),

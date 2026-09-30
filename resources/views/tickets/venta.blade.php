@@ -14,7 +14,14 @@
     </style>
 </head>
 <body onload="window.print()">
-    <p class="center name">Papi's Papas</p>
+    @php $business = \App\Models\BusinessSettings::current(); @endphp
+    <p class="center name">{{ $business->name }}</p>
+    @if ($business->address)
+        <p class="center">{{ $business->address }}</p>
+    @endif
+    @if ($business->contact_info)
+        <p class="center">{{ $business->contact_info }}</p>
+    @endif
     <p class="center">Ticket de venta</p>
     <div class="line"></div>
 
@@ -59,10 +66,25 @@
         <tr class="bold"><td>TOTAL</td><td class="right">${{ number_format($sale->total, 2) }}</td></tr>
     </table>
 
+    @if ($business->show_iva)
+        @php
+            $ivaRate = (float) $business->iva_rate;
+            $ivaBase = $sale->total / (1 + $ivaRate / 100);
+            $ivaAmount = $sale->total - $ivaBase;
+        @endphp
+        <p style="font-size: 11px;">(IVA incluido ({{ rtrim(rtrim(number_format($ivaRate, 2), '0'), '.') }}%): ${{ number_format($ivaAmount, 2) }})</p>
+    @endif
+
     <div class="line"></div>
 
     <p>Pago: {{ $sale->payment_method === 'efectivo' ? 'Efectivo' : 'Tarjeta' }}</p>
 
-    <p class="center" style="margin-top: 8px;">¡Gracias por tu compra!</p>
+    <p class="center" style="margin-top: 8px;">
+        @if ($business->personalize_thank_you && $sale->customer)
+            ¡Gracias, {{ $sale->customer->name }}, por tu compra!
+        @else
+            {{ $business->thank_you_message }}
+        @endif
+    </p>
 </body>
 </html>
