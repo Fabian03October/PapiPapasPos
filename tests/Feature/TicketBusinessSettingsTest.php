@@ -78,8 +78,8 @@ class TicketBusinessSettingsTest extends TestCase
         $response->assertOk();
         $response->assertSee('Av. Principal 123');
         $response->assertSee('555-123-4567', false);
-        // $116 con IVA de 16% incluido: base = 100, IVA = 16.
-        $response->assertSee('IVA incluido (16%): $16.00', false);
+        // 16% directo sobre el total: 116 x 0.16 = 18.56.
+        $response->assertSee('IVA incluido (16%): $18.56', false);
         $response->assertSee('¡Gracias por tu compra!');
     }
 

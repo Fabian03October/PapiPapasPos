@@ -69,8 +69,10 @@
     @if ($business->show_iva)
         @php
             $ivaRate = (float) $business->iva_rate;
-            $ivaBase = $sale->total / (1 + $ivaRate / 100);
-            $ivaAmount = $sale->total - $ivaBase;
+            // 16% directo sobre el total (no el desglose "hacia atrás" de un
+            // precio con IVA incluido) - así lo pidió el dueño: que la base
+            // (total - IVA) y el IVA sumados den el total exacto.
+            $ivaAmount = $sale->total * ($ivaRate / 100);
         @endphp
         <p style="font-size: 11px;">(IVA incluido ({{ rtrim(rtrim(number_format($ivaRate, 2), '0'), '.') }}%): ${{ number_format($ivaAmount, 2) }})</p>
     @endif
