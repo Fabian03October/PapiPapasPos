@@ -63,8 +63,13 @@ return [
             // Railway usa un certificado autofirmado para MySQL - mysqldump
             // (a diferencia de PDO arriba) sí lo rechaza por default al
             // respaldar, así que se le dice que no verifique el certificado.
+            // ssl_flag fuerza la bandera exacta: sin esto, spatie/db-dumper
+            // elige sola según la versión que reporte el servidor (9.x ->
+            // "ssl-mode=DISABLED"), pero el mysqldump instalado es el de
+            // MariaDB, que no reconoce esa sintaxis - solo "--skip-ssl".
             'dump' => [
                 'skip_ssl' => true,
+                'ssl_flag' => 'skip-ssl',
             ],
         ],
 
