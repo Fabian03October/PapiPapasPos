@@ -7,6 +7,7 @@ use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleIncident;
 use App\Models\SaleItem;
 use Carbon\Carbon;
 
@@ -218,6 +219,25 @@ class ReportMetricsService
     public function frequentCustomers(int $limit = 10)
     {
         return $this->frequentCustomersQuery($limit)->get();
+    }
+
+    /**
+     * Para los contadores de "Cancelados" y "Repuestos" del historial de
+     * ventas: cuántas incidencias de ese tipo se autorizaron en el periodo,
+     * y el valor de los productos que afectaron.
+     */
+    public function incidentStats(string $type): array
+    {
+        $incidents = SaleIncident::where('type', $type)
+            ->where('status', 'aprobada')
+            ->whereBetween('authorized_at', [$this->from, $this->until])
+            ->with('items')
+            ->get();
+
+        return [
+            'count' => $incidents->count(),
+            'total' => (float) $incidents->sum(fn ($incident) => $incident->items->sum('line_total')),
+        ];
     }
 
     public function salesByEmployee()

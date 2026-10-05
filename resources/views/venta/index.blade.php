@@ -438,30 +438,18 @@
                     const isSelected = selectedModifiers[group.id].includes(mod.id);
                     const priceLabel = mod.price_delta > 0 ? `+${formatMoney(mod.price_delta)}` : '';
 
-                    if (isSingle) {
-                        return `
-                            <button type="button" data-group-id="${group.id}" data-mod-id="${mod.id}" data-single="true"
-                                class="mod-btn px-4 py-2 rounded-full text-sm border ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'}">
-                                ${mod.name} ${priceLabel}
-                            </button>
-                        `;
-                    }
-
                     return `
-                        <label class="flex items-center justify-between gap-2 px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm cursor-pointer">
-                            <span class="flex items-center gap-2 min-w-0 text-neutral-900 dark:text-neutral-100">
-                                <input type="checkbox" data-group-id="${group.id}" data-mod-id="${mod.id}" class="mod-checkbox shrink-0" ${isSelected ? 'checked' : ''}>
-                                <span class="truncate">${mod.name}</span>
-                            </span>
-                            ${priceLabel ? `<span class="text-neutral-500 dark:text-neutral-500 shrink-0">${priceLabel}</span>` : ''}
-                        </label>
+                        <button type="button" data-group-id="${group.id}" data-mod-id="${mod.id}" data-single="${isSingle}"
+                            class="mod-btn px-4 py-2 rounded-full text-sm border ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'}">
+                            ${mod.name} ${priceLabel}
+                        </button>
                     `;
                 }).join('');
 
                 return `
                     <div>
                         <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">${group.name} <span class="text-neutral-400 dark:text-neutral-500 font-normal">· ${label}</span></p>
-                        <div class="${isSingle ? 'flex gap-2 flex-wrap' : 'grid grid-cols-2 lg:grid-cols-3 gap-2'}">${optionsHtml}</div>
+                        <div class="flex gap-2 flex-wrap">${optionsHtml}</div>
                     </div>
                 `;
             }).join('');
@@ -470,21 +458,17 @@
                 btn.addEventListener('click', () => {
                     const groupId = btn.dataset.groupId;
                     const modId = Number(btn.dataset.modId);
-                    selectedModifiers[groupId] = [modId];
-                    renderModal();
-                });
-            });
 
-            modalGroups.querySelectorAll('.mod-checkbox').forEach(cb => {
-                cb.addEventListener('change', () => {
-                    const groupId = cb.dataset.groupId;
-                    const modId = Number(cb.dataset.modId);
-                    if (cb.checked) {
-                        selectedModifiers[groupId].push(modId);
+                    if (btn.dataset.single === 'true') {
+                        selectedModifiers[groupId] = [modId];
                     } else {
-                        selectedModifiers[groupId] = selectedModifiers[groupId].filter(id => id !== modId);
+                        const current = selectedModifiers[groupId];
+                        selectedModifiers[groupId] = current.includes(modId)
+                            ? current.filter(id => id !== modId)
+                            : [...current, modId];
                     }
-                    updateModalTotal();
+
+                    renderModal();
                 });
             });
 
