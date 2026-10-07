@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Models\Category;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -39,6 +40,17 @@ class ProductForm
                         Toggle::make('is_active')
                             ->label('Activo')
                             ->default(true),
+                        FileUpload::make('image_path')
+                            ->label('Foto')
+                            ->helperText('Aparece en el botón del producto en la pantalla de venta. PNG, JPG o WEBP. Máximo 2MB.')
+                            // Sin ->image() por la misma razón que en
+                            // WalletCardDesign: en Railway la detección del
+                            // tipo real del archivo rechaza imágenes genuinas.
+                            ->maxSize(2048)
+                            ->disk('public')
+                            ->directory('products')
+                            ->visibility('public')
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Modificadores')
