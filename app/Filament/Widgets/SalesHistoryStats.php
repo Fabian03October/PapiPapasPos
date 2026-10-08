@@ -35,6 +35,9 @@ class SalesHistoryStats extends BaseWidget
                 ->color($cancelled['count'] > 0 ? 'danger' : null),
             Stat::make('Repuestos', $replaced['count'] . ' · $' . number_format($replaced['total'], 2))
                 ->color($replaced['count'] > 0 ? 'warning' : null),
+            Stat::make('Descuentos y cortesías del cajero', $totals['manual_discount_count'] . ' · $' . number_format($totals['manual_discount'], 2))
+                ->description('Usa el filtro de la tabla para ver cuáles')
+                ->color($totals['manual_discount_count'] > 0 ? 'success' : null),
         ];
     }
 }

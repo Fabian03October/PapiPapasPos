@@ -82,6 +82,17 @@
             </div>
 
             <div class="border-t border-neutral-200 dark:border-neutral-800 pt-3 mt-3 shrink-0">
+                <button id="sale-discount-btn" type="button" class="hidden w-full mb-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline text-left">
+                    🏷 Descuento o cortesía a toda la venta
+                </button>
+                <div id="sale-discount-chip" class="hidden items-center justify-between gap-2 mb-2 bg-green-50 dark:bg-green-500/10 rounded-lg px-3 py-2">
+                    <button type="button" id="sale-discount-edit" class="text-xs text-green-700 dark:text-green-400 text-left min-w-0 truncate"></button>
+                    <button type="button" id="sale-discount-remove" class="text-green-700 dark:text-green-400 shrink-0" title="Quitar descuento">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="flex justify-between text-lg font-semibold mb-3 text-neutral-900 dark:text-neutral-100">
                     <span>Total</span>
                     <span id="cart-total">$0.00</span>
@@ -148,10 +159,7 @@
                 <span>Subtotal</span>
                 <span id="payment-subtotal">$0.00</span>
             </div>
-            <div id="payment-discount-row" class="flex justify-between text-sm text-green-600 dark:text-green-400 mb-1 hidden">
-                <span id="payment-discount-label">Descuento</span>
-                <span id="payment-discount">-$0.00</span>
-            </div>
+            <div id="payment-discount-lines" class="flex flex-col gap-0.5 mb-1"></div>
             <div id="payment-gift-row" class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 mb-1 hidden bg-amber-50 dark:bg-amber-500/10 rounded p-2">
                 <span>🎁</span>
                 <span id="payment-gift-text">Regalo por fidelidad</span>
@@ -160,6 +168,9 @@
                 <span>Total</span>
                 <span id="payment-total">$0.00</span>
             </div>
+            <button id="payment-sale-discount-btn" type="button" class="mt-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                🏷 Descuento o cortesía a toda la venta
+            </button>
         </div>
 
         <!-- Pregunta de canje de premio: solo aparece si hay uno disponible -->
@@ -205,6 +216,49 @@
             <button id="confirm-sale-btn" class="w-full bg-primary-600 text-white rounded-lg h-12 text-sm font-medium">
                 ✓ Confirmar venta
             </button>
+        </x-slot:footer>
+    </x-modal>
+
+    <!-- Popup de descuento / cortesía manual (a un producto o a toda la venta) -->
+    <x-modal id="discount-modal" max-width="sm">
+        <x-slot:header>
+            <div>
+                <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Descuento o cortesía</p>
+                <p id="discount-modal-target" class="text-sm text-neutral-500 dark:text-neutral-400"></p>
+            </div>
+            <button id="discount-modal-close" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </x-slot:header>
+
+        <div class="grid grid-cols-3 gap-2 mb-4">
+            <button type="button" data-discount-type="percent" class="discount-type-btn h-11 rounded-lg border text-sm font-medium">% Porcentaje</button>
+            <button type="button" data-discount-type="amount" class="discount-type-btn h-11 rounded-lg border text-sm font-medium">$ Monto</button>
+            <button type="button" data-discount-type="courtesy" class="discount-type-btn h-11 rounded-lg border text-sm font-medium">🎁 Cortesía</button>
+        </div>
+
+        <div id="discount-value-section" class="mb-4">
+            <div class="relative">
+                <span id="discount-value-prefix" class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500"></span>
+                <input type="number" id="discount-value" step="0.01" min="0" inputmode="decimal" class="w-full h-11 pl-7 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-lg font-semibold">
+            </div>
+        </div>
+
+        <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Motivo <span class="text-neutral-400 dark:text-neutral-500 font-normal">· obligatorio</span></p>
+        <div class="flex gap-2 flex-wrap mb-2">
+            @foreach (['Cliente frecuente', 'Error en el pedido', 'Cortesía de la casa', 'Empleado', 'Queja del cliente'] as $reason)
+                <button type="button" class="discount-reason-chip px-3 py-1.5 rounded-full text-xs border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">{{ $reason }}</button>
+            @endforeach
+        </div>
+        <input type="text" id="discount-reason" maxlength="255" placeholder="Escribe o elige un motivo" class="w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+
+        <x-slot:footer>
+            <div class="flex gap-2">
+                <button id="discount-remove-btn" type="button" class="hidden h-12 px-4 rounded-lg border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium">Quitar</button>
+                <button id="discount-apply-btn" type="button" class="flex-1 bg-primary-600 text-white rounded-lg h-12 text-sm font-medium">Aplicar</button>
+            </div>
         </x-slot:footer>
     </x-modal>
 
@@ -276,6 +330,52 @@
             return '$' + n.toFixed(2);
         }
 
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text ?? '';
+            return div.innerHTML;
+        }
+
+        // --- Descuentos manuales del cajero ---
+        // Mismo cálculo que ManualDiscountService (el servidor es quien manda
+        // al cobrar; esto es solo para que el carrito muestre el total real).
+        let saleDiscount = null; // { type, value, reason } a toda la venta
+
+        function discountAmount(discount, base) {
+            if (!discount || base <= 0) return 0;
+            let amount = 0;
+            if (discount.type === 'courtesy') amount = base;
+            else if (discount.type === 'percent') amount = base * Math.min(100, discount.value) / 100;
+            else amount = Math.min(discount.value, base);
+            return Math.round(Math.min(amount, base) * 100) / 100;
+        }
+
+        function discountLabel(discount) {
+            const label = discount.type === 'courtesy' ? 'Cortesía'
+                : discount.type === 'percent' ? 'Desc. ' + discount.value + '%'
+                : 'Desc. ' + formatMoney(discount.value);
+            return label + ' (' + discount.reason + ')';
+        }
+
+        function cartTotals() {
+            const itemsNet = cart.reduce((sum, item) => sum + item.lineTotal - discountAmount(item.discount, item.lineTotal), 0);
+            return itemsNet - discountAmount(saleDiscount, itemsNet);
+        }
+
+        function renderSaleDiscount() {
+            const btn = document.getElementById('sale-discount-btn');
+            const chip = document.getElementById('sale-discount-chip');
+            btn.classList.toggle('hidden', cart.length === 0 || saleDiscount !== null);
+            chip.classList.toggle('hidden', saleDiscount === null);
+            chip.classList.toggle('flex', saleDiscount !== null);
+            if (saleDiscount) {
+                document.getElementById('sale-discount-edit').textContent = '🏷 ' + discountLabel(saleDiscount);
+            }
+            document.getElementById('payment-sale-discount-btn').textContent = saleDiscount
+                ? '🏷 Cambiar o quitar el descuento a la venta'
+                : '🏷 Descuento o cortesía a toda la venta';
+        }
+
         function renderCart() {
             if (cart.length === 0) {
                 cartEmpty.classList.remove('hidden');
@@ -298,14 +398,22 @@
                 if (item.variantName) detailsParts.push(item.variantName);
                 if (item.modifierNames.length) detailsParts.push(item.modifierNames.join(', '));
                 const details = detailsParts.join(' · ');
+                const itemDiscount = discountAmount(item.discount, item.lineTotal);
+                const isAutoGift = item.cartId === autoGiftCartId;
 
                 return `
                     <div class="flex items-start gap-2 border-b border-neutral-200 dark:border-neutral-800 py-2">
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm text-neutral-900 dark:text-neutral-100 truncate">${item.name} x${item.qty}</p>
-                            ${details ? `<p class="text-xs text-neutral-500 dark:text-neutral-500 truncate">${details}</p>` : ''}
+                            <p class="text-sm text-neutral-900 dark:text-neutral-100 truncate">${escapeHtml(item.name)} x${item.qty}</p>
+                            ${details ? `<p class="text-xs text-neutral-500 dark:text-neutral-500 truncate">${escapeHtml(details)}</p>` : ''}
+                            ${itemDiscount > 0 ? `<p class="text-xs text-green-600 dark:text-green-400 truncate">${escapeHtml(discountLabel(item.discount))}</p>` : ''}
                         </div>
-                        <p class="text-sm text-neutral-900 dark:text-neutral-100 whitespace-nowrap">${formatMoney(item.lineTotal)}</p>
+                        <div class="text-right whitespace-nowrap">
+                            ${itemDiscount > 0 ? `<p class="text-xs text-neutral-400 dark:text-neutral-500 line-through">${formatMoney(item.lineTotal)}</p>` : ''}
+                            <p class="text-sm text-neutral-900 dark:text-neutral-100">${formatMoney(item.lineTotal - itemDiscount)}</p>
+                        </div>
+                        ${isAutoGift ? '' : `
+                        <button data-cart-id="${item.cartId}" class="cart-discount-btn shrink-0 text-sm ${item.discount ? 'opacity-100' : 'opacity-40 hover:opacity-100'}" title="Descuento o cortesía">🏷</button>`}
                         <button data-cart-id="${item.cartId}" class="cart-remove-btn text-red-400 dark:text-red-500 shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -315,8 +423,16 @@
                 `;
             }).join('');
 
-            const total = cart.reduce((sum, item) => sum + item.lineTotal, 0);
-            cartTotalEl.textContent = formatMoney(total);
+            if (cart.length === 0) saleDiscount = null;
+            cartTotalEl.textContent = formatMoney(cartTotals());
+            renderSaleDiscount();
+
+            document.querySelectorAll('.cart-discount-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = cart.find(i => i.cartId === Number(btn.dataset.cartId));
+                    if (item) openDiscountModal(item);
+                });
+            });
 
             document.querySelectorAll('.cart-remove-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -331,6 +447,121 @@
         cartClearBtn.addEventListener('click', () => {
             cart = [];
             autoGiftCartId = null;
+            saleDiscount = null;
+            renderCart();
+        });
+
+        // --- POPUP DE DESCUENTO ---
+        const discountModal = document.getElementById('discount-modal');
+        const discountValueSection = document.getElementById('discount-value-section');
+        const discountValueInput = document.getElementById('discount-value');
+        const discountValuePrefix = document.getElementById('discount-value-prefix');
+        const discountReasonInput = document.getElementById('discount-reason');
+        const discountRemoveBtn = document.getElementById('discount-remove-btn');
+        let discountTarget = null; // un item del carrito, o 'sale' para toda la venta
+        let discountType = 'percent';
+
+        function setDiscountType(type) {
+            discountType = type;
+            document.querySelectorAll('.discount-type-btn').forEach(btn => {
+                const active = btn.dataset.discountType === type;
+                btn.classList.toggle('border-2', active);
+                btn.classList.toggle('border-primary-600', active);
+                btn.classList.toggle('bg-primary-50', active);
+                btn.classList.toggle('dark:bg-primary-500/10', active);
+                btn.classList.toggle('text-primary-600', active);
+                btn.classList.toggle('dark:text-primary-400', active);
+                btn.classList.toggle('border-neutral-200', !active);
+                btn.classList.toggle('dark:border-neutral-700', !active);
+                btn.classList.toggle('text-neutral-700', !active);
+                btn.classList.toggle('dark:text-neutral-300', !active);
+            });
+            discountValueSection.classList.toggle('hidden', type === 'courtesy');
+            discountValuePrefix.textContent = type === 'percent' ? '%' : '$';
+        }
+
+        function openDiscountModal(target) {
+            discountTarget = target;
+            const current = target === 'sale' ? saleDiscount : target.discount;
+
+            document.getElementById('discount-modal-target').textContent = target === 'sale'
+                ? 'A toda la venta'
+                : target.name + ' x' + target.qty + ' · ' + formatMoney(target.lineTotal);
+
+            setDiscountType(current ? current.type : 'percent');
+            discountValueInput.value = current && current.value ? current.value : '';
+            discountReasonInput.value = current ? current.reason : '';
+            discountRemoveBtn.classList.toggle('hidden', !current);
+            document.getElementById('discount-apply-btn').textContent =
+                target === 'sale' && !isPaymentOpen() ? 'Aplicar y cobrar' : 'Aplicar';
+
+            discountModal.classList.remove('hidden');
+            discountModal.classList.add('flex');
+        }
+
+        function closeDiscountModal() {
+            discountModal.classList.add('hidden');
+            discountModal.classList.remove('flex');
+            discountTarget = null;
+        }
+
+        function isPaymentOpen() {
+            return !paymentModal.classList.contains('hidden');
+        }
+
+        function setDiscount(discount) {
+            const target = discountTarget;
+            if (target === 'sale') saleDiscount = discount;
+            else if (target) target.discount = discount;
+            closeDiscountModal();
+            renderCart();
+
+            // El descuento a toda la venta casi siempre es lo último antes de
+            // cobrar: se va directo al cobro (o, si ya se estaba cobrando, se
+            // recalcula ahí mismo) para no tener que volver a darle "Cobrar".
+            if (isPaymentOpen()) {
+                loadPaymentPreview(rewardAnswer === true);
+            } else if (target === 'sale' && discount) {
+                openPaymentModal();
+            }
+        }
+
+        document.querySelectorAll('.discount-type-btn').forEach(btn => {
+            btn.addEventListener('click', () => setDiscountType(btn.dataset.discountType));
+        });
+
+        document.querySelectorAll('.discount-reason-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                discountReasonInput.value = chip.textContent.trim();
+            });
+        });
+
+        document.getElementById('discount-apply-btn').addEventListener('click', () => {
+            const reason = discountReasonInput.value.trim();
+            const value = parseFloat(discountValueInput.value);
+
+            if (discountType !== 'courtesy' && !(value > 0)) {
+                Toast.show('Escribe cuánto descontar.', 'error');
+                return;
+            }
+            if (discountType === 'percent' && value > 100) {
+                Toast.show('El porcentaje no puede pasar de 100%.', 'error');
+                return;
+            }
+            if (reason.length < 3) {
+                Toast.show('Escribe o elige el motivo del descuento.', 'error');
+                return;
+            }
+
+            setDiscount({ type: discountType, value: discountType === 'courtesy' ? null : value, reason });
+        });
+
+        discountRemoveBtn.addEventListener('click', () => setDiscount(null));
+        document.getElementById('discount-modal-close').addEventListener('click', closeDiscountModal);
+        document.getElementById('sale-discount-btn').addEventListener('click', () => openDiscountModal('sale'));
+        document.getElementById('sale-discount-edit').addEventListener('click', () => openDiscountModal('sale'));
+        document.getElementById('sale-discount-remove').addEventListener('click', () => {
+            saleDiscount = null;
             renderCart();
         });
 
@@ -565,7 +796,9 @@
                     variant_id: item.variantId,
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
+                    discount: item.discount || null,
                 })),
+                sale_discount: saleDiscount,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: redeemReward,
             };
@@ -616,22 +849,14 @@
 
                 document.getElementById('payment-subtotal').textContent = formatMoney(data.subtotal);
 
-                const discountLabels = [...data.applied_promotions];
-                // Solo se menciona "fidelidad" en la etiqueta si de verdad
-                // ya se contestó que sí y por eso está incluido en el monto.
-                if (redeemReward && data.loyalty && data.loyalty.type === 'discount') {
-                    discountLabels.push(data.loyalty.description || 'fidelidad');
-                }
-
-                const discountRow = document.getElementById('payment-discount-row');
-                if (data.discount > 0) {
-                    document.getElementById('payment-discount').textContent = '-' + formatMoney(data.discount);
-                    document.getElementById('payment-discount-label').textContent =
-                        'Descuento' + (discountLabels.length ? ' (' + discountLabels.join(', ') + ')' : '');
-                    discountRow.classList.remove('hidden');
-                } else {
-                    discountRow.classList.add('hidden');
-                }
+                // Una línea por cada descuento (promoción, fidelidad, o el que
+                // puso el cajero con su motivo) - lo mismo que queda guardado.
+                document.getElementById('payment-discount-lines').innerHTML = (data.discount_breakdown || []).map(line => `
+                    <div class="flex justify-between gap-3 text-sm text-green-600 dark:text-green-400">
+                        <span class="min-w-0">${escapeHtml((line.product ? line.product + ': ' : '') + line.label)}</span>
+                        <span class="whitespace-nowrap">-${formatMoney(line.amount)}</span>
+                    </div>
+                `).join('');
 
                 // Si el premio es un producto gratis y el cajero no lo había
                 // puesto en el carrito, el servidor ya lo agregó solo (para
@@ -710,7 +935,7 @@
             loadPaymentPreview(false);
         });
 
-        document.getElementById('cart-checkout').addEventListener('click', () => {
+        function openPaymentModal() {
             if (cart.length === 0) return;
 
             rewardAnswer = null;
@@ -720,7 +945,10 @@
 
             paymentModal.classList.remove('hidden');
             paymentModal.classList.add('flex');
-        });
+        }
+
+        document.getElementById('cart-checkout').addEventListener('click', openPaymentModal);
+        document.getElementById('payment-sale-discount-btn').addEventListener('click', () => openDiscountModal('sale'));
 
         paymentModalClose.addEventListener('click', () => {
             paymentModal.classList.add('hidden');
@@ -789,7 +1017,9 @@
                     variant_id: item.variantId,
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
+                    discount: item.discount || null,
                 })),
+                sale_discount: saleDiscount,
                 payment_method: selectedPaymentMethod,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: rewardAnswer === true,
@@ -808,6 +1038,7 @@
             .then(({ status, data }) => {
                 if (status === 200 && data.success) {
                     cart = [];
+                    saleDiscount = null;
                     renderCart();
                     paymentModal.classList.add('hidden');
                     paymentModal.classList.remove('flex');

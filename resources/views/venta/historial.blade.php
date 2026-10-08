@@ -53,6 +53,9 @@
                                         @elseif ($sale->incidents->where('status', 'pendiente')->isNotEmpty())
                                             <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">Pendiente</span>
                                         @endif
+                                        @if ($sale->manual_discount > 0)
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400">Con descuento</span>
+                                        @endif
                                     </div>
 
                                     <div class="flex items-center justify-end gap-3">
@@ -88,6 +91,9 @@
                                                             </span>
                                                         @endif
                                                     </p>
+                                                    @if ($item->manualDiscountLabel())
+                                                        <p class="text-xs text-green-600 dark:text-green-400">{{ $item->manualDiscountLabel() }} · -${{ number_format($item->manual_discount, 2) }}</p>
+                                                    @endif
                                                 </div>
 
                                                 @if ($item->cancelled_at)
@@ -113,6 +119,27 @@
                                             </div>
                                         @endforeach
                                     </div>
+
+                                    @if ($sale->discount > 0)
+                                        <div class="flex flex-col gap-1 mt-2 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg p-3 text-xs">
+                                            <div class="flex justify-between text-neutral-600 dark:text-neutral-400">
+                                                <span>Subtotal</span><span>${{ number_format($sale->subtotal, 2) }}</span>
+                                            </div>
+                                            @forelse ($sale->discount_breakdown ?? [] as $line)
+                                                <div class="flex justify-between gap-3 text-green-700 dark:text-green-400">
+                                                    <span>{{ $line['product'] ? $line['product'] . ': ' : '' }}{{ $line['label'] }}</span>
+                                                    <span class="whitespace-nowrap">-${{ number_format($line['amount'], 2) }}</span>
+                                                </div>
+                                            @empty
+                                                <div class="flex justify-between text-green-700 dark:text-green-400">
+                                                    <span>Descuento</span><span>-${{ number_format($sale->discount, 2) }}</span>
+                                                </div>
+                                            @endforelse
+                                            <div class="flex justify-between font-semibold text-neutral-900 dark:text-neutral-100">
+                                                <span>Total cobrado</span><span>${{ number_format($sale->total, 2) }}</span>
+                                            </div>
+                                        </div>
+                                    @endif
 
                                     @if ($sale->incidents->isNotEmpty())
                                         <div class="flex flex-col gap-1 mt-2 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg p-3">

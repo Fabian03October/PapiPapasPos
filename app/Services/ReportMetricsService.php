@@ -49,6 +49,8 @@ class ReportMetricsService
         return [
             'gross' => (float) $sales->sum('subtotal'),
             'discount' => (float) $sales->sum('discount'),
+            'manual_discount' => (float) $sales->sum('manual_discount'),
+            'manual_discount_count' => $sales->where('manual_discount', '>', 0)->count(),
             'net' => (float) $sales->sum('total'),
             'count' => $count,
             'average_ticket' => $count > 0 ? $sales->sum('total') / $count : 0,

@@ -53,6 +53,12 @@
                     </tr>
                 @endif
             @endforeach
+            @if ($item->manualDiscountLabel())
+                <tr>
+                    <td class="mod">{{ $item->manualDiscountLabel() }}</td>
+                    <td class="right mod">-${{ number_format($item->manual_discount, 2) }}</td>
+                </tr>
+            @endif
         @endforeach
     </table>
 
@@ -60,7 +66,18 @@
 
     <table>
         <tr><td>Subtotal</td><td class="right">${{ number_format($sale->subtotal, 2) }}</td></tr>
-        @if ($sale->discount > 0)
+        @if ($sale->discount_breakdown)
+            {{-- El detalle de cada descuento por producto ya sale arriba,
+                 debajo del producto; aquí solo su suma para que cuadre la cuenta. --}}
+            @php $productDiscounts = collect($sale->discount_breakdown)->where('kind', 'manual_producto')->sum('amount'); @endphp
+            @foreach ($sale->discount_breakdown as $line)
+                @continue($line['kind'] === 'manual_producto')
+                <tr><td>{{ $line['label'] }}</td><td class="right">-${{ number_format($line['amount'], 2) }}</td></tr>
+            @endforeach
+            @if ($productDiscounts > 0)
+                <tr><td>Desc. en productos</td><td class="right">-${{ number_format($productDiscounts, 2) }}</td></tr>
+            @endif
+        @elseif ($sale->discount > 0)
             <tr><td>Descuento</td><td class="right">-${{ number_format($sale->discount, 2) }}</td></tr>
         @endif
         <tr class="bold"><td>TOTAL</td><td class="right">${{ number_format($sale->total, 2) }}</td></tr>

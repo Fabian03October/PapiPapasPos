@@ -14,6 +14,8 @@ class Sale extends Model
         'status',
         'subtotal',
         'discount',
+        'manual_discount',
+        'discount_breakdown',
         'total',
         'payment_method',
     ];
@@ -47,6 +49,7 @@ class Sale extends Model
     {
         return [
             'printed_at' => 'datetime',
+            'discount_breakdown' => 'array',
         ];
     }
 }

@@ -12,7 +12,7 @@ class PromotionService
      * el descuento total a aplicar (sumando todas las que apliquen).
      *
      * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total', 'modifiers']
-     * @return array  ['discount' => float, 'applied' => array de nombres de promociones aplicadas]
+     * @return array  ['discount' => float, 'applied' => array de nombres de promociones aplicadas, 'details' => [['name', 'amount']]]
      */
     public function evaluate(array $itemsData): array
     {
@@ -44,6 +44,7 @@ class PromotionService
 
         $totalDiscount = 0;
         $appliedNames = [];
+        $details = [];
 
         foreach ($activePromotions as $promo) {
             $discount = $this->evaluatePromotion($promo, $itemsData);
@@ -51,12 +52,14 @@ class PromotionService
             if ($discount > 0) {
                 $totalDiscount += $discount;
                 $appliedNames[] = $promo->name;
+                $details[] = ['name' => $promo->name, 'amount' => round($discount, 2)];
             }
         }
 
         return [
             'discount' => round($totalDiscount, 2),
             'applied' => $appliedNames,
+            'details' => $details,
         ];
     }
 

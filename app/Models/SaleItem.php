@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ManualDiscountService;
 use Illuminate\Database\Eloquent\Model;
 
 class SaleItem extends Model
@@ -13,8 +14,25 @@ class SaleItem extends Model
         'qty',
         'unit_price',
         'line_total',
+        'manual_discount',
+        'manual_discount_type',
+        'manual_discount_value',
+        'manual_discount_reason',
         'cancelled_at',
     ];
+
+    /**
+     * "Cortesía (motivo)" / "Desc. 10% (motivo)" / "Desc. $20 (motivo)" -
+     * la misma etiqueta en ticket, historial del turno y admin.
+     */
+    public function manualDiscountLabel(): ?string
+    {
+        if ((float) $this->manual_discount <= 0) {
+            return null;
+        }
+
+        return ManualDiscountService::label($this->manual_discount_type, $this->manual_discount_value, $this->manual_discount_reason);
+    }
 
     public function sale()
     {

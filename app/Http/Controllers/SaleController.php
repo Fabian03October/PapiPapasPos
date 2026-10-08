@@ -15,6 +15,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemModifier;
 use App\Services\LoyaltyService;
+use App\Services\ManualDiscountService;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,11 +52,13 @@ class SaleController extends Controller
 
             $itemsData[] = [
                 'product_id' => $product->id,
+                'product_name' => $product->name,
                 'variant_id' => $variant?->id,
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,
                 'modifiers' => $modifiers,
+                'manual_discount' => $item['discount'] ?? null,
             ];
 
             $baseRecipe = RecipeItem::where('product_id', $product->id)->whereNull('variant_id')->get();
@@ -84,20 +87,58 @@ class SaleController extends Controller
         return [$subtotal, $itemsData, $ingredientConsumption];
     }
 
+    protected function itemRules(): array
+    {
+        return [
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.variant_id' => 'nullable|exists:product_variants,id',
+            'items.*.modifier_ids' => 'array',
+            'items.*.modifier_ids.*' => 'exists:modifiers,id',
+            'items.*.qty' => 'required|integer|min:1',
+            'customer_id' => 'nullable|exists:customers,id',
+            ...ManualDiscountService::rules('items.*.discount'),
+            ...ManualDiscountService::rules('sale_discount'),
+        ];
+    }
+
+    /**
+     * Suma los descuentos manuales del cajero encima de promociones y
+     * fidelidad, y arma el desglose completo que se guarda con la venta.
+     *
+     * @return array{0: array, 1: float, 2: float, 3: array} [$itemsData, $discount, $manualDiscount, $breakdown]
+     */
+    protected function applyManualDiscounts(Request $request, array $itemsData, float $subtotal, float $autoDiscount, array $promoResult, ?array $loyaltyReward): array
+    {
+        $breakdown = [];
+
+        foreach ($promoResult['details'] as $promo) {
+            $breakdown[] = ['kind' => 'promocion', 'label' => $promo['name'], 'product' => null, 'amount' => $promo['amount']];
+        }
+
+        if ($loyaltyReward && $loyaltyReward['discount_amount'] > 0) {
+            $breakdown[] = [
+                'kind' => 'fidelidad',
+                'label' => $loyaltyReward['description'] ?? 'Premio de fidelidad',
+                'product' => null,
+                'amount' => round($loyaltyReward['discount_amount'], 2),
+            ];
+        }
+
+        $manual = ManualDiscountService::apply($itemsData, $request->input('sale_discount'), $subtotal, $autoDiscount);
+        $manualDiscount = round($manual['item_total'] + $manual['sale_amount'], 2);
+        $discount = round(min($autoDiscount + $manualDiscount, $subtotal), 2);
+
+        return [$manual['items'], $discount, $manualDiscount, [...$breakdown, ...$manual['breakdown']]];
+    }
+
     /**
      * Calcula subtotal, descuento (promociones + fidelidad) y total SIN guardar
      * nada — para mostrarle al cajero el precio real antes de confirmar la venta.
      */
     public function preview(Request $request)
     {
-        $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.variant_id' => 'nullable|exists:product_variants,id',
-            'items.*.modifier_ids' => 'array',
-            'items.*.qty' => 'required|integer|min:1',
-            'customer_id' => 'nullable|exists:customers,id',
-        ]);
+        $request->validate($this->itemRules());
 
         [$subtotal, $itemsData] = $this->buildItemsData($request->items);
 
@@ -123,11 +164,17 @@ class SaleController extends Controller
             }
         }
 
+        [, $discount, $manualDiscount, $breakdown] = $this->applyManualDiscounts(
+            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null
+        );
+
         $total = $subtotal - $discount;
 
         return response()->json([
             'subtotal' => round($subtotal, 2),
             'discount' => round($discount, 2),
+            'manual_discount' => $manualDiscount,
+            'discount_breakdown' => $breakdown,
             'total' => round($total, 2),
             'applied_promotions' => $promoResult['applied'],
             'loyalty' => $reward,
@@ -200,14 +247,8 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.variant_id' => 'nullable|exists:product_variants,id',
-            'items.*.modifier_ids' => 'array',
-            'items.*.modifier_ids.*' => 'exists:modifiers,id',
-            'items.*.qty' => 'required|integer|min:1',
+            ...$this->itemRules(),
             'payment_method' => 'required|in:efectivo,tarjeta',
-            'customer_id' => 'nullable|exists:customers,id',
             'redeem_reward' => 'nullable|boolean',
         ]);
 
@@ -249,6 +290,11 @@ class SaleController extends Controller
                 $discount = min($discount + $reward['discount_amount'], $subtotal);
             }
         }
+
+        [$itemsData, $discount, $manualDiscount, $breakdown] = $this->applyManualDiscounts(
+            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null
+        );
+
         $total = $subtotal - $discount;
 
         foreach ($ingredientConsumption as $ingredientId => $neededQty) {
@@ -262,7 +308,7 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
+        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
             $sale = Sale::create([
                 'folio' => 'TMP',
                 'user_id' => auth()->id(),
@@ -271,6 +317,8 @@ class SaleController extends Controller
                 'status' => 'pagada',
                 'subtotal' => $subtotal,
                 'discount' => $discount,
+                'manual_discount' => $manualDiscount,
+                'discount_breakdown' => $breakdown ?: null,
                 'total' => $total,
                 'payment_method' => $request->payment_method,
             ]);
@@ -285,6 +333,10 @@ class SaleController extends Controller
                     'qty' => $data['qty'],
                     'unit_price' => $data['unit_price'],
                     'line_total' => $data['line_total'],
+                    'manual_discount' => $data['manual_discount_amount'] ?? 0,
+                    'manual_discount_type' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['type'] : null,
+                    'manual_discount_value' => ($data['manual_discount_amount'] ?? 0) > 0 ? ($data['manual_discount']['value'] ?? null) : null,
+                    'manual_discount_reason' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['reason'] : null,
                 ]);
 
                 foreach ($data['modifiers'] as $modifier) {

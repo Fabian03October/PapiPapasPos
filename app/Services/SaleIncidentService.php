@@ -103,6 +103,7 @@ class SaleIncidentService
     protected function applyCancelacion(SaleIncident $incident, Collection $items): void
     {
         $cancelledTotal = 0;
+        $cancelledManualDiscount = 0;
 
         foreach ($items as $item) {
             foreach ($this->ingredientConsumptionForItem($item) as $ingredientId => $qty) {
@@ -112,11 +113,17 @@ class SaleIncidentService
 
             $item->update(['cancelled_at' => now()]);
             $cancelledTotal += $item->line_total;
+            $cancelledManualDiscount += (float) $item->manual_discount;
         }
 
+        // Si el producto llevaba descuento/cortesía del cajero, al total solo
+        // se le resta lo que de verdad se cobró por él (una cortesía cancelada
+        // no le quita nada al total) - si no, el corte de caja se descuadra.
         $sale = Sale::find($incident->sale_id);
         $sale->subtotal = max(0, $sale->subtotal - $cancelledTotal);
-        $sale->total = max(0, $sale->total - $cancelledTotal);
+        $sale->discount = max(0, $sale->discount - $cancelledManualDiscount);
+        $sale->manual_discount = max(0, $sale->manual_discount - $cancelledManualDiscount);
+        $sale->total = max(0, $sale->total - ($cancelledTotal - $cancelledManualDiscount));
 
         if ($sale->items()->whereNull('cancelled_at')->count() === 0) {
             $sale->status = 'cancelada';

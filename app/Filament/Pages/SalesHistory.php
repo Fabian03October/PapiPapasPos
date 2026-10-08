@@ -18,7 +18,9 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class SalesHistory extends Page implements HasTable
 {
@@ -136,7 +138,19 @@ class SalesHistory extends Page implements HasTable
                         $record->incidents->where('type', 'reposicion')->where('status', 'aprobada')->isNotEmpty() => 'warning',
                         default => 'success',
                     }),
+                TextColumn::make('discount')
+                    ->label('Descuento')
+                    ->money('MXN')
+                    ->color(fn (Sale $record) => $record->manual_discount > 0 ? 'success' : null)
+                    ->description(fn (Sale $record) => $record->manual_discount > 0 ? 'Manual: $' . number_format($record->manual_discount, 2) : null)
+                    ->sortable(),
                 TextColumn::make('total')->label('Total')->money('MXN')->sortable(),
+            ])
+            ->filters([
+                Filter::make('con_descuento_manual')
+                    ->label('Solo con descuento o cortesía del cajero')
+                    ->toggle()
+                    ->query(fn (Builder $query) => $query->where('manual_discount', '>', 0)),
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
@@ -163,6 +177,10 @@ class SalesHistory extends Page implements HasTable
                                             }
                                         }
 
+                                        if ($label = $item->manualDiscountLabel()) {
+                                            $description .= "\n" . $label . ': -$' . number_format($item->manual_discount, 2);
+                                        }
+
                                         if ($item->cancelled_at) {
                                             $description .= "\n(cancelado)";
                                         }
@@ -176,6 +194,21 @@ class SalesHistory extends Page implements HasTable
                                 TextEntry::make('total')->label('')->money('MXN'),
                             ])
                             ->columns(3),
+                        TextEntry::make('sale_subtotal')
+                            ->label('Subtotal')
+                            ->state($record->subtotal)
+                            ->money('MXN')
+                            ->visible($record->discount > 0),
+                        TextEntry::make('discount_breakdown')
+                            ->label('Descuentos')
+                            ->state(
+                                collect($record->discount_breakdown ?: [['product' => null, 'label' => 'Descuento', 'amount' => $record->discount]])
+                                    ->map(fn (array $line) => ($line['product'] ? $line['product'] . ': ' : '') . $line['label'] . ' -$' . number_format($line['amount'], 2))
+                                    ->all()
+                            )
+                            ->listWithLineBreaks()
+                            ->color('success')
+                            ->visible($record->discount > 0),
                         TextEntry::make('sale_total')
                             ->label('Total')
                             ->state($record->total)
