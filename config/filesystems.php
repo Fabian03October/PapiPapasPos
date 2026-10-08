@@ -41,7 +41,9 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => env('APP_URL').'/storage',
+            // rtrim: si APP_URL trae "/" al final quedaba ".app//storage/..." y
+            // las fotos de productos (y el logo de Wallet) salían rotas.
+            'url' => rtrim((string) env('APP_URL'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
