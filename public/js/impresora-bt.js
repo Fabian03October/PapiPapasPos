@@ -41,6 +41,7 @@
 
     let device = null;
     let characteristic = null;
+    let writable = []; // todas en las que se puede escribir (para probarlas en /prueba-impresora)
     let printing = Promise.resolve();
     const listeners = new Set();
 
@@ -116,7 +117,7 @@
      */
     async function pickCharacteristic(server, log) {
         const services = await server.getPrimaryServices();
-        const writable = [];
+        writable = [];
 
         for (const service of services) {
             log('Servicio ' + service.uuid);
@@ -223,6 +224,25 @@
         }
     }
 
+    /** Características en las que se puede escribir (de la última conexión). */
+    function caracteristicas() {
+        return writable.map(w => ({
+            service: w.service,
+            uuid: w.characteristic.uuid,
+            selected: w.characteristic === characteristic,
+        }));
+    }
+
+    /** Cambia con cuál se imprime (y la recuerda para la próxima vez). */
+    function usarCaracteristica(uuid) {
+        const choice = writable.find(w => w.characteristic.uuid === uuid);
+        if (!choice) throw new Error('Esa característica no está en la impresora conectada.');
+        characteristic = choice.characteristic;
+        set(KEYS.service, choice.service);
+        set(KEYS.characteristic, uuid);
+        notify();
+    }
+
     function olvidar() {
         try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
         device = null;
@@ -317,7 +337,7 @@
 
     window.ImpresoraBT = {
         isSupported, isEnabled, isConnected, deviceName, onChange,
-        conectar, reconectarSiSePuede, olvidar,
+        conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
         imprimir, imprimirVenta, encode, config,
     };
 

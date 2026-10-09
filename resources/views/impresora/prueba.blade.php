@@ -19,6 +19,13 @@
                     <button id="bt-test-print" type="button" class="h-11 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300">2. Imprimir prueba</button>
                 </div>
 
+                <label class="text-xs text-neutral-500 dark:text-neutral-400">
+                    Característica con la que se imprime (si no sale nada, prueba otra y vuelve a darle "Imprimir prueba")
+                    <select id="bt-test-characteristic" disabled class="mt-1 w-full h-10 px-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs text-neutral-900 dark:text-neutral-100">
+                        <option>Conecta primero</option>
+                    </select>
+                </label>
+
                 <div class="grid grid-cols-2 gap-3">
                     <label class="text-xs text-neutral-500 dark:text-neutral-400">
                         Tabla de acentos (ESC t)
@@ -79,8 +86,24 @@
             chunkEl.addEventListener('change', () => { BT.config.chunkSize = chunkEl.value; log('Bloque: ' + chunkEl.value + ' bytes'); });
             comandaEl.addEventListener('change', () => { BT.config.printComanda = comandaEl.checked; });
 
+            const charEl = document.getElementById('bt-test-characteristic');
+
+            function renderCharacteristics() {
+                const list = BT.caracteristicas();
+                charEl.disabled = list.length === 0;
+                charEl.innerHTML = list.length === 0
+                    ? '<option>Conecta primero</option>'
+                    : list.map(c => `<option value="${c.uuid}" ${c.selected ? 'selected' : ''}>${c.uuid} (servicio ${c.service.slice(4, 8)})</option>`).join('');
+            }
+
+            charEl.addEventListener('change', () => {
+                BT.usarCaracteristica(charEl.value);
+                log('Ahora se imprimirá con ' + charEl.value);
+            });
+
             BT.onChange(({ connected, name }) => {
                 statusEl.textContent = connected ? 'Conectada: ' + name : 'Sin conectar.';
+                renderCharacteristics();
             });
 
             document.getElementById('bt-test-connect').addEventListener('click', async () => {
