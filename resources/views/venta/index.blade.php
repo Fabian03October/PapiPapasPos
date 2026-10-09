@@ -219,6 +219,13 @@
         </x-slot:footer>
     </x-modal>
 
+    <!-- Aviso: la impresora Bluetooth se desconectó y quedó un ticket sin imprimir -->
+    <div id="bt-pending" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] items-center gap-3 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 rounded-xl px-4 py-3 shadow-lg max-w-[92vw]">
+        <p class="text-sm text-amber-800 dark:text-amber-300">🖨 La impresora Bluetooth está desconectada. El ticket no salió.</p>
+        <button id="bt-pending-print" type="button" class="shrink-0 h-9 px-3 rounded-lg bg-amber-600 text-white text-sm font-medium">Conectar e imprimir</button>
+        <button id="bt-pending-dismiss" type="button" class="shrink-0 text-amber-700 dark:text-amber-400 text-sm">Omitir</button>
+    </div>
+
     <!-- Popup de descuento / cortesía manual (a un producto o a toda la venta) -->
     <x-modal id="discount-modal" max-width="sm">
         <x-slot:header>
@@ -1037,6 +1044,8 @@
             .then(res => res.json().then(data => ({ status: res.status, data })))
             .then(({ status, data }) => {
                 if (status === 200 && data.success) {
+                    printBluetooth(data.sale_id, selectedPaymentMethod === 'efectivo' ? parseFloat(amountReceivedInput.value) || null : null);
+
                     cart = [];
                     saleDiscount = null;
                     renderCart();
@@ -1056,6 +1065,53 @@
                 }
             });
         });
+
+        // --- IMPRESORA BLUETOOTH (impresora-bt.js) ---
+        // Si este dispositivo imprime por Bluetooth, el ticket sale solo al
+        // cobrar. Se "reclama" la venta igual que la estación de impresión
+        // para que, si también hay una compu-estación prendida, no salga doble.
+        const btPending = document.getElementById('bt-pending');
+        let btPendingSale = null;
+
+        async function printBluetooth(saleId, recibido) {
+            if (!window.ImpresoraBT || !ImpresoraBT.isEnabled()) return;
+
+            try {
+                const claim = await fetch(`/impresion/${saleId}/marcar`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                }).then(res => res.json());
+                if (!claim.claimed) return;
+
+                await ImpresoraBT.imprimirVenta(saleId, { recibido });
+            } catch (err) {
+                // Sin conexión: se ofrece reconectar (necesita un toque del
+                // cajero, Chrome no deja hacerlo solo) e imprimir esta venta.
+                btPendingSale = { saleId, recibido };
+                btPending.classList.remove('hidden');
+                btPending.classList.add('flex');
+            }
+        }
+
+        if (btPending) {
+            document.getElementById('bt-pending-print').addEventListener('click', async () => {
+                if (!btPendingSale) return;
+                try {
+                    if (!ImpresoraBT.isConnected()) await ImpresoraBT.conectar();
+                    await ImpresoraBT.imprimirVenta(btPendingSale.saleId, { recibido: btPendingSale.recibido });
+                    btPendingSale = null;
+                    btPending.classList.add('hidden');
+                    btPending.classList.remove('flex');
+                } catch (err) {
+                    if (err.name !== 'NotFoundError') Toast.show('No se pudo imprimir: ' + err.message, 'error');
+                }
+            });
+            document.getElementById('bt-pending-dismiss').addEventListener('click', () => {
+                btPendingSale = null;
+                btPending.classList.add('hidden');
+                btPending.classList.remove('flex');
+            });
+        }
 
         renderCart();
         updateCustomerBadge();

@@ -53,3 +53,4 @@
     </div>
 
     <script src="{{ asset('js/print.js') }}"></script>
+    <script src="{{ asset('js/impresora-bt.js') }}"></script>

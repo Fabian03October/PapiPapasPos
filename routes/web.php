@@ -60,6 +60,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/venta/{sale}/ticket', [TicketController::class, 'venta'])->name('venta.ticket');
     Route::get('/venta/{sale}/comanda', [TicketController::class, 'comanda'])->name('venta.comanda');
+    Route::get('/venta/{sale}/impresion-bluetooth', [TicketController::class, 'bluetooth'])->name('venta.bluetooth');
+    Route::get('/prueba-impresora', [TicketController::class, 'pruebaImpresora'])->name('impresora.prueba');
 
     Route::get('/impresion/pendientes', [PrintStationController::class, 'pending'])->name('print-station.pending');
     Route::post('/impresion/{sale}/marcar', [PrintStationController::class, 'markPrinted'])->name('print-station.mark');

@@ -275,9 +275,17 @@
                 btn.textContent = 'Imprimiendo…';
 
                 try {
-                    await PrintDocs.printUrl(`/venta/${saleId}/ticket`);
+                    if (window.ImpresoraBT && ImpresoraBT.isEnabled()) {
+                        // El clic cuenta como gesto: si se desconectó, aquí
+                        // mismo se puede volver a elegir la impresora.
+                        if (!ImpresoraBT.isConnected()) await ImpresoraBT.conectar();
+                        await ImpresoraBT.imprimirVenta(saleId, { comanda: false });
+                    } else {
+                        await PrintDocs.printUrl(`/venta/${saleId}/ticket`);
+                    }
                     Toast.show('Ticket reimpreso.');
                 } catch (err) {
+                    if (err.name === 'NotFoundError') return;
                     Toast.show('No se pudo imprimir: ' + err.message, 'error');
                 } finally {
                     btn.disabled = false;

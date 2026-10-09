@@ -62,6 +62,18 @@
                     </button>
                 </div>
 
+                <div class="pb-3 mb-3 border-b border-neutral-100 dark:border-neutral-800">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-sm text-neutral-700 dark:text-neutral-300">Impresora Bluetooth</p>
+                        <span id="bt-status-dot" class="w-2 h-2 rounded-full bg-neutral-300 dark:bg-neutral-600 shrink-0"></span>
+                    </div>
+                    <p id="bt-status-text" class="text-xs text-neutral-400 dark:text-neutral-500">Para celular o tablet con Chrome.</p>
+                    <div class="flex gap-2 mt-2">
+                        <button id="bt-connect-btn" type="button" class="flex-1 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300">Conectar</button>
+                        <a href="{{ route('impresora.prueba') }}" class="h-8 px-3 rounded-lg flex items-center text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">Prueba</a>
+                    </div>
+                </div>
+
                 <div class="flex flex-col gap-0.5">
                     @if (auth()->user()->role?->name === 'manager')
                     <a href="/admin" class="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
@@ -99,5 +111,6 @@
     <script src="{{ asset('js/toast.js') }}"></script>
     <script src="{{ asset('js/sidebar.js') }}"></script>
     <script src="{{ asset('js/print-station-toggle.js') }}"></script>
+    <script src="{{ asset('js/impresora-bt-menu.js') }}"></script>
 </body>
 </html>
