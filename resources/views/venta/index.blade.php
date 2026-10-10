@@ -221,8 +221,8 @@
 
     <!-- Aviso: la impresora Bluetooth se desconectó y quedó un ticket sin imprimir -->
     <div id="bt-pending" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] items-center gap-3 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 rounded-xl px-4 py-3 shadow-lg max-w-[92vw]">
-        <p class="text-sm text-amber-800 dark:text-amber-300">🖨 La impresora Bluetooth está desconectada. El ticket no salió.</p>
-        <button id="bt-pending-print" type="button" class="shrink-0 h-9 px-3 rounded-lg bg-amber-600 text-white text-sm font-medium">Conectar e imprimir</button>
+        <p id="bt-pending-text" class="text-sm text-amber-800 dark:text-amber-300">🖨 El ticket no se ha impreso.</p>
+        <button id="bt-pending-print" type="button" class="shrink-0 h-9 px-3 rounded-lg bg-amber-600 text-white text-sm font-medium">Imprimir aquí</button>
         <button id="bt-pending-dismiss" type="button" class="shrink-0 text-amber-700 dark:text-amber-400 text-sm">Omitir</button>
     </div>
 
@@ -1047,7 +1047,7 @@
             .then(res => res.json().then(data => ({ status: res.status, data })))
             .then(({ status, data }) => {
                 if (status === 200 && data.success) {
-                    printBluetooth(data.sale_id, selectedPaymentMethod === 'efectivo' ? parseFloat(amountReceivedInput.value) || null : null);
+                    printBluetooth(data.sale_id, data.folio, selectedPaymentMethod === 'efectivo' ? parseFloat(amountReceivedInput.value) || null : null);
 
                     cart = [];
                     saleDiscount = null;
@@ -1069,52 +1069,101 @@
             });
         });
 
-        // --- IMPRESORA BLUETOOTH (impresora-bt.js) ---
-        // Si este dispositivo imprime por Bluetooth, el ticket sale solo al
-        // cobrar. Se "reclama" la venta igual que la estación de impresión
-        // para que, si también hay una compu-estación prendida, no salga doble.
+        // --- IMPRESIÓN AL COBRAR ---
+        // 1. Si ESTE dispositivo tiene la impresora Bluetooth conectada, el
+        //    ticket sale al momento.
+        // 2. Si no, NO se "reclama" la venta (antes un celular sin conexión
+        //    la apartaba y la lap que sí tenía la impresora ya no la
+        //    imprimía): queda pendiente para la estación (Bluetooth o compu).
+        // 3. A los pocos segundos se revisa si alguien la imprimió; si nadie,
+        //    se avisa con un botón para imprimirla aquí.
+        const PRINT_CHECK_DELAY_MS = 8000;
         const btPending = document.getElementById('bt-pending');
         let btPendingSale = null;
 
-        async function printBluetooth(saleId, recibido) {
-            if (!window.ImpresoraBT || !ImpresoraBT.isEnabled()) return;
+        function postPrintStation(url) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+            }).then(res => res.json());
+        }
+
+        async function printBluetooth(saleId, folio, recibido) {
+            const BT = window.ImpresoraBT;
 
             try {
-                const claim = await fetch(`/impresion/${saleId}/marcar`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
-                }).then(res => res.json());
-                if (!claim.claimed) return;
+                if (BT && BT.isEnabled()) {
+                    if (!BT.isConnected()) await BT.reconectarSiSePuede();
 
-                await ImpresoraBT.imprimirVenta(saleId, { recibido });
+                    if (BT.isConnected()) {
+                        const claim = await postPrintStation(`/impresion/${saleId}/marcar`);
+                        if (!claim.claimed) return; // otra estación ya la está imprimiendo
+
+                        try {
+                            await BT.imprimirVenta(saleId, { recibido });
+                            return;
+                        } catch (err) {
+                            await postPrintStation(`/impresion/${saleId}/liberar`).catch(() => {});
+                        }
+                    }
+                }
             } catch (err) {
-                // Sin conexión: se ofrece reconectar (necesita un toque del
-                // cajero, Chrome no deja hacerlo solo) e imprimir esta venta.
+                console.error('Impresión Bluetooth:', err);
+            }
+
+            setTimeout(() => warnIfNotPrinted(saleId, folio, recibido), PRINT_CHECK_DELAY_MS);
+        }
+
+        async function warnIfNotPrinted(saleId, folio, recibido) {
+            try {
+                const data = await fetch('/impresion/pendientes', { headers: { Accept: 'application/json' } }).then(res => res.json());
+                if (!(data.sales || []).some(sale => sale.id === saleId)) return; // ya la imprimió alguien
+
                 btPendingSale = { saleId, recibido };
+                document.getElementById('bt-pending-text').textContent = `🖨 El ticket #${folio} no se ha impreso.`;
                 btPending.classList.remove('hidden');
                 btPending.classList.add('flex');
-            }
+            } catch (err) {}
         }
 
-        if (btPending) {
-            document.getElementById('bt-pending-print').addEventListener('click', async () => {
-                if (!btPendingSale) return;
-                try {
-                    if (!ImpresoraBT.isConnected()) await ImpresoraBT.conectar();
-                    await ImpresoraBT.imprimirVenta(btPendingSale.saleId, { recibido: btPendingSale.recibido });
-                    btPendingSale = null;
-                    btPending.classList.add('hidden');
-                    btPending.classList.remove('flex');
-                } catch (err) {
-                    if (err.name !== 'NotFoundError') Toast.show('No se pudo imprimir: ' + err.message, 'error');
-                }
-            });
-            document.getElementById('bt-pending-dismiss').addEventListener('click', () => {
-                btPendingSale = null;
-                btPending.classList.add('hidden');
-                btPending.classList.remove('flex');
-            });
+        function hidePending() {
+            btPendingSale = null;
+            btPending.classList.add('hidden');
+            btPending.classList.remove('flex');
         }
+
+        document.getElementById('bt-pending-print').addEventListener('click', async () => {
+            if (!btPendingSale) return;
+            const { saleId, recibido } = btPendingSale;
+            const BT = window.ImpresoraBT;
+
+            try {
+                const claim = await postPrintStation(`/impresion/${saleId}/marcar`);
+                if (!claim.claimed) {
+                    hidePending(); // la tomó otro dispositivo mientras tanto
+                    return;
+                }
+
+                try {
+                    if (BT && BT.isSupported()) {
+                        // El toque cuenta como gesto: aquí sí se puede elegir la impresora.
+                        if (!BT.isConnected()) await BT.conectar();
+                        await BT.imprimirVenta(saleId, { recibido });
+                    } else {
+                        await PrintDocs.printSaleDocuments(saleId);
+                    }
+                    hidePending();
+                } catch (err) {
+                    await postPrintStation(`/impresion/${saleId}/liberar`).catch(() => {});
+                    if (err.name !== 'NotFoundError') {
+                        Toast.show('No se pudo imprimir: ' + (BT && BT.isSupported() ? 'la impresora la tiene otro dispositivo o está apagada.' : err.message), 'error');
+                    }
+                }
+            } catch (err) {
+                Toast.show('No se pudo imprimir: ' + err.message, 'error');
+            }
+        });
+        document.getElementById('bt-pending-dismiss').addEventListener('click', hidePending);
 
         renderCart();
         updateCustomerBadge();
