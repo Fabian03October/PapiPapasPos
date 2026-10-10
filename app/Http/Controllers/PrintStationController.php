@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\CashSession;
 use App\Models\Sale;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class PrintStationController extends Controller
 {
@@ -12,7 +14,7 @@ class PrintStationController extends Controller
      * compu con la impresora las vaya recogiendo sola, sin importar desde
      * qué dispositivo se hizo la venta (celular, tablet, etc).
      */
-    public function pending()
+    public function pending(Request $request)
     {
         $session = CashSession::open();
 
@@ -23,6 +25,12 @@ class PrintStationController extends Controller
         $sales = Sale::where('cash_session_id', $session->id)
             ->where('status', 'pagada')
             ->whereNull('printed_at')
+            // "desde": la estación Bluetooth solo toma ventas hechas después
+            // de activarla, para no imprimir de golpe todo el turno.
+            // El navegador la manda en UTC; created_at se guarda en hora local.
+            ->when($request->filled('desde'), fn ($q) => $q->where(
+                'created_at', '>=', Carbon::parse($request->query('desde'))->setTimezone(config('app.timezone'))
+            ))
             ->orderBy('created_at')
             ->get(['id', 'folio']);
 
@@ -42,5 +50,17 @@ class PrintStationController extends Controller
             ->update(['printed_at' => now()]);
 
         return response()->json(['success' => true, 'claimed' => (bool) $claimed]);
+    }
+
+    /**
+     * Devuelve a "pendiente" una venta que se reclamó pero no se pudo
+     * imprimir (ej. la impresora Bluetooth se desconectó a la mitad), para
+     * que se vuelva a intentar en vez de perder el ticket.
+     */
+    public function release(Sale $sale)
+    {
+        Sale::whereKey($sale->id)->update(['printed_at' => null]);
+
+        return response()->json(['success' => true]);
     }
 }

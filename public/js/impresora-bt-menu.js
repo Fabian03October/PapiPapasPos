@@ -5,9 +5,20 @@
 
     const dot = document.getElementById('bt-status-dot');
     const text = document.getElementById('bt-status-text');
+    const stationRow = document.getElementById('bt-station-row');
+    const stationToggle = document.getElementById('bt-station-toggle');
     const BT = window.ImpresoraBT;
 
     function render({ connected, name, enabled }) {
+        // El interruptor de estación solo tiene sentido con la impresora conectada aquí.
+        stationRow.classList.toggle('hidden', !connected);
+        stationRow.classList.toggle('flex', connected);
+        const station = BT.isStation();
+        stationToggle.classList.toggle('bg-primary-600', station);
+        stationToggle.classList.toggle('bg-neutral-200', !station);
+        stationToggle.classList.toggle('dark:bg-neutral-700', !station);
+        stationToggle.querySelector('span').style.transform = station ? 'translateX(16px)' : 'translateX(0)';
+
         dot.classList.toggle('bg-green-500', connected);
         dot.classList.toggle('bg-amber-500', !connected && enabled);
         dot.classList.toggle('bg-neutral-300', !connected && !enabled);
@@ -43,6 +54,14 @@
             // Cerrar el selector de Chrome sin elegir también cae aquí.
             if (e.name !== 'NotFoundError') Toast.show('No se pudo conectar: ' + e.message, 'error');
         }
+    });
+
+    stationToggle.addEventListener('click', () => {
+        const next = !BT.isStation();
+        BT.setStation(next);
+        Toast.show(next
+            ? 'Este dispositivo imprimirá también las ventas de los demás.'
+            : 'Este dispositivo ya solo imprime sus propias ventas.');
     });
 
     BT.onChange(render);

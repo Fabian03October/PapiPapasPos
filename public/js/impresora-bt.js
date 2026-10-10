@@ -37,6 +37,7 @@
         codepage: 'papispapas_bt_codepage',
         chunk: 'papispapas_bt_bloque',
         comanda: 'papispapas_bt_comanda',
+        station: 'papispapas_bt_estacion', // fecha (ISO) desde que se activó, o nada
     };
 
     let device = null;
@@ -285,7 +286,9 @@
         try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
         device = null;
         characteristic = null;
-        [KEYS.enabled, KEYS.service, KEYS.characteristic, KEYS.deviceId].forEach(k => set(k, null));
+        // Al soltar la impresora (ej. para conectarla en otro dispositivo)
+        // este deja de ser la estación.
+        [KEYS.enabled, KEYS.service, KEYS.characteristic, KEYS.deviceId, KEYS.station].forEach(k => set(k, null));
         notify();
     }
 
@@ -373,12 +376,81 @@
         if (comanda) await imprimir(data.comanda);
     }
 
+    /**
+     * Estación Bluetooth: la impresora solo acepta UNA conexión, así que un
+     * dispositivo se queda conectado y además imprime lo que se venda en
+     * los demás (lap, otra tablet...), revisando cada pocos segundos. Usa
+     * el mismo "reclamo" que la estación de la compu (print.js), así que
+     * nunca sale doble. Solo toma ventas hechas desde que se activó.
+     */
+    const STATION_INTERVAL_MS = 4000;
+
+    function isStation() {
+        return !!get(KEYS.station);
+    }
+
+    function setStation(enabled) {
+        set(KEYS.station, enabled ? new Date().toISOString() : null);
+        notify();
+    }
+
+    function csrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    }
+
+    function postJson(url) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+        }).then(res => res.json());
+    }
+
+    async function stationTick() {
+        // Si se cayó la conexión con la impresora de esta página, se
+        // reconecta sola (sin clic). Si no se puede, NO se reclama nada:
+        // esas ventas siguen pendientes y salen en cuanto se reconecte.
+        let ready = false;
+        if (isStation() && (isConnected() || device)) {
+            try {
+                await asegurarConexion();
+                ready = true;
+            } catch (e) {}
+        }
+
+        if (ready) {
+            try {
+                const res = await fetch('/impresion/pendientes?desde=' + encodeURIComponent(get(KEYS.station)), {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await res.json();
+
+                for (const sale of data.sales || []) {
+                    const claim = await postJson(`/impresion/${sale.id}/marcar`);
+                    if (!claim.claimed) continue;
+
+                    try {
+                        await imprimirVenta(sale.id);
+                    } catch (e) {
+                        // Se devuelve a pendiente para reintentarla, no se pierde.
+                        await postJson(`/impresion/${sale.id}/liberar`).catch(() => {});
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.error('Estación Bluetooth:', e);
+            }
+        }
+
+        setTimeout(stationTick, STATION_INTERVAL_MS);
+    }
+
     window.ImpresoraBT = {
         isSupported, isEnabled, isConnected, deviceName, onChange,
         conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
-        imprimir, imprimirVenta, encode, config,
+        imprimir, imprimirVenta, encode, config, isStation, setStation,
     };
 
     // Al cargar la página, si ya se usaba la impresora, intenta reconectar sola.
     if (isEnabled()) reconectarSiSePuede();
+    stationTick();
 })(window);

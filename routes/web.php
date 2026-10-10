@@ -65,4 +65,5 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/impresion/pendientes', [PrintStationController::class, 'pending'])->name('print-station.pending');
     Route::post('/impresion/{sale}/marcar', [PrintStationController::class, 'markPrinted'])->name('print-station.mark');
+    Route::post('/impresion/{sale}/liberar', [PrintStationController::class, 'release'])->name('print-station.release');
 });

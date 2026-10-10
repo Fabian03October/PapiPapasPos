@@ -72,6 +72,15 @@
                         <button id="bt-connect-btn" type="button" class="flex-1 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300">Conectar</button>
                         <a href="{{ route('impresora.prueba') }}" class="h-8 px-3 rounded-lg flex items-center text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">Prueba</a>
                     </div>
+                    <div id="bt-station-row" class="hidden items-start justify-between gap-2 mt-3">
+                        <div class="min-w-0">
+                            <p class="text-xs text-neutral-700 dark:text-neutral-300">Imprimir ventas de otros dispositivos</p>
+                            <p class="text-xs text-neutral-400 dark:text-neutral-500">La impresora acepta un solo dispositivo: actívalo en el que se queda conectado.</p>
+                        </div>
+                        <button id="bt-station-toggle" type="button" role="switch" class="shrink-0 w-10 h-6 rounded-full relative transition-colors bg-neutral-200 dark:bg-neutral-700">
+                            <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="flex flex-col gap-0.5">
