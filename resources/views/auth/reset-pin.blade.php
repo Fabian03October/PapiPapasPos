@@ -27,7 +27,7 @@
         </div>
     </x-card>
 
-    <script src="{{ asset('js/pin-input.js') }}"></script>
+    @publicScript('js/pin-input.js')
     <script>
         const newPinDots = document.querySelectorAll('#new-pin-dots .dot');
         const confirmPinDots = document.querySelectorAll('#confirm-pin-dots .dot');

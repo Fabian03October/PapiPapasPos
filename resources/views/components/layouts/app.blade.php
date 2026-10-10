@@ -117,9 +117,9 @@
 
     </div>
 
-    <script src="{{ asset('js/toast.js') }}"></script>
-    <script src="{{ asset('js/sidebar.js') }}"></script>
-    <script src="{{ asset('js/print-station-toggle.js') }}"></script>
-    <script src="{{ asset('js/impresora-bt-menu.js') }}"></script>
+    @publicScript('js/toast.js')
+    @publicScript('js/sidebar.js')
+    @publicScript('js/print-station-toggle.js')
+    @publicScript('js/impresora-bt-menu.js')
 </body>
 </html>

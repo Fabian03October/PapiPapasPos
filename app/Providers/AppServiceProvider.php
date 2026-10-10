@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Observers\CustomerObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
 
         Mail::extend('brevo', function (array $config) {
             return new BrevoApiTransport($config['key']);
+        });
+
+        // @publicScript('js/print.js'): los JS de public/js no pasan por Vite, así
+        // que sin versión el navegador seguía usando la copia vieja después
+        // de un deploy (ej. la impresora Bluetooth sin los cambios nuevos).
+        Blade::directive('publicScript', function (string $path) {
+            return "<?php echo '<script src=\"' . e(asset({$path}) . '?v=' . @filemtime(public_path({$path}))) . '\"></script>'; ?>";
         });
     }
 }

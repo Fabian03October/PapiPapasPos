@@ -52,5 +52,5 @@
         </a>
     </div>
 
-    <script src="{{ asset('js/print.js') }}"></script>
-    <script src="{{ asset('js/impresora-bt.js') }}"></script>
+    @publicScript('js/print.js')
+    @publicScript('js/impresora-bt.js')

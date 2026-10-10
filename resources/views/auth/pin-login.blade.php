@@ -60,7 +60,7 @@
         </div>
     </x-card>
 
-    <script src="{{ asset('js/pin-input.js') }}"></script>
+    @publicScript('js/pin-input.js')
     <script>
         const dots = document.querySelectorAll('#pin-dots .dot');
         const pinScreen = document.getElementById('pin-screen');
