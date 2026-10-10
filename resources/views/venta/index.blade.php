@@ -404,6 +404,7 @@
                 const detailsParts = [];
                 if (item.variantName) detailsParts.push(item.variantName);
                 if (item.modifierNames.length) detailsParts.push(item.modifierNames.join(', '));
+                if (item.notes) detailsParts.push('📝 ' + item.notes);
                 const details = detailsParts.join(' · ');
                 const itemDiscount = discountAmount(item.discount, item.lineTotal);
                 const isAutoGift = item.cartId === autoGiftCartId;
@@ -804,6 +805,7 @@
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
                     discount: item.discount || null,
+                    notes: item.notes || null,
                 })),
                 sale_discount: saleDiscount,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
@@ -1025,6 +1027,7 @@
                     modifier_ids: item.modifierIds,
                     qty: item.qty,
                     discount: item.discount || null,
+                    notes: item.notes || null,
                 })),
                 sale_discount: saleDiscount,
                 payment_method: selectedPaymentMethod,

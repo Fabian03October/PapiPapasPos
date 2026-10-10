@@ -91,6 +91,9 @@
                                                             </span>
                                                         @endif
                                                     </p>
+                                                    @if ($item->notes)
+                                                        <p class="text-xs text-neutral-500 dark:text-neutral-400">📝 {{ $item->notes }}</p>
+                                                    @endif
                                                     @if ($item->manualDiscountLabel())
                                                         <p class="text-xs text-green-600 dark:text-green-400">{{ $item->manualDiscountLabel() }} · -${{ number_format($item->manual_discount, 2) }}</p>
                                                     @endif

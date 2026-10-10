@@ -141,6 +141,10 @@ class ThermalTicketBuilder
                 $isExtra = $saleItemModifier->modifier->group?->name === 'Extras';
                 $this->text('  + ' . ($isExtra ? 'EXTRA ' : '') . $saleItemModifier->modifier->name, bold: $isExtra);
             }
+
+            if ($item->notes) {
+                $this->text('  NOTA: ' . $item->notes, bold: true);
+            }
         }
 
         return $this->lines;

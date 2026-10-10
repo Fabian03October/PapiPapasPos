@@ -30,6 +30,9 @@
                 @endif
             @endif
         @endforeach
+        @if ($item->notes)
+            <p class="mod-extra">NOTA: {{ $item->notes }}</p>
+        @endif
     @endforeach
 </body>
 </html>

@@ -58,6 +58,7 @@ class SaleController extends Controller
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,
                 'modifiers' => $modifiers,
+                'notes' => isset($item['notes']) && trim($item['notes']) !== '' ? trim($item['notes']) : null,
                 'manual_discount' => $item['discount'] ?? null,
             ];
 
@@ -96,6 +97,7 @@ class SaleController extends Controller
             'items.*.modifier_ids' => 'array',
             'items.*.modifier_ids.*' => 'exists:modifiers,id',
             'items.*.qty' => 'required|integer|min:1',
+            'items.*.notes' => 'nullable|string|max:255',
             'customer_id' => 'nullable|exists:customers,id',
             ...ManualDiscountService::rules('items.*.discount'),
             ...ManualDiscountService::rules('sale_discount'),
@@ -333,6 +335,7 @@ class SaleController extends Controller
                     'qty' => $data['qty'],
                     'unit_price' => $data['unit_price'],
                     'line_total' => $data['line_total'],
+                    'notes' => $data['notes'] ?? null,
                     'manual_discount' => $data['manual_discount_amount'] ?? 0,
                     'manual_discount_type' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['type'] : null,
                     'manual_discount_value' => ($data['manual_discount_amount'] ?? 0) > 0 ? ($data['manual_discount']['value'] ?? null) : null,

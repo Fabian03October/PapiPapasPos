@@ -14,6 +14,7 @@ class SaleItem extends Model
         'qty',
         'unit_price',
         'line_total',
+        'notes',
         'manual_discount',
         'manual_discount_type',
         'manual_discount_value',

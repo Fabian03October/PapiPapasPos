@@ -113,6 +113,15 @@ class CajaController extends Controller
 
         $ingredients = Ingredient::where('is_active', true)->orderBy('name')->get();
 
+        // Sin insumos dados de alta no hay nada que contar: antes la pantalla
+        // quedaba vacía con el botón bloqueado y nunca se llegaba a contar el
+        // dinero. Se registra el conteo (vacío) y se pasa directo al corte.
+        if ($ingredients->isEmpty()) {
+            InventoryCount::create(['cash_session_id' => $session->id, 'user_id' => auth()->id()]);
+
+            return redirect()->route('caja.cerrar');
+        }
+
         return view('caja.inventario', [
             'session' => $session,
             'ingredients' => $ingredients,
@@ -134,7 +143,7 @@ class CajaController extends Controller
         $activeIngredientIds = Ingredient::where('is_active', true)->pluck('id');
 
         $request->validate([
-            'counts' => 'required|array',
+            'counts' => 'present|array',
         ]);
 
         foreach ($activeIngredientIds as $ingredientId) {
