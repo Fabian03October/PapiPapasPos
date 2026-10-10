@@ -19,5 +19,11 @@ class DatabaseSeeder extends Seeder
         if (! app()->environment('production')) {
             $this->call(DemoCatalogSeeder::class);
         }
+
+        // Entorno staging de Railway: catálogo, cajero y caja abierta para
+        // probar. Solo con SEED_STAGING_DATA=true - producción nunca la tiene.
+        if (filter_var(env('SEED_STAGING_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
+            $this->call(StagingSeeder::class);
+        }
     }
 }
