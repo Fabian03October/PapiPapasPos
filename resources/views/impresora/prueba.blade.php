@@ -101,10 +101,18 @@
                 log('Ahora se imprimirá con ' + charEl.value);
             });
 
+            let wasConnected = BT.isConnected();
             BT.onChange(({ connected, name }) => {
                 statusEl.textContent = connected ? 'Conectada: ' + name : 'Sin conectar.';
+                if (connected !== wasConnected) log(connected ? 'Conectada a "' + name + '".' : 'Se desconectó la impresora.');
+                wasConnected = connected;
                 renderCharacteristics();
             });
+
+            if (BT.isEnabled() && !BT.isConnected()) {
+                log('Intentando reconectar sola a la impresora de la vez pasada…');
+                BT.reconectarSiSePuede(log).then(ok => { if (!ok) log('No se reconectó sola: dale "1. Conectar".'); });
+            }
 
             document.getElementById('bt-test-connect').addEventListener('click', async () => {
                 try {

@@ -192,19 +192,57 @@
      * permiso a la impresora. Si no, se queda desconectada y hay que darle
      * "Conectar" otra vez.
      */
-    async function reconectarSiSePuede(log = () => {}) {
+    let reconnecting = null;
+
+    function reconectarSiSePuede(log = () => {}) {
+        // Si ya hay un intento en curso (el que arranca solo al cargar la
+        // página), se espera ese en vez de abrir otra conexión.
+        if (!reconnecting) {
+            reconnecting = intentarReconectar(log).finally(() => { reconnecting = null; });
+        }
+        return reconnecting;
+    }
+
+    async function intentarReconectar(log) {
         if (isConnected() || !isEnabled() || !isSupported() || !navigator.bluetooth.getDevices) return false;
 
         try {
             const devices = await navigator.bluetooth.getDevices();
             const known = devices.find(d => d.id === get(KEYS.deviceId)) || devices[0];
             if (!known) return false;
-            await attach(known, log);
+
+            try {
+                await attach(known, log);
+            } catch (e) {
+                // Chrome a veces no deja conectar a un dispositivo recordado
+                // hasta "oírlo" anunciarse otra vez: se escucha unos segundos
+                // y se reintenta.
+                log('Esperando a que la impresora se anuncie…');
+                await esperarAnuncio(known, 6000);
+                await attach(known, log);
+            }
+            log('Reconectada sola a "' + deviceName() + '".');
             return true;
         } catch (e) {
             log('No se pudo reconectar solo: ' + e.message);
             return false;
         }
+    }
+
+    function esperarAnuncio(target, timeoutMs) {
+        if (!target.watchAdvertisements) return Promise.resolve();
+
+        return new Promise(resolve => {
+            const controller = new AbortController();
+            const done = () => {
+                clearTimeout(timer);
+                controller.abort();
+                resolve();
+            };
+            const timer = setTimeout(done, timeoutMs);
+            target.addEventListener('advertisementreceived', done, { once: true });
+            target.watchAdvertisements({ signal: controller.signal }).catch(done);
+        });
     }
 
     async function asegurarConexion() {
