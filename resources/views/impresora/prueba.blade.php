@@ -54,6 +54,14 @@
 
             <div class="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
                 <div class="flex items-center justify-between mb-2">
+                    <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Historial de conexión <span class="font-normal text-neutral-400">· últimos 50, de este dispositivo</span></p>
+                    <button id="bt-test-clear-events" type="button" class="text-xs text-neutral-500 dark:text-neutral-400 hover:underline">Borrar</button>
+                </div>
+                <pre id="bt-test-events" class="text-xs whitespace-pre-wrap break-all text-neutral-600 dark:text-neutral-400">Sin eventos.</pre>
+            </div>
+
+            <div class="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+                <div class="flex items-center justify-between mb-2">
                     <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Log</p>
                     <button id="bt-test-copy" type="button" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">Copiar log</button>
                 </div>
@@ -78,6 +86,7 @@
             log('Navegador: ' + navigator.userAgent);
             log('Bluetooth disponible: ' + (BT && BT.isSupported() ? 'sí' : 'NO (necesita Chrome y https)'));
             log('Reconexión automática (getDevices): ' + (navigator.bluetooth && navigator.bluetooth.getDevices ? 'sí' : 'no'));
+            log('Mantener pantalla encendida (wakeLock): ' + (navigator.wakeLock ? 'sí' : 'no'));
 
             codepageEl.value = String(BT.config.codepage);
             chunkEl.value = String(BT.config.chunkSize);
@@ -99,6 +108,22 @@
             charEl.addEventListener('change', () => {
                 BT.usarCaracteristica(charEl.value);
                 log('Ahora se imprimirá con ' + charEl.value);
+            });
+
+            const eventsEl = document.getElementById('bt-test-events');
+
+            function renderEvents() {
+                const list = BT.eventos();
+                eventsEl.textContent = list.length === 0
+                    ? 'Sin eventos.'
+                    : list.slice().reverse().map(e => new Date(e.t).toLocaleString('es-MX') + '  ' + e.m).join('\n');
+            }
+
+            renderEvents();
+            setInterval(renderEvents, 3000);
+            document.getElementById('bt-test-clear-events').addEventListener('click', () => {
+                BT.limpiarEventos();
+                renderEvents();
             });
 
             let wasConnected = BT.isConnected();

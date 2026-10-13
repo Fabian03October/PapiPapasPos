@@ -38,6 +38,7 @@
         chunk: 'papispapas_bt_bloque',
         comanda: 'papispapas_bt_comanda',
         station: 'papispapas_bt_estacion', // fecha (ISO) desde que se activó, o nada
+        events: 'papispapas_bt_eventos',
     };
 
     let device = null;
@@ -95,6 +96,7 @@
     }
 
     function notify() {
+        actualizarPantallaEncendida();
         listeners.forEach(fn => {
             try { fn({ connected: isConnected(), name: deviceName(), enabled: isEnabled() }); } catch (e) {}
         });
@@ -157,10 +159,17 @@
 
     async function attach(newDevice, log) {
         device = newDevice;
-        device.addEventListener('gattserverdisconnected', () => {
-            characteristic = null;
-            notify();
-        });
+        if (!device.__papisListener) {
+            device.__papisListener = true;
+            device.addEventListener('gattserverdisconnected', () => {
+                characteristic = null;
+                // Chrome en Android corta el Bluetooth cuando la pantalla se
+                // apaga o se cambia de app: se anota para poder diagnosticarlo.
+                evento('Se desconectó' + (document.hidden ? ' (pantalla apagada o Chrome en segundo plano)' : ''));
+                notify();
+                programarReconexion();
+            });
+        }
 
         log('Conectando a "' + (device.name || 'sin nombre') + '"…');
         const server = await device.gatt.connect();
@@ -168,6 +177,8 @@
 
         set(KEYS.enabled, '1');
         set(KEYS.deviceId, device.id);
+        retryCount = 0;
+        evento('Conectada a "' + deviceName() + '"');
         notify();
 
         return { name: deviceName(), characteristic: characteristic.uuid };
@@ -246,20 +257,107 @@
         });
     }
 
-    async function asegurarConexion() {
-        if (isConnected()) return;
+    let connecting = null;
 
-        // Mismo dispositivo de esta página pero se cayó la conexión: volver
-        // a conectar no necesita clic.
-        if (device) {
-            const server = await device.gatt.connect();
-            characteristic = await pickCharacteristic(server, () => {});
-            notify();
-            return;
+    function asegurarConexion() {
+        if (isConnected()) return Promise.resolve();
+
+        // Un solo intento a la vez (lo pueden pedir al mismo tiempo la
+        // reconexión automática, la estación y una venta).
+        if (!connecting) {
+            connecting = (async () => {
+                // Mismo dispositivo de esta página pero se cayó la conexión:
+                // volver a conectar no necesita clic.
+                if (device) {
+                    const server = await device.gatt.connect();
+                    characteristic = await pickCharacteristic(server, () => {});
+                    notify();
+                    return;
+                }
+
+                if (!(await reconectarSiSePuede())) {
+                    throw new Error('La impresora Bluetooth no está conectada.');
+                }
+            })().finally(() => { connecting = null; });
         }
 
-        if (!(await reconectarSiSePuede())) {
-            throw new Error('La impresora Bluetooth no está conectada.');
+        return connecting;
+    }
+
+    // --- Reconexión automática ---
+    // Si se cae la conexión se reintenta solo, cada vez más espaciado, mientras
+    // la página esté a la vista (con la pantalla apagada Chrome no deja).
+    const RETRY_DELAYS_MS = [1500, 4000, 8000, 15000, 30000];
+    let retryTimer = null;
+    let retryCount = 0;
+
+    function programarReconexion(delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)]) {
+        clearTimeout(retryTimer);
+        if (!isEnabled() || isConnected() || document.hidden) return;
+
+        retryTimer = setTimeout(async () => {
+            if (!isEnabled() || isConnected() || document.hidden) return;
+            try {
+                await asegurarConexion();
+                evento('Reconectada sola' + (retryCount > 0 ? ' (intento ' + (retryCount + 1) + ')' : ''));
+                retryCount = 0;
+            } catch (e) {
+                retryCount++;
+                if (retryCount === 3) evento('No se ha podido reconectar: ¿impresora apagada o lejos?');
+                programarReconexion();
+            }
+        }, delay);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        // Al volver a la pantalla (desbloquear, regresar a Chrome) se
+        // reconecta de inmediato y se vuelve a pedir la pantalla encendida.
+        retryCount = 0;
+        programarReconexion(300);
+        actualizarPantallaEncendida();
+    });
+
+    // --- Pantalla encendida ---
+    // En el dispositivo que imprime para todos (estación) se pide que la
+    // pantalla no se apague: si se apaga, Android corta el Bluetooth y deja
+    // de imprimir. Chrome la suelta sola si se cambia de app; al volver se
+    // pide otra vez.
+    let wakeLock = null;
+    let wakeLockPending = false;
+
+    async function actualizarPantallaEncendida() {
+        const want = isStation() && isConnected() && !document.hidden;
+
+        if (want && !wakeLock && !wakeLockPending && navigator.wakeLock) {
+            wakeLockPending = true;
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => { wakeLock = null; });
+            } catch (e) {
+            } finally {
+                wakeLockPending = false;
+            }
+        } else if (!want && wakeLock) {
+            wakeLock.release().catch(() => {});
+            wakeLock = null;
+        }
+    }
+
+    // --- Historial de conexión (se ve en /prueba-impresora) ---
+    function evento(message) {
+        try {
+            const list = JSON.parse(get(KEYS.events, '[]'));
+            list.push({ t: new Date().toISOString(), m: message });
+            set(KEYS.events, JSON.stringify(list.slice(-50)));
+        } catch (e) {}
+    }
+
+    function eventos() {
+        try {
+            return JSON.parse(get(KEYS.events, '[]'));
+        } catch (e) {
+            return [];
         }
     }
 
@@ -283,6 +381,11 @@
     }
 
     function olvidar() {
+        // Primero se borra "activa" para que la desconexión de abajo no
+        // dispare la reconexión automática.
+        set(KEYS.enabled, null);
+        clearTimeout(retryTimer);
+        evento('Desconectada a mano');
         try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
         device = null;
         characteristic = null;
@@ -410,7 +513,7 @@
         // reconecta sola (sin clic). Si no se puede, NO se reclama nada:
         // esas ventas siguen pendientes y salen en cuanto se reconecte.
         let ready = false;
-        if (isStation() && (isConnected() || device)) {
+        if (isStation() && !document.hidden && (isConnected() || device)) {
             try {
                 await asegurarConexion();
                 ready = true;
@@ -448,6 +551,7 @@
         isSupported, isEnabled, isConnected, deviceName, onChange,
         conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
         imprimir, imprimirVenta, encode, config, isStation, setStation,
+        eventos, limpiarEventos: () => set(KEYS.events, null),
     };
 
     // Al cargar la página, si ya se usaba la impresora, intenta reconectar sola.
