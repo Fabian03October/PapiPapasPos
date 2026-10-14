@@ -157,7 +157,7 @@
         return choice.characteristic;
     }
 
-    async function attach(newDevice, log) {
+    async function attach(newDevice, log, origen = 'con el botón') {
         device = newDevice;
         if (!device.__papisListener) {
             device.__papisListener = true;
@@ -178,7 +178,8 @@
         set(KEYS.enabled, '1');
         set(KEYS.deviceId, device.id);
         retryCount = 0;
-        evento('Conectada a "' + deviceName() + '"');
+        evento('Conectada ' + origen);
+        avisarOtrasPestanas();
         notify();
 
         return { name: deviceName(), characteristic: characteristic.uuid };
@@ -223,22 +224,36 @@
             const known = devices.find(d => d.id === get(KEYS.deviceId)) || devices[0];
             if (!known) return false;
 
+            const origen = 'sola al abrir la pantalla';
             try {
-                await attach(known, log);
+                await attach(known, log, origen);
             } catch (e) {
                 // Chrome a veces no deja conectar a un dispositivo recordado
                 // hasta "oírlo" anunciarse otra vez: se escucha unos segundos
                 // y se reintenta.
                 log('Esperando a que la impresora se anuncie…');
                 await esperarAnuncio(known, 6000);
-                await attach(known, log);
+                await attach(known, log, origen);
             }
             log('Reconectada sola a "' + deviceName() + '".');
             return true;
         } catch (e) {
+            ultimoError = e;
             log('No se pudo reconectar solo: ' + e.message);
+            // Solo el primer fallo de cada racha, para no llenar el historial.
+            if (retryCount === 0) evento('Falló al reconectar: ' + motivo(e));
             return false;
         }
+    }
+
+    let ultimoError = null;
+
+    /** El error de Chrome en palabras, para el historial. */
+    function motivo(e) {
+        const text = (e && (e.name + ': ' + e.message)) || String(e);
+        if (/already in use|busy|in use/i.test(text)) return 'la impresora la tiene otro dispositivo o pestaña (' + text + ')';
+        if (/out of range|not found|no longer in range|connection failed/i.test(text)) return 'no se encontró: apagada, sin batería o lejos (' + text + ')';
+        return text;
     }
 
     function esperarAnuncio(target, timeoutMs) {
@@ -303,7 +318,7 @@
                 retryCount = 0;
             } catch (e) {
                 retryCount++;
-                if (retryCount === 3) evento('No se ha podido reconectar: ¿impresora apagada o lejos?');
+                if (retryCount === 3) evento('Sigue sin reconectar (lo seguirá intentando): ' + motivo(ultimoError || e));
                 programarReconexion();
             }
         }, delay);
@@ -554,7 +569,31 @@
         eventos, limpiarEventos: () => set(KEYS.events, null),
     };
 
-    // Al cargar la página, si ya se usaba la impresora, intenta reconectar sola.
-    if (isEnabled()) reconectarSiSePuede();
+    // --- Varias pestañas del POS en el mismo dispositivo ---
+    // La impresora acepta una sola conexión: dos pestañas se la pelean. No se
+    // cambia nada solo, pero se avisa para que cierren la que sobra.
+    const tabs = 'BroadcastChannel' in window ? new BroadcastChannel('papispapas-impresora') : null;
+
+    function avisarOtrasPestanas() {
+        if (tabs) tabs.postMessage({ type: 'tengo-la-impresora' });
+    }
+
+    if (tabs) {
+        tabs.onmessage = (event) => {
+            if (event.data?.type === 'tengo-la-impresora' && isEnabled()) {
+                evento('Hay otra pestaña del POS usando la impresora: dejen abierta solo una');
+                if (window.Toast) Toast.show('Hay otra pestaña del sistema abierta usando la impresora. Cierren las demás y dejen solo una.', 'error');
+            }
+        };
+    }
+
+    // Al cargar la página, si ya se usaba la impresora, intenta reconectar
+    // sola; si en ese momento no se puede (apagada, lejos, ocupada), se sigue
+    // intentando en vez de rendirse.
+    if (isEnabled()) {
+        reconectarSiSePuede().then(ok => {
+            if (!ok && isEnabled()) programarReconexion();
+        });
+    }
     stationTick();
 })(window);
