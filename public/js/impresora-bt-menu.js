@@ -29,7 +29,8 @@
             btn.disabled = true;
             btn.classList.add('opacity-50');
         } else if (connected) {
-            text.textContent = 'Conectada: ' + name + '. Los tickets salen solos al cobrar.';
+            text.textContent = 'Conectada: ' + name + '. Los tickets salen solos al cobrar.'
+                + (BT.esPrincipal() ? '' : ' (La conexión la tiene otra pestaña de este dispositivo.)');
             btn.textContent = 'Desconectar';
         } else if (enabled) {
             text.textContent = 'Desconectada. Dale "Conectar" para seguir imprimiendo.';

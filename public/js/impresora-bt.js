@@ -47,6 +47,19 @@
     let printing = Promise.resolve();
     const listeners = new Set();
 
+    // --- Varias pestañas ---
+    // La impresora acepta una sola conexión. Solo la pestaña "principal" (la
+    // que tiene el candado PRINTER_LOCK, normalmente la que está a la vista)
+    // se conecta; las demás le mandan sus tickets por el canal "tabs". Sin
+    // Web Locks (navegador viejo) cada pestaña se conecta sola, como antes.
+    const PRINTER_LOCK = 'papispapas-impresora';
+    const canCoordinate = !!(navigator.locks && 'BroadcastChannel' in window);
+    const tabs = canCoordinate ? new BroadcastChannel('papispapas-impresora') : null;
+    const TAB_ID = Math.random().toString(36).slice(2);
+    let isLeader = !canCoordinate;
+    let remote = { connected: false, name: null }; // lo que dice la pestaña principal
+    let releasingForOtherTab = false;
+
     function get(key, fallback = null) {
         try {
             const value = localStorage.getItem(key);
@@ -82,12 +95,24 @@
         return get(KEYS.enabled) === '1';
     }
 
-    function isConnected() {
+    /** ¿ESTA pestaña tiene la conexión Bluetooth abierta? */
+    function localConectada() {
         return !!(characteristic && device && device.gatt.connected);
     }
 
+    /** ¿Se puede imprimir desde aquí? (directo, o a través de la pestaña principal) */
+    function isConnected() {
+        return isLeader ? localConectada() : remote.connected;
+    }
+
     function deviceName() {
+        if (!isLeader) return remote.name;
         return device ? (device.name || 'Impresora') : null;
+    }
+
+    /** true si esta pestaña es la que se conecta a la impresora. */
+    function esPrincipal() {
+        return isLeader;
     }
 
     function onChange(fn) {
@@ -97,8 +122,11 @@
 
     function notify() {
         actualizarPantallaEncendida();
+        if (isLeader && tabs) {
+            tabs.postMessage({ type: 'estado', connected: localConectada(), name: deviceName() });
+        }
         listeners.forEach(fn => {
-            try { fn({ connected: isConnected(), name: deviceName(), enabled: isEnabled() }); } catch (e) {}
+            try { fn({ connected: isConnected(), name: deviceName(), enabled: isEnabled(), principal: isLeader }); } catch (e) {}
         });
     }
 
@@ -163,7 +191,9 @@
             device.__papisListener = true;
             device.addEventListener('gattserverdisconnected', () => {
                 characteristic = null;
-                if (leavingPage) return; // la soltó esta misma página al cambiar de pantalla
+                // La soltó esta misma página: al cambiar de pantalla o porque
+                // otra pestaña pasó a ser la principal.
+                if (leavingPage || releasingForOtherTab) return;
                 // Chrome en Android corta el Bluetooth cuando la pantalla se
                 // apaga o se cambia de app: se anota para poder diagnosticarlo.
                 evento('Se desconectó' + (document.hidden ? ' (pantalla apagada o Chrome en segundo plano)' : ''));
@@ -180,7 +210,6 @@
         set(KEYS.deviceId, device.id);
         retryCount = 0;
         evento('Conectada ' + origen);
-        avisarOtrasPestanas();
         notify();
 
         return { name: deviceName(), characteristic: characteristic.uuid };
@@ -192,10 +221,16 @@
             throw new Error('Este navegador no soporta Bluetooth. Usa Chrome en Android con la página en https.');
         }
 
+        // requestDevice primero: necesita el clic, y el clic "caduca" si se
+        // espera a otra cosa antes.
         const chosen = await navigator.bluetooth.requestDevice({
             acceptAllDevices: true,
             optionalServices: SERVICES,
         });
+
+        // La pestaña donde se da "Conectar" pasa a ser la principal; la que
+        // la tenía la suelta sola (ver dejarDeSerPrincipal).
+        await serPrincipal({ robar: true });
 
         return attach(chosen, log);
     }
@@ -209,6 +244,12 @@
     let reconnecting = null;
 
     function reconectarSiSePuede(log = () => {}) {
+        // Pestaña secundaria: no se conecta ella, le pide a la principal.
+        if (!isLeader) {
+            if (tabs && !remote.connected) tabs.postMessage({ type: 'reconectar' });
+            return Promise.resolve(remote.connected);
+        }
+
         // Si ya hay un intento en curso (el que arranca solo al cargar la
         // página), se espera ese en vez de abrir otra conexión.
         if (!reconnecting) {
@@ -325,10 +366,10 @@
 
     function programarReconexion(delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)]) {
         clearTimeout(retryTimer);
-        if (!isEnabled() || isConnected() || document.hidden) return;
+        if (!isLeader || !isEnabled() || localConectada() || document.hidden) return;
 
         retryTimer = setTimeout(async () => {
-            if (!isEnabled() || isConnected() || document.hidden) return;
+            if (!isLeader || !isEnabled() || localConectada() || document.hidden) return;
             try {
                 await asegurarConexion();
                 evento('Reconectada sola' + (retryCount > 0 ? ' (intento ' + (retryCount + 1) + ')' : ''));
@@ -343,11 +384,16 @@
 
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
-        // Al volver a la pantalla (desbloquear, regresar a Chrome) se
-        // reconecta de inmediato y se vuelve a pedir la pantalla encendida.
-        retryCount = 0;
-        programarReconexion(300);
-        actualizarPantallaEncendida();
+        // Al volver a la pantalla (desbloquear, regresar a Chrome, cambiar a
+        // esta pestaña) esta pasa a ser la principal y se reconecta de
+        // inmediato. Chrome no deja usar Bluetooth en la pestaña que no se ve,
+        // así que tiene que ser la que está a la vista.
+        if (!isEnabled()) return;
+        serPrincipal({ robar: true }).then(() => {
+            retryCount = 0;
+            programarReconexion(300);
+            actualizarPantallaEncendida();
+        });
     });
 
     // --- Pantalla encendida ---
@@ -359,7 +405,7 @@
     let wakeLockPending = false;
 
     async function actualizarPantallaEncendida() {
-        const want = isStation() && isConnected() && !document.hidden;
+        const want = isLeader && isStation() && localConectada() && !document.hidden;
 
         if (want && !wakeLock && !wakeLockPending && navigator.wakeLock) {
             wakeLockPending = true;
@@ -413,6 +459,12 @@
     }
 
     function olvidar() {
+        // Desde una pestaña secundaria: la que tiene la conexión es la principal.
+        if (!isLeader && tabs) {
+            tabs.postMessage({ type: 'olvidar' });
+            remote = { connected: false, name: null };
+        }
+
         // Primero se borra "activa" para que la desconexión de abajo no
         // dispare la reconexión automática.
         set(KEYS.enabled, null);
@@ -485,6 +537,8 @@
      * dos impresiones seguidas (ticket + comanda) no se mezclen en el papel.
      */
     function imprimir(lines) {
+        if (!isLeader && tabs) return imprimirEnPrincipal(lines);
+
         const job = printing.then(async () => {
             await asegurarConexion();
             try {
@@ -545,7 +599,7 @@
         // reconecta sola (sin clic). Si no se puede, NO se reclama nada:
         // esas ventas siguen pendientes y salen en cuanto se reconecte.
         let ready = false;
-        if (isStation() && !document.hidden && (isConnected() || device)) {
+        if (isLeader && isStation() && !document.hidden && (localConectada() || device)) {
             try {
                 await asegurarConexion();
                 ready = true;
@@ -583,30 +637,104 @@
         isSupported, isEnabled, isConnected, deviceName, onChange,
         conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
         imprimir, imprimirVenta, encode, config, isStation, setStation,
-        eventos, limpiarEventos: () => set(KEYS.events, null),
+        eventos, limpiarEventos: () => set(KEYS.events, null), esPrincipal,
     };
 
-    // --- Varias pestañas del POS en el mismo dispositivo ---
-    // La impresora acepta una sola conexión: dos pestañas se la pelean. No se
-    // cambia nada solo, pero se avisa para que cierren la que sobra.
-    const tabs = 'BroadcastChannel' in window ? new BroadcastChannel('papispapas-impresora') : null;
+    // --- Pestaña principal ---
+    // El candado del navegador (Web Locks) lo tiene una sola pestaña a la
+    // vez: esa es la principal y es la única que se conecta. Cuando se cierra
+    // o cambia de pantalla, el navegador se lo da sola a la siguiente que lo
+    // esté esperando. "robar" se usa cuando esta pestaña pasa a la vista o se
+    // da "Conectar" aquí: Chrome solo deja usar Bluetooth en la que se ve.
+    let becomingLeader = null;
 
-    function avisarOtrasPestanas() {
-        if (tabs) tabs.postMessage({ type: 'tengo-la-impresora' });
+    function serPrincipal({ robar = false } = {}) {
+        if (isLeader) return Promise.resolve();
+        if (becomingLeader && !robar) return becomingLeader;
+
+        becomingLeader = new Promise(resolve => {
+            navigator.locks.request(PRINTER_LOCK, robar ? { steal: true } : {}, () => {
+                isLeader = true;
+                becomingLeader = null;
+                releasingForOtherTab = false;
+                notify(); // avisa a las secundarias su estado
+                resolve();
+                // Se queda con el candado hasta que cierre la página o se lo roben.
+                return new Promise(() => {});
+            }).catch(() => {
+                // Otra pestaña "robó" el candado: esta deja de ser la principal.
+                dejarDeSerPrincipal();
+            });
+        });
+
+        return becomingLeader;
+    }
+
+    function dejarDeSerPrincipal() {
+        if (!isLeader) return;
+        isLeader = false;
+        clearTimeout(retryTimer);
+        // Se suelta la impresora para que la principal nueva la pueda agarrar.
+        releasingForOtherTab = true;
+        try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+        characteristic = null;
+        remote = { connected: false, name: null };
+        tabs.postMessage({ type: 'pregunta-estado' });
+        notify();
+        // Se forma otra vez para ser principal si la nueva se cierra.
+        becomingLeader = null;
+        serPrincipal();
+    }
+
+    // Tickets que una pestaña secundaria le manda a imprimir a la principal.
+    const pendingJobs = new Map();
+    let jobSeq = 0;
+    const REMOTE_JOB_TIMEOUT_MS = 45000;
+
+    function imprimirEnPrincipal(lines) {
+        return new Promise((resolve, reject) => {
+            const id = TAB_ID + '-' + (++jobSeq);
+            const timer = setTimeout(() => {
+                pendingJobs.delete(id);
+                evento('La pestaña que tiene la impresora no respondió');
+                reject(new Error('La pestaña que tiene la impresora no respondió.'));
+            }, REMOTE_JOB_TIMEOUT_MS);
+            pendingJobs.set(id, { resolve, reject, timer });
+            tabs.postMessage({ type: 'trabajo', id, lines });
+        });
     }
 
     if (tabs) {
         tabs.onmessage = (event) => {
-            const type = event.data?.type;
-            if (type === 'tengo-la-impresora' && isEnabled()) {
-                evento('Hay otra pestaña del POS usando la impresora: dejen abierta solo una');
-                if (window.Toast) Toast.show('Hay otra pestaña del sistema abierta usando la impresora. Cierren las demás y dejen solo una.', 'error');
-            } else if (type === 'quien-la-tiene' && isConnected()) {
-                // Una pestaña recién abierta pregunta: se le avisa que esta ya la tiene.
-                avisarOtrasPestanas();
+            const msg = event.data || {};
+
+            if (isLeader) {
+                if (msg.type === 'trabajo') {
+                    imprimir(msg.lines).then(
+                        () => tabs.postMessage({ type: 'trabajo-hecho', id: msg.id, ok: true }),
+                        (e) => tabs.postMessage({ type: 'trabajo-hecho', id: msg.id, ok: false, error: e.message })
+                    );
+                } else if (msg.type === 'pregunta-estado') {
+                    notify();
+                } else if (msg.type === 'reconectar') {
+                    if (!localConectada()) programarReconexion(0);
+                } else if (msg.type === 'olvidar') {
+                    olvidar();
+                }
+                return;
+            }
+
+            if (msg.type === 'estado') {
+                remote = { connected: !!msg.connected, name: msg.name || null };
+                notify();
+            } else if (msg.type === 'trabajo-hecho' && pendingJobs.has(msg.id)) {
+                const job = pendingJobs.get(msg.id);
+                pendingJobs.delete(msg.id);
+                clearTimeout(job.timer);
+                if (msg.ok) job.resolve();
+                else job.reject(new Error(msg.error || 'No se pudo imprimir.'));
             }
         };
-        if (isEnabled()) tabs.postMessage({ type: 'quien-la-tiene' });
     }
 
     // --- Al cambiar de pantalla ---
@@ -620,6 +748,8 @@
         leavingPage = true;
         clearTimeout(retryTimer);
         try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+        // Las secundarias dejan de mostrarla conectada hasta que la tome otra.
+        if (isLeader && tabs) tabs.postMessage({ type: 'estado', connected: false, name: null });
     });
 
     // Regresar con "atrás" puede restaurar esta misma página (sin recargarla):
@@ -631,12 +761,17 @@
         programarReconexion(300);
     });
 
-    // Al cargar la página, si ya se usaba la impresora, intenta reconectar
-    // sola; si en ese momento no se puede (apagada, lejos, ocupada), se sigue
-    // intentando en vez de rendirse.
+    // Al cargar la página, si ya se usaba la impresora: si esta pestaña está a
+    // la vista pasa a ser la principal y reconecta sola (si en ese momento no
+    // se puede, lo sigue intentando en vez de rendirse); si está en segundo
+    // plano, se forma para ser principal y mientras usa la de otra pestaña.
     if (isEnabled()) {
-        reconectarSiSePuede().then(ok => {
-            if (!ok && isEnabled()) programarReconexion();
+        if (tabs) tabs.postMessage({ type: 'pregunta-estado' });
+        serPrincipal({ robar: !document.hidden }).then(() => {
+            if (document.hidden) return;
+            reconectarSiSePuede().then(ok => {
+                if (!ok && isEnabled()) programarReconexion();
+            });
         });
     }
     stationTick();
