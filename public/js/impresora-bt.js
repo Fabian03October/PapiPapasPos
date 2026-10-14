@@ -163,6 +163,7 @@
             device.__papisListener = true;
             device.addEventListener('gattserverdisconnected', () => {
                 characteristic = null;
+                if (leavingPage) return; // la soltó esta misma página al cambiar de pantalla
                 // Chrome en Android corta el Bluetooth cuando la pantalla se
                 // apaga o se cambia de app: se anota para poder diagnosticarlo.
                 evento('Se desconectó' + (document.hidden ? ' (pantalla apagada o Chrome en segundo plano)' : ''));
@@ -172,7 +173,7 @@
         }
 
         log('Conectando a "' + (device.name || 'sin nombre') + '"…');
-        const server = await device.gatt.connect();
+        const server = await conectarGatt(device, log);
         characteristic = await pickCharacteristic(server, log);
 
         set(KEYS.enabled, '1');
@@ -224,17 +225,7 @@
             const known = devices.find(d => d.id === get(KEYS.deviceId)) || devices[0];
             if (!known) return false;
 
-            const origen = 'sola al abrir la pantalla';
-            try {
-                await attach(known, log, origen);
-            } catch (e) {
-                // Chrome a veces no deja conectar a un dispositivo recordado
-                // hasta "oírlo" anunciarse otra vez: se escucha unos segundos
-                // y se reintenta.
-                log('Esperando a que la impresora se anuncie…');
-                await esperarAnuncio(known, 6000);
-                await attach(known, log, origen);
-            }
+            await attach(known, log, 'sola al abrir la pantalla');
             log('Reconectada sola a "' + deviceName() + '".');
             return true;
         } catch (e) {
@@ -256,19 +247,45 @@
         return text;
     }
 
+    /**
+     * Conecta a un dispositivo ya elegido antes (sin clic). Chrome solo deja
+     * reconectar a uno "recordado" después de oírlo anunciarse; si no, falla
+     * con "Bluetooth Device is no longer in range" aunque esté al lado. Justo
+     * después de cambiar de pantalla la impresora tarda unos segundos en
+     * volver a anunciarse, así que se la escucha y se reintenta.
+     *
+     * (Antes los reintentos automáticos solo repetían connect() sin escuchar:
+     * fallaban siempre y solo funcionaba el botón "Conectar".)
+     */
+    async function conectarGatt(target, log = () => {}) {
+        try {
+            return await target.gatt.connect();
+        } catch (e) {
+            log('Esperando a que la impresora se anuncie…');
+            const heard = await esperarAnuncio(target, 10000);
+            if (!heard) throw e;
+            return await target.gatt.connect();
+        }
+    }
+
+    /** true si se oyó a la impresora anunciarse antes del tiempo límite. */
     function esperarAnuncio(target, timeoutMs) {
-        if (!target.watchAdvertisements) return Promise.resolve();
+        // Sin watchAdvertisements (Chrome sin la opción de chrome://flags)
+        // no se puede escuchar: se deja reintentar una vez a ciegas.
+        if (!target.watchAdvertisements) return Promise.resolve(true);
 
         return new Promise(resolve => {
             const controller = new AbortController();
-            const done = () => {
+            const finish = (heard) => {
                 clearTimeout(timer);
+                target.removeEventListener('advertisementreceived', onAdvertisement);
                 controller.abort();
-                resolve();
+                resolve(heard);
             };
-            const timer = setTimeout(done, timeoutMs);
-            target.addEventListener('advertisementreceived', done, { once: true });
-            target.watchAdvertisements({ signal: controller.signal }).catch(done);
+            const onAdvertisement = () => finish(true);
+            const timer = setTimeout(() => finish(false), timeoutMs);
+            target.addEventListener('advertisementreceived', onAdvertisement);
+            target.watchAdvertisements({ signal: controller.signal }).catch(() => finish(false));
         });
     }
 
@@ -284,7 +301,7 @@
                 // Mismo dispositivo de esta página pero se cayó la conexión:
                 // volver a conectar no necesita clic.
                 if (device) {
-                    const server = await device.gatt.connect();
+                    const server = await conectarGatt(device);
                     characteristic = await pickCharacteristic(server, () => {});
                     notify();
                     return;
@@ -580,12 +597,39 @@
 
     if (tabs) {
         tabs.onmessage = (event) => {
-            if (event.data?.type === 'tengo-la-impresora' && isEnabled()) {
+            const type = event.data?.type;
+            if (type === 'tengo-la-impresora' && isEnabled()) {
                 evento('Hay otra pestaña del POS usando la impresora: dejen abierta solo una');
                 if (window.Toast) Toast.show('Hay otra pestaña del sistema abierta usando la impresora. Cierren las demás y dejen solo una.', 'error');
+            } else if (type === 'quien-la-tiene' && isConnected()) {
+                // Una pestaña recién abierta pregunta: se le avisa que esta ya la tiene.
+                avisarOtrasPestanas();
             }
         };
+        if (isEnabled()) tabs.postMessage({ type: 'quien-la-tiene' });
     }
+
+    // --- Al cambiar de pantalla ---
+    // Cada pantalla del POS es una página nueva y la conexión no pasa de una
+    // a otra. Se suelta la impresora en cuanto se sale de la página para que
+    // vuelva a anunciarse rápido y la pantalla siguiente la pueda agarrar
+    // (si no, se quedaba "ocupada" unos segundos y la reconexión fallaba).
+    let leavingPage = false;
+
+    window.addEventListener('pagehide', () => {
+        leavingPage = true;
+        clearTimeout(retryTimer);
+        try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+    });
+
+    // Regresar con "atrás" puede restaurar esta misma página (sin recargarla):
+    // ahí hay que volver a conectar.
+    window.addEventListener('pageshow', (event) => {
+        if (!event.persisted) return;
+        leavingPage = false;
+        retryCount = 0;
+        programarReconexion(300);
+    });
 
     // Al cargar la página, si ya se usaba la impresora, intenta reconectar
     // sola; si en ese momento no se puede (apagada, lejos, ocupada), se sigue
