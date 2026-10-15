@@ -147,7 +147,7 @@
      * escribir.
      */
     async function pickCharacteristic(server, log) {
-        const services = await server.getPrimaryServices();
+        const services = await conTiempo(server.getPrimaryServices(), 10000, 'La impresora no respondió al leer sus servicios.');
         writable = [];
 
         for (const service of services) {
@@ -264,7 +264,13 @@
         try {
             const devices = await navigator.bluetooth.getDevices();
             const known = devices.find(d => d.id === get(KEYS.deviceId)) || devices[0];
-            if (!known) return false;
+            if (!known) {
+                // Chrome ya no tiene el permiso guardado (se borraron datos del
+                // sitio o se apagó la opción de chrome://flags): sin un toque en
+                // "Conectar" no hay forma de volver a elegirla.
+                if (retryCount === 0) evento('Chrome ya no recuerda la impresora: toquen "Conectar" una vez');
+                return false;
+            }
 
             await attach(known, log, 'sola al abrir la pantalla');
             log('Reconectada sola a "' + deviceName() + '".');
@@ -285,6 +291,7 @@
         const text = (e && (e.name + ': ' + e.message)) || String(e);
         if (/already in use|busy|in use/i.test(text)) return 'la impresora la tiene otro dispositivo o pestaña (' + text + ')';
         if (/out of range|not found|no longer in range|connection failed/i.test(text)) return 'no se encontró: apagada, sin batería o lejos (' + text + ')';
+        if (e && e.name === 'TimeoutError') return 'la impresora no respondió a tiempo (' + text + ')';
         return text;
     }
 
@@ -300,13 +307,39 @@
      */
     async function conectarGatt(target, log = () => {}) {
         try {
-            return await target.gatt.connect();
+            return await connectConTiempo(target);
         } catch (e) {
             log('Esperando a que la impresora se anuncie…');
             const heard = await esperarAnuncio(target, 10000);
             if (!heard) throw e;
-            return await target.gatt.connect();
+            return await connectConTiempo(target);
         }
+    }
+
+    // En Android, si la impresora no responde, gatt.connect() a veces se
+    // queda colgado en vez de fallar: la reconexión automática se atoraba
+    // esperando para siempre y la fila de impresión se bloqueaba. Con tiempo
+    // límite, ese intento se cancela y se vuelve a intentar.
+    const CONNECT_TIMEOUT_MS = 15000;
+
+    function connectConTiempo(target) {
+        return conTiempo(target.gatt.connect(), CONNECT_TIMEOUT_MS, 'La impresora no respondió al conectar.')
+            .catch(e => {
+                try { target.gatt.disconnect(); } catch (err) {}
+                throw e;
+            });
+    }
+
+    function conTiempo(promise, ms, message) {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                const e = new Error(message);
+                e.name = 'TimeoutError';
+                reject(e);
+            }, ms);
+        });
+        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
     }
 
     /** true si se oyó a la impresora anunciarse antes del tiempo límite. */
@@ -326,7 +359,14 @@
             const onAdvertisement = () => finish(true);
             const timer = setTimeout(() => finish(false), timeoutMs);
             target.addEventListener('advertisementreceived', onAdvertisement);
-            target.watchAdvertisements({ signal: controller.signal }).catch(() => finish(false));
+            target.watchAdvertisements({ signal: controller.signal }).catch((e) => {
+                // Si Chrome no deja escuchar, ningún reintento automático va
+                // a funcionar: se anota (una vez por racha) para saberlo.
+                if (e && e.name !== 'AbortError' && retryCount === 0) {
+                    evento('Chrome no dejó escuchar a la impresora: ' + e.name + ': ' + e.message);
+                }
+                finish(false);
+            });
         });
     }
 
@@ -523,11 +563,12 @@
 
         for (let i = 0; i < data.length; i += size) {
             const chunk = data.slice(i, i + size);
-            if (characteristic.properties.writeWithoutResponse) {
-                await characteristic.writeValueWithoutResponse(chunk);
-            } else {
-                await characteristic.writeValueWithResponse(chunk);
-            }
+            const write = characteristic.properties.writeWithoutResponse
+                ? characteristic.writeValueWithoutResponse(chunk)
+                : characteristic.writeValueWithResponse(chunk);
+            // Si un envío se cuelga, la fila de impresión no debe quedarse
+            // atorada: se corta y se reintenta (la venta se libera).
+            await conTiempo(write, 8000, 'La impresora no respondió al imprimir.');
             await sleep(30);
         }
     }
