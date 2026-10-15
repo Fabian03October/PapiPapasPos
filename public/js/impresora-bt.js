@@ -39,6 +39,7 @@
         comanda: 'papispapas_bt_comanda',
         station: 'papispapas_bt_estacion', // fecha (ISO) desde que se activó, o nada
         events: 'papispapas_bt_eventos',
+        queue: 'papispapas_bt_pendientes', // tickets cobrados que no alcanzaron a imprimirse
     };
 
     let device = null;
@@ -167,11 +168,15 @@
             }
         }
 
+        // Primero la que sabemos que imprime (0x2AF1, probada con esta
+        // impresora). Antes ganaba la última elegida en /prueba-impresora y
+        // se quedaba guardada: con una equivocada la impresora puede no
+        // imprimir nada SIN marcar error (el sistema cree que sí imprimió).
         const savedService = get(KEYS.service);
         const savedChar = get(KEYS.characteristic);
         const choice =
-            writable.find(w => w.service === savedService && w.characteristic.uuid === savedChar) ||
             PREFERRED_CHARACTERISTICS.map(uuid => writable.find(w => w.characteristic.uuid === uuid)).find(Boolean) ||
+            writable.find(w => w.service === savedService && w.characteristic.uuid === savedChar) ||
             writable[0];
 
         if (!choice) {
@@ -506,13 +511,15 @@
         }));
     }
 
-    /** Cambia con cuál se imprime (y la recuerda para la próxima vez). */
+    /**
+     * Cambia con cuál se imprime, SOLO mientras dure esta conexión (para
+     * probar en /prueba-impresora). Al reconectar se vuelve a la que se
+     * sabe que imprime.
+     */
     function usarCaracteristica(uuid) {
         const choice = writable.find(w => w.characteristic.uuid === uuid);
         if (!choice) throw new Error('Esa característica no está en la impresora conectada.');
         characteristic = choice.characteristic;
-        set(KEYS.service, choice.service);
-        set(KEYS.characteristic, uuid);
         notify();
     }
 
@@ -653,7 +660,77 @@
         }).then(res => res.json());
     }
 
+    // --- Tickets pendientes ---
+    // Si se cobra justo cuando la impresora está desconectada, antes ese
+    // ticket ya nunca salía solo (había que reimprimirlo a mano). Ahora se
+    // guarda aquí y se imprime en cuanto vuelve la conexión, aunque se haya
+    // recargado la página. Se "reclama" en el servidor antes de imprimir,
+    // así que si mientras tanto lo imprimió otro dispositivo, no sale doble.
+    const QUEUE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+    let processingQueue = false;
+
+    function leerCola() {
+        try {
+            return JSON.parse(get(KEYS.queue, '[]'));
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function guardarCola(list) {
+        set(KEYS.queue, list.length ? JSON.stringify(list) : null);
+    }
+
+    function encolar(saleId, folio, recibido = null) {
+        const list = leerCola();
+        if (list.some(item => item.saleId === saleId)) return;
+        list.push({ saleId, folio, recibido, t: Date.now() });
+        guardarCola(list);
+        evento('Ticket #' + folio + ' pendiente: se imprimirá en cuanto se conecte la impresora');
+    }
+
+    function pendientes() {
+        return leerCola().length;
+    }
+
+    async function procesarCola() {
+        if (processingQueue || !isLeader || !localConectada()) return;
+        processingQueue = true;
+
+        try {
+            for (const item of leerCola()) {
+                const quitar = () => guardarCola(leerCola().filter(i => i.saleId !== item.saleId));
+
+                if (Date.now() - item.t > QUEUE_MAX_AGE_MS) {
+                    quitar();
+                    continue;
+                }
+
+                const claim = await postJson(`/impresion/${item.saleId}/marcar`);
+                if (!claim.claimed) {
+                    quitar(); // ya lo imprimió alguien más
+                    continue;
+                }
+
+                try {
+                    await imprimirVenta(item.saleId, { recibido: item.recibido });
+                    quitar();
+                    evento('Se imprimió el ticket pendiente #' + item.folio);
+                } catch (e) {
+                    await postJson(`/impresion/${item.saleId}/liberar`).catch(() => {});
+                    break; // se reintenta en la siguiente vuelta
+                }
+            }
+        } catch (e) {
+            console.error('Tickets pendientes:', e);
+        } finally {
+            processingQueue = false;
+        }
+    }
+
     async function stationTick() {
+        if (pendientes() > 0) await procesarCola();
+
         // Si se cayó la conexión con la impresora de esta página, se
         // reconecta sola (sin clic). Si no se puede, NO se reclama nada:
         // esas ventas siguen pendientes y salen en cuanto se reconecte.
@@ -696,7 +773,7 @@
         isSupported, isEnabled, isConnected, deviceName, onChange,
         conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
         imprimir, imprimirVenta, encode, config, isStation, setStation,
-        eventos, limpiarEventos: () => set(KEYS.events, null), esPrincipal,
+        eventos, limpiarEventos: () => set(KEYS.events, null), esPrincipal, encolar, pendientes,
     };
 
     // --- Pestaña principal ---

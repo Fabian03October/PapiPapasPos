@@ -1111,6 +1111,10 @@
                 console.error('Impresión Bluetooth:', err);
             }
 
+            // No se pudo imprimir aquí: si este dispositivo usa la impresora
+            // Bluetooth, el ticket queda en la fila y sale solo al reconectar.
+            if (BT && BT.isEnabled()) BT.encolar(saleId, folio, recibido);
+
             setTimeout(() => warnIfNotPrinted(saleId, folio, recibido), PRINT_CHECK_DELAY_MS);
         }
 
@@ -1120,7 +1124,10 @@
                 if (!(data.sales || []).some(sale => sale.id === saleId)) return; // ya la imprimió alguien
 
                 btPendingSale = { saleId, recibido };
-                document.getElementById('bt-pending-text').textContent = `🖨 El ticket #${folio} no se ha impreso.`;
+                const queued = window.ImpresoraBT && ImpresoraBT.isEnabled();
+                document.getElementById('bt-pending-text').textContent = queued
+                    ? `🖨 El ticket #${folio} saldrá solo en cuanto se conecte la impresora.`
+                    : `🖨 El ticket #${folio} no se ha impreso.`;
                 btPending.classList.remove('hidden');
                 btPending.classList.add('flex');
             } catch (err) {}

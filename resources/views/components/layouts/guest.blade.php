@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
+    <script>
+        // Si la sesión se venció mientras estaban en una pantalla del POS,
+        // el login carga dentro del marco: se abre en la ventana completa.
+        if (window.top !== window.self) window.top.location.href = window.location.href;
+    </script>
     @vite('resources/css/app.css')
     <script>
         const t = localStorage.theme;

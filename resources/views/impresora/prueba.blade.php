@@ -20,7 +20,7 @@
                 </div>
 
                 <label class="text-xs text-neutral-500 dark:text-neutral-400">
-                    Característica con la que se imprime (si no sale nada, prueba otra y vuelve a darle "Imprimir prueba")
+                    Característica con la que se imprime. Solo para pruebas: al reconectar vuelve sola a la que imprime (00002af1).
                     <select id="bt-test-characteristic" disabled class="mt-1 w-full h-10 px-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs text-neutral-900 dark:text-neutral-100">
                         <option>Conecta primero</option>
                     </select>

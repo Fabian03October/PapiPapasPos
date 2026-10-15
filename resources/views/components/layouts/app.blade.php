@@ -1,4 +1,17 @@
 @props(['title' => 'posPapisV1', 'active' => null, 'pageTitle' => null])
+@php
+    // MARCO FIJO: cada pantalla del POS era una página nueva y al cambiar de
+    // pantalla Chrome cortaba el Bluetooth (y en la tablet no dejaba
+    // reconectar sin el botón). Ahora la barra, el menú y la conexión con la
+    // impresora viven en un marco que NO se recarga; solo el contenido del
+    // centro (un iframe) cambia. Chrome dice cómo pidió la página:
+    //   - "document": abrieron el sistema → se arma el marco (sin contenido).
+    //   - "iframe": es el contenido del centro → solo la pantalla.
+    //   - sin dato (navegador viejo, pruebas): página completa, como antes.
+    $dest = request()->header('Sec-Fetch-Dest');
+    $shell = $dest === 'document';
+    $embedded = $dest === 'iframe';
+@endphp
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,6 +19,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
+    @if ($embedded)
+        <meta name="pos-active" content="{{ $active }}">
+        <meta name="pos-page-title" content="{{ $pageTitle }}">
+        <script>
+            // Esta pantalla vive dentro del marco: la impresora (y la estación
+            // de impresión) las maneja el marco, que nunca se recarga.
+            (function () {
+                try {
+                    const parent = window.parent;
+                    if (!parent || parent === window || !parent.ImpresoraBT) return;
+                    const subs = [];
+                    window.ImpresoraBT = Object.assign({}, parent.ImpresoraBT, {
+                        onChange(fn) {
+                            const off = parent.ImpresoraBT.onChange(fn);
+                            subs.push(off);
+                            return off;
+                        },
+                    });
+                    window.PrintDocs = parent.PrintDocs;
+                    // Al cambiar de pantalla se quitan los avisos de esta.
+                    window.addEventListener('pagehide', () => subs.forEach(off => off()));
+                } catch (e) {}
+            })();
+        </script>
+    @endif
     @vite('resources/css/app.css')
     <script>
         const t = localStorage.theme;
@@ -14,6 +52,24 @@
         }
     </script>
 </head>
+@if ($embedded)
+<body class="bg-neutral-100 dark:bg-neutral-950 h-dvh flex flex-col overflow-hidden">
+    <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {{ $slot }}
+    </div>
+
+    @publicScript('js/toast.js')
+    <script>
+        // El tema (claro/oscuro) se cambia en el marco: se aplica aquí también.
+        window.addEventListener('storage', (e) => {
+            if (e.key !== 'theme') return;
+            const v = e.newValue;
+            document.documentElement.classList.toggle('dark',
+                v === 'dark' || ((v === 'system' || !v) && window.matchMedia('(prefers-color-scheme: dark)').matches));
+        });
+    </script>
+</body>
+@else
 <body class="bg-neutral-100 dark:bg-neutral-950 min-h-screen flex flex-col h-dvh md:h-screen">
 
     @php
@@ -109,10 +165,15 @@
 
     <div class="flex flex-col md:grid md:grid-cols-[190px_1fr] gap-4 p-4 flex-1 min-h-0">
 
-        @include('partials.sidebar', ['active' => $active, 'pageTitle' => $pageTitle])
+        @include('partials.sidebar', ['active' => $active, 'pageTitle' => $pageTitle, 'shell' => $shell])
 
         <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
-            {{ $slot }}
+            @if ($shell)
+                <iframe id="contenido" name="contenido" src="{{ request()->fullUrl() }}" title="{{ $title }}"
+                    class="flex-1 w-full min-h-0 border-0 bg-transparent"></iframe>
+            @else
+                {{ $slot }}
+            @endif
         </div>
 
     </div>
@@ -121,5 +182,9 @@
     @publicScript('js/sidebar.js')
     @publicScript('js/print-station-toggle.js')
     @publicScript('js/impresora-bt-menu.js')
+    @if ($shell)
+        @publicScript('js/marco.js')
+    @endif
 </body>
+@endif
 </html>
