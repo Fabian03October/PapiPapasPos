@@ -80,7 +80,16 @@
             ->implode('');
     @endphp
     <header class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
-        <p class="font-bold text-neutral-900 dark:text-neutral-100">Papi Papas</p>
+        <div class="flex items-center gap-3 min-w-0">
+            <p class="font-bold text-neutral-900 dark:text-neutral-100">Papi Papas</p>
+            @if ($shell)
+                {{-- Solo se ve dentro del panel admin (ver marco.js). --}}
+                <a id="volver-pos" href="{{ route('venta.index') }}" target="contenido"
+                    class="hidden items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400">
+                    ← Volver a ventas
+                </a>
+            @endif
+        </div>
 
         <div class="relative flex items-center gap-2">
             {{-- Aparece solo si la impresora lleva unos segundos desconectada
@@ -168,7 +177,7 @@
         </div>
     </header>
 
-    <div class="flex flex-col md:grid md:grid-cols-[190px_1fr] gap-4 p-4 flex-1 min-h-0">
+    <div id="pos-grid" class="flex flex-col md:grid md:grid-cols-[190px_1fr] gap-4 p-4 flex-1 min-h-0">
 
         @include('partials.sidebar', ['active' => $active, 'pageTitle' => $pageTitle, 'shell' => $shell])
 

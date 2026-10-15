@@ -17,7 +17,7 @@
     const ACTIVE = ['bg-primary-50', 'dark:bg-primary-500/10', 'text-primary-600', 'dark:text-primary-400'];
     const INACTIVE = ['text-neutral-600', 'dark:text-neutral-400', 'hover:bg-neutral-100', 'dark:hover:bg-neutral-800'];
 
-    frame.addEventListener('load', () => {
+    function actualizar() {
         let doc;
         let loc;
         try {
@@ -41,6 +41,8 @@
             INACTIVE.forEach((c) => link.classList.toggle(c, !on));
         });
 
+        modoAdmin(!isPosScreen);
+
         if (mobileTitle && meta('pos-page-title')) mobileTitle.textContent = meta('pos-page-title');
         if (doc.title) document.title = doc.title;
 
@@ -50,7 +52,30 @@
         if (isPosScreen && url !== window.location.pathname + window.location.search + window.location.hash) {
             window.history.replaceState(window.history.state, '', url);
         }
-    });
+    }
+
+    frame.addEventListener('load', actualizar);
+
+    /**
+     * El panel admin trae su propio menú: mientras está abierto se esconde el
+     * menú de ventas (para no tener dos) y el admin usa todo el ancho. La
+     * barra de arriba se queda porque ahí vive la conexión con la impresora;
+     * en ella aparece "← Volver a ventas".
+     */
+    const grid = document.getElementById('pos-grid');
+    const sidebar = document.getElementById('sidebar');
+    const mobileBar = document.getElementById('pos-mobile-bar');
+    const volver = document.getElementById('volver-pos');
+
+    function modoAdmin(on) {
+        if (sidebar) sidebar.style.display = on ? 'none' : '';
+        if (mobileBar) mobileBar.style.display = on ? 'none' : '';
+        if (grid) grid.style.gridTemplateColumns = on ? '1fr' : '';
+        if (volver) {
+            volver.classList.toggle('hidden', !on);
+            volver.classList.toggle('flex', on);
+        }
+    }
 
     // En el celular el menú es un panel que se abre encima: se cierra al elegir.
     links.forEach((link) => link.addEventListener('click', () => {
@@ -62,4 +87,9 @@
     document.querySelectorAll('#user-menu a[target="contenido"]').forEach((link) => {
         link.addEventListener('click', () => document.getElementById('user-menu')?.classList.add('hidden'));
     });
+
+    // Si el contenido terminó de cargar antes que este script, se actualiza ya.
+    try {
+        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') actualizar();
+    } catch (e) {}
 })();

@@ -1,4 +1,4 @@
-<div class="flex items-center justify-between p-3 border-b border-neutral-200 dark:border-neutral-800 md:hidden">
+<div id="pos-mobile-bar" class="flex items-center justify-between p-3 border-b border-neutral-200 dark:border-neutral-800 md:hidden">
         <button id="menu-toggle" type="button" class="p-1 text-neutral-700 dark:text-neutral-300">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
