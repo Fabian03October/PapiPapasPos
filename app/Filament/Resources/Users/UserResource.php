@@ -29,6 +29,13 @@ class UserResource extends Resource
     protected static ?string $modelLabel = 'usuario';
     protected static ?string $pluralModelLabel = 'usuarios';
 
+    // "Administración" es solo del manager: el gerente entra al panel pero
+    // no ve ni puede abrir usuarios (ni por la dirección directa).
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->esManager() ?? false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return UserForm::configure($schema);

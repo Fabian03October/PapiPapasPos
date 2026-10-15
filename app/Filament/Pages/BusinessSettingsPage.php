@@ -29,6 +29,12 @@ class BusinessSettingsPage extends Page
 
     protected static ?string $title = 'Datos del negocio';
 
+    // "Administración" es solo del manager (ver UserResource::canAccess).
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->esManager() ?? false;
+    }
+
     public ?array $data = [];
 
     public function mount(): void

@@ -14,5 +14,8 @@ class RoleSeeder extends Seeder
     {
         Role::firstOrCreate(['name' => 'cajero']);
         Role::firstOrCreate(['name' => 'manager']);
+        // Vende y entra al panel admin (todo menos "Administración"); cancela
+        // sin código y genera códigos para los cajeros.
+        Role::firstOrCreate(['name' => 'gerente']);
     }
 }

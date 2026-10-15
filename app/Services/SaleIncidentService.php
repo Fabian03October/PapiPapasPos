@@ -48,7 +48,12 @@ class SaleIncidentService
         return $incident;
     }
 
-    public function createAndApprove(array $saleItemIds, string $type, string $reason, User $requestedBy, User $manager): SaleIncident
+    /**
+     * $method: "codigo_temporal" (un cajero con el código del manager/gerente)
+     * o "pin" (lo hizo directamente un manager o gerente con su propia
+     * sesión, que abrió con su PIN: no necesita código).
+     */
+    public function createAndApprove(array $saleItemIds, string $type, string $reason, User $requestedBy, User $manager, string $method = 'codigo_temporal'): SaleIncident
     {
         $incident = SaleIncident::create([
             'sale_id' => SaleItem::whereIn('id', $saleItemIds)->value('sale_id'),
@@ -57,7 +62,7 @@ class SaleIncidentService
             'status' => 'aprobada',
             'requested_by' => $requestedBy->id,
             'authorized_by' => $manager->id,
-            'authorization_method' => 'codigo_temporal',
+            'authorization_method' => $method,
             'authorized_at' => now(),
         ]);
 

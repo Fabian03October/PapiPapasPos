@@ -30,7 +30,7 @@ class SaleIncidentController extends Controller
             'sale_item_ids.*' => 'exists:sale_items,id',
             'type' => 'required|in:cancelacion,reposicion',
             'reason' => 'required|string|min:5|max:500',
-            'mode' => 'required|in:codigo,pendiente',
+            'mode' => 'required|in:codigo,pendiente,directo',
             'code' => 'nullable|string',
         ]);
 
@@ -53,10 +53,25 @@ class SaleIncidentController extends Controller
 
         $requestedBy = auth()->user();
 
+        // Manager y gerente cancelan/reponen directo, sin código: lo autorizan
+        // ellos mismos (queda registrado). Solo el cajero necesita código.
+        if ($data['mode'] === 'directo') {
+            if (! $requestedBy->puedeAutorizar()) {
+                return response()->json(['success' => false, 'message' => 'Se necesita el código temporal del manager o gerente.'], 403);
+            }
+
+            $service->createAndApprove($data['sale_item_ids'], $data['type'], $data['reason'], $requestedBy, $requestedBy, 'pin');
+
+            return response()->json([
+                'success' => true,
+                'message' => $data['type'] === 'cancelacion' ? 'Producto cancelado.' : 'Reposición registrada.',
+            ]);
+        }
+
         if ($data['mode'] === 'pendiente') {
             $service->createPending($data['sale_item_ids'], $data['type'], $data['reason'], $requestedBy);
 
-            return response()->json(['success' => true, 'message' => 'Solicitud enviada. Queda pendiente de que el manager la apruebe.']);
+            return response()->json(['success' => true, 'message' => 'Solicitud enviada. Queda pendiente de que el manager o gerente la apruebe.']);
         }
 
         $manager = $service->redeemTemporaryCode($data['code'] ?? '');

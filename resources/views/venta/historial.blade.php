@@ -188,7 +188,7 @@
         <textarea id="incident-reason" rows="2" placeholder="Razón (ej. se le cayó un cabello)" class="w-full mb-4 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm"></textarea>
 
         <div id="incident-code-step">
-            <p class="text-xs text-center text-neutral-500 dark:text-neutral-500 mb-2">Código temporal del manager</p>
+            <p class="text-xs text-center text-neutral-500 dark:text-neutral-500 mb-2">Código temporal del manager o gerente</p>
             <input type="text" id="incident-code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="······" class="w-full h-16 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-3xl font-semibold text-center tracking-[0.5em]">
         </div>
 
@@ -197,10 +197,10 @@
         </button>
 
         <button id="incident-pending-link" type="button" class="w-full text-center text-xs text-neutral-400 dark:text-neutral-500 underline mt-3 hidden">
-            ¿El manager no está disponible? Dejar pendiente de aprobación
+            ¿El manager o gerente no está? Dejar pendiente de aprobación
         </button>
         <p id="incident-pending-note" class="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-3 hidden">
-            Se resolverá físicamente ahora; el manager lo autorizará después desde donde esté.
+            Se resolverá físicamente ahora; el manager o gerente lo autorizará después desde donde esté.
         </p>
     </x-modal>
 
@@ -229,9 +229,13 @@
         let currentType = null;
         let mode = 'codigo';
 
+        // Manager y gerente autorizan ellos mismos (sin código); solo el cajero
+        // necesita el código temporal o dejar la solicitud pendiente.
+        const PUEDE_AUTORIZAR = @json(auth()->user()->puedeAutorizar());
+
         function resetModalMode() {
-            mode = 'codigo';
-            incidentCodeStep.classList.remove('hidden');
+            mode = PUEDE_AUTORIZAR ? 'directo' : 'codigo';
+            incidentCodeStep.classList.toggle('hidden', PUEDE_AUTORIZAR);
             incidentCode.value = '';
             incidentPendingNote.classList.add('hidden');
             incidentSubmit.textContent = 'Confirmar';
@@ -250,7 +254,7 @@
                 incidentItemPrice.textContent = '$' + btn.dataset.price;
                 incidentReason.value = '';
 
-                incidentPendingLink.classList.toggle('hidden', currentType === 'cancelacion');
+                incidentPendingLink.classList.toggle('hidden', currentType === 'cancelacion' || PUEDE_AUTORIZAR);
                 resetModalMode();
 
                 incidentModal.classList.remove('hidden');

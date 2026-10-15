@@ -46,8 +46,29 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsTo(Role::class);
     }
 
-    public function canAccessPanel(Panel $panel): bool
+    public function esManager(): bool
     {
         return $this->role?->name === 'manager';
+    }
+
+    public function esGerente(): bool
+    {
+        return $this->role?->name === 'gerente';
+    }
+
+    /**
+     * Manager y gerente: entran al panel admin, generan códigos y cancelan o
+     * reponen productos SIN pedir código (solo el cajero lo necesita). La
+     * sección "Administración" (usuarios, configuración del negocio) es solo
+     * del manager.
+     */
+    public function puedeAutorizar(): bool
+    {
+        return $this->esManager() || $this->esGerente();
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->puedeAutorizar();
     }
 }
