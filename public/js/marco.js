@@ -29,11 +29,11 @@
         if (!doc || !loc || loc.href === 'about:blank') return;
 
         const meta = (name) => doc.querySelector(`meta[name="${name}"]`)?.content || '';
-        const active = meta('pos-active');
         // El panel admin (Filament) también se abre aquí, dentro del marco,
         // para no cerrar la página que tiene la impresora conectada. No es
         // una pantalla del POS: no trae estos datos.
-        const isPosScreen = !!doc.querySelector('meta[name="pos-active"]');
+        const isPosScreen = !!doc.querySelector('meta[name="pos-active"]') && !esAdmin(loc.pathname);
+        const active = isPosScreen ? meta('pos-active') : '';
 
         links.forEach((link) => {
             const on = link.dataset.nav === active;
@@ -86,6 +86,21 @@
     // se cierra solo al elegir.
     document.querySelectorAll('#user-menu a[target="contenido"]').forEach((link) => {
         link.addEventListener('click', () => document.getElementById('user-menu')?.classList.add('hidden'));
+    });
+
+    function esAdmin(path) {
+        return path === '/admin' || path.startsWith('/admin/');
+    }
+
+    // Al tocar "Panel admin" se esconde el menú de ventas de una vez, sin
+    // esperar a que cargue: si no, el admin se dibuja angosto y pone su
+    // propio menú encimado (con el fondo oscurecido).
+    document.querySelectorAll('a[target="contenido"]').forEach((link) => {
+        link.addEventListener('click', () => {
+            try {
+                if (esAdmin(link.pathname || '')) modoAdmin(true);
+            } catch (e) {}
+        });
     });
 
     // Si el contenido terminó de cargar antes que este script, se actualiza ya.
