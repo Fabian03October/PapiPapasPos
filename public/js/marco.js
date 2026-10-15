@@ -59,21 +59,26 @@
     /**
      * El panel admin trae su propio menú: mientras está abierto se esconde el
      * menú de ventas (para no tener dos) y el admin usa todo el ancho. La
-     * barra de arriba se queda porque ahí vive la conexión con la impresora;
-     * en ella aparece "← Volver a ventas".
+     * barra del POS también se esconde: el admin trae la suya, con "Volver a
+     * ventas" (ver filament/volver-a-ventas).
      */
     const grid = document.getElementById('pos-grid');
     const sidebar = document.getElementById('sidebar');
     const mobileBar = document.getElementById('pos-mobile-bar');
-    const volver = document.getElementById('volver-pos');
+
+    const header = document.getElementById('pos-header');
 
     function modoAdmin(on) {
+        // El admin trae su propia barra (con "Volver a ventas"): se esconde la
+        // del POS para no tener dos, y el admin ocupa toda la pantalla. La
+        // conexión con la impresora vive en esta página, no en la barra: no
+        // se corta.
+        if (header) header.style.display = on ? 'none' : '';
         if (sidebar) sidebar.style.display = on ? 'none' : '';
         if (mobileBar) mobileBar.style.display = on ? 'none' : '';
-        if (grid) grid.style.gridTemplateColumns = on ? '1fr' : '';
-        if (volver) {
-            volver.classList.toggle('hidden', !on);
-            volver.classList.toggle('flex', on);
+        if (grid) {
+            grid.style.gridTemplateColumns = on ? '1fr' : '';
+            grid.style.padding = on ? '0' : '';
         }
     }
 

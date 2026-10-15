@@ -12,6 +12,7 @@ use App\Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -45,6 +46,7 @@ class AdminPanelProvider extends PanelProvider
                 AccountWidget::class,
                 FilamentInfoWidget::class,
             ])
+            ->renderHook(PanelsRenderHook::USER_MENU_BEFORE, fn () => view('filament.volver-a-ventas'))
             ->userMenuItems([
                 'venta' => MenuItem::make()
                     ->label('Ir a Ventas')

@@ -98,6 +98,20 @@ class PosShellFrameTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('#<a href="/admin"\s+target="contenido"#', $plain);
     }
 
+    public function test_el_admin_trae_su_boton_para_volver_a_ventas(): void
+    {
+        $manager = User::create([
+            'name' => 'Manager', 'email' => 'manager@test.local', 'password' => 'password',
+            'pin' => '9999', 'role_id' => Role::firstOrCreate(['name' => 'manager'])->id, 'is_active' => true,
+        ]);
+
+        // Dentro del marco se esconde la barra del POS: este es el camino de regreso.
+        $this->actingAs($manager)->get('/admin')
+            ->assertOk()
+            ->assertSee('Volver a ventas')
+            ->assertSee('href="' . route('venta.index') . '"', false);
+    }
+
     public function test_el_login_se_sale_del_marco_si_la_sesion_se_vencio(): void
     {
         $this->withHeader('Sec-Fetch-Dest', 'iframe')->get('/login')
