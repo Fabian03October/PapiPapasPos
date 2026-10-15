@@ -30,6 +30,10 @@
 
         const meta = (name) => doc.querySelector(`meta[name="${name}"]`)?.content || '';
         const active = meta('pos-active');
+        // El panel admin (Filament) también se abre aquí, dentro del marco,
+        // para no cerrar la página que tiene la impresora conectada. No es
+        // una pantalla del POS: no trae estos datos.
+        const isPosScreen = !!doc.querySelector('meta[name="pos-active"]');
 
         links.forEach((link) => {
             const on = link.dataset.nav === active;
@@ -40,8 +44,10 @@
         if (mobileTitle && meta('pos-page-title')) mobileTitle.textContent = meta('pos-page-title');
         if (doc.title) document.title = doc.title;
 
+        // Solo pantallas del POS: si se recarga estando en el admin, que
+        // regrese a la última pantalla del POS (con el marco), no al admin suelto.
         const url = loc.pathname + loc.search + loc.hash;
-        if (url !== window.location.pathname + window.location.search + window.location.hash) {
+        if (isPosScreen && url !== window.location.pathname + window.location.search + window.location.hash) {
             window.history.replaceState(window.history.state, '', url);
         }
     });
@@ -50,4 +56,10 @@
     links.forEach((link) => link.addEventListener('click', () => {
         if (typeof closeSidebar === 'function') closeSidebar();
     }));
+
+    // El menú de usuario (ej. "Panel admin") abre en el marco sin recargar:
+    // se cierra solo al elegir.
+    document.querySelectorAll('#user-menu a[target="contenido"]').forEach((link) => {
+        link.addEventListener('click', () => document.getElementById('user-menu')?.classList.add('hidden'));
+    });
 })();

@@ -80,6 +80,24 @@ class PosShellFrameTest extends TestCase
             ->assertDontSee('target="contenido"', false);
     }
 
+    public function test_el_panel_admin_se_abre_dentro_del_marco_para_no_cortar_la_impresora(): void
+    {
+        $manager = User::create([
+            'name' => 'Manager', 'email' => 'manager@test.local', 'password' => 'password',
+            'pin' => '9999', 'role_id' => Role::firstOrCreate(['name' => 'manager'])->id, 'is_active' => true,
+        ]);
+
+        $html = $this->actingAs($manager)->withHeader('Sec-Fetch-Dest', 'document')->get('/venta')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<a href="/admin"\s+target="contenido"#', $html);
+        $this->assertMatchesRegularExpression('#href="[^"]*/prueba-impresora"\s+target="contenido"#', $html);
+        $this->assertStringContainsString('id="bt-header-connect"', $html);
+
+        // Sin marco (navegador viejo), el admin abre normal.
+        $plain = $this->flushHeaders()->actingAs($manager)->get('/venta')->getContent();
+        $this->assertDoesNotMatchRegularExpression('#<a href="/admin"\s+target="contenido"#', $plain);
+    }
+
     public function test_el_login_se_sale_del_marco_si_la_sesion_se_vencio(): void
     {
         $this->withHeader('Sec-Fetch-Dest', 'iframe')->get('/login')

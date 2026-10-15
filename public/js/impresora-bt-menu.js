@@ -57,6 +57,39 @@
         }
     });
 
+    // Botón "Conectar impresora" de la barra de arriba: aparece si este
+    // dispositivo usa la impresora y lleva unos segundos desconectada (le da
+    // tiempo a la reconexión automática antes de pedir el toque).
+    const headerBtn = document.getElementById('bt-header-connect');
+    const HEADER_GRACE_MS = 8000;
+    let disconnectedSince = Date.now();
+
+    function renderHeader() {
+        if (!headerBtn) return;
+        const connected = BT.isConnected();
+        if (connected) disconnectedSince = null;
+        else if (disconnectedSince === null) disconnectedSince = Date.now();
+
+        const show = BT.isSupported() && BT.isEnabled() && !connected
+            && Date.now() - disconnectedSince >= HEADER_GRACE_MS;
+        headerBtn.classList.toggle('hidden', !show);
+        headerBtn.classList.toggle('flex', show);
+    }
+
+    if (headerBtn) {
+        headerBtn.addEventListener('click', async () => {
+            try {
+                await BT.conectar();
+                Toast.show('Impresora conectada.');
+            } catch (e) {
+                if (e.name !== 'NotFoundError') Toast.show('No se pudo conectar: ' + e.message, 'error');
+            }
+            renderHeader();
+        });
+        BT.onChange(renderHeader);
+        setInterval(renderHeader, 1000);
+    }
+
     stationToggle.addEventListener('click', () => {
         const next = !BT.isStation();
         BT.setStation(next);
