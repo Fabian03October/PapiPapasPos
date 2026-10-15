@@ -40,9 +40,10 @@ class AuthController extends Controller
             ]);
         }
 
-        $redirect = $user->role?->name === 'manager'
-            ? route('filament.admin.pages.dashboard')
-            : route('venta.index');
+        // Todos entran a Vender (también manager y gerente): desde ahí la
+        // impresora Bluetooth se conecta y se queda conectada; el panel admin
+        // se abre dentro del mismo marco sin cortarla.
+        $redirect = route('venta.index');
 
         return response()->json([
             'success' => true,
@@ -64,9 +65,10 @@ class AuthController extends Controller
         $user->must_change_pin = false;
         $user->save();
 
-        $redirect = $user->role?->name === 'manager'
-            ? route('filament.admin.pages.dashboard')
-            : route('venta.index');
+        // Todos entran a Vender (también manager y gerente): desde ahí la
+        // impresora Bluetooth se conecta y se queda conectada; el panel admin
+        // se abre dentro del mismo marco sin cortarla.
+        $redirect = route('venta.index');
 
         return response()->json([
             'success' => true,

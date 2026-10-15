@@ -87,6 +87,19 @@ class RolePermissionsTest extends TestCase
         $this->actingAs($manager)->get('/admin/business-settings-page')->assertOk();
     }
 
+    public function test_todos_los_roles_entran_a_vender_al_iniciar_sesion(): void
+    {
+        foreach (['cajero' => '1111', 'gerente' => '2222', 'manager' => '3333'] as $role => $pin) {
+            $this->user($role, $pin);
+
+            $this->postJson('/login', ['pin' => $pin])
+                ->assertOk()
+                ->assertJson(['success' => true, 'redirect' => route('venta.index')]);
+
+            auth()->logout();
+        }
+    }
+
     public function test_el_gerente_puede_generar_codigos_para_los_cajeros(): void
     {
         $gerente = $this->user('gerente');
