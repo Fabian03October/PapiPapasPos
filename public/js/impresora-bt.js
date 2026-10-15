@@ -423,12 +423,25 @@
     }
 
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) return;
+        if (!isEnabled()) return;
+
+        if (document.hidden) {
+            if (isLeader && localConectada()) evento('Se apagó la pantalla o se dejó de ver el sistema (Chrome corta el Bluetooth)');
+            return;
+        }
+
+        // Chrome a veces corta la conexión con la pantalla apagada sin avisar
+        // (no llega "gattserverdisconnected"): se detecta al volver.
+        if (isLeader && characteristic && device && !device.gatt.connected) {
+            characteristic = null;
+            evento('Al volver a la pantalla, la conexión se había perdido');
+            notify();
+        }
+
         // Al volver a la pantalla (desbloquear, regresar a Chrome, cambiar a
         // esta pestaña) esta pasa a ser la principal y se reconecta de
         // inmediato. Chrome no deja usar Bluetooth en la pestaña que no se ve,
         // así que tiene que ser la que está a la vista.
-        if (!isEnabled()) return;
         serPrincipal({ robar: true }).then(() => {
             retryCount = 0;
             programarReconexion(300);
@@ -445,7 +458,12 @@
     let wakeLockPending = false;
 
     async function actualizarPantallaEncendida() {
-        const want = isLeader && isStation() && localConectada() && !document.hidden;
+        // Antes solo en modo estación. Pero si la pantalla se apaga sola (a
+        // los 1-2 min), Chrome corta el Bluetooth y Android suele cerrar la
+        // pestaña para ahorrar memoria; al prenderla la página es nueva y
+        // Chrome no deja reconectar sin el botón. Así que siempre que este
+        // dispositivo tenga la impresora, la pantalla no se apaga.
+        const want = isLeader && localConectada() && !document.hidden;
 
         if (want && !wakeLock && !wakeLockPending && navigator.wakeLock) {
             wakeLockPending = true;
@@ -807,6 +825,14 @@
     // se puede, lo sigue intentando en vez de rendirse); si está en segundo
     // plano, se forma para ser principal y mientras usa la de otra pestaña.
     if (isEnabled()) {
+        // Cada página nueva tiene que reconectar desde cero: se anota para
+        // saber cada cuánto pasa y por qué (cambio de pantalla, recarga, o
+        // Android que cerró la pestaña por falta de memoria).
+        const path = (window.location && window.location.pathname) || '';
+        evento('Se abrió la página ' + path
+            + (document.wasDiscarded ? ' (Android había cerrado la pestaña para ahorrar memoria)' : '')
+            + (document.hidden ? ' en segundo plano' : ''));
+
         if (tabs) tabs.postMessage({ type: 'pregunta-estado' });
         serPrincipal({ robar: !document.hidden }).then(() => {
             if (document.hidden) return;
