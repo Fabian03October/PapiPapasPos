@@ -33,6 +33,19 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->ip());
         });
 
+        // Límites de intentos del PIN (son 4 dígitos: 10,000 combinaciones),
+        // con el mensaje en español que muestran las pantallas.
+        $tooMany = fn (string $message) => fn () => response()->json(['success' => false, 'message' => $message], 429);
+
+        RateLimiter::for('login-pin', fn (Request $request) => Limit::perMinute(10)->by($request->ip())
+            ->response($tooMany('Demasiados intentos. Espera un minuto e inténtalo de nuevo.')));
+
+        RateLimiter::for('olvide-pin', fn (Request $request) => Limit::perMinutes(10, 5)->by($request->ip())
+            ->response($tooMany('Ya se enviaron varios correos. Espera unos minutos.')));
+
+        RateLimiter::for('restablecer-pin', fn (Request $request) => Limit::perMinute(10)->by($request->ip())
+            ->response($tooMany('Demasiados intentos. Espera un minuto e inténtalo de nuevo.')));
+
         Mail::extend('brevo', function (array $config) {
             return new BrevoApiTransport($config['key']);
         });

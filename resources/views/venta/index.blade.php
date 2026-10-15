@@ -852,8 +852,18 @@
                 },
                 body: JSON.stringify(buildPreviewPayload(redeemReward)),
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                // El servidor rechazó el carrito (ej. un producto o extra que
+                // se desactivó mientras estaba en el carrito): se avisa y se
+                // cierra el cobro en vez de mostrar un total vacío.
+                if (!ok) {
+                    Toast.show(data.message || 'No se pudo calcular el total. Revisa el carrito.', 'error');
+                    paymentModal.classList.add('hidden');
+                    paymentModal.classList.remove('flex');
+                    return;
+                }
+
                 currentCartTotal = data.total;
 
                 document.getElementById('payment-subtotal').textContent = formatMoney(data.subtotal);

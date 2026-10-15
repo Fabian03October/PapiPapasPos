@@ -33,6 +33,7 @@ class ProductForm
                             ->label('Precio base')
                             ->required()
                             ->numeric()
+                            ->minValue(0)
                             ->prefix('$'),
                         Toggle::make('prints_to_kitchen')
                             ->label('Imprime en cocina')

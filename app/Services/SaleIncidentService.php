@@ -72,26 +72,36 @@ class SaleIncidentService
         return $incident;
     }
 
+    /**
+     * Solo se aprueba si sigue pendiente, en un solo paso (UPDATE ... WHERE
+     * status = pendiente): si dos personas la aprueban casi al mismo tiempo,
+     * o le dan doble clic, los efectos (merma de inventario) no se aplican
+     * dos veces.
+     */
     public function approve(SaleIncident $incident, User $manager): void
     {
-        $incident->update([
-            'status' => 'aprobada',
-            'authorized_by' => $manager->id,
-            'authorization_method' => 'revision_posterior',
-            'authorized_at' => now(),
-        ]);
+        if (! $this->resolverPendiente($incident, 'aprobada', $manager)) {
+            return;
+        }
 
-        $this->applyEffects($incident);
+        $this->applyEffects($incident->fresh());
     }
 
     public function reject(SaleIncident $incident, User $manager): void
     {
-        $incident->update([
-            'status' => 'rechazada',
-            'authorized_by' => $manager->id,
-            'authorization_method' => 'revision_posterior',
-            'authorized_at' => now(),
-        ]);
+        $this->resolverPendiente($incident, 'rechazada', $manager);
+    }
+
+    protected function resolverPendiente(SaleIncident $incident, string $status, User $manager): bool
+    {
+        return (bool) SaleIncident::whereKey($incident->id)
+            ->where('status', 'pendiente')
+            ->update([
+                'status' => $status,
+                'authorized_by' => $manager->id,
+                'authorization_method' => 'revision_posterior',
+                'authorized_at' => now(),
+            ]);
     }
 
     protected function applyEffects(SaleIncident $incident): void

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use App\Models\Role;
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -36,6 +37,13 @@ class UserForm
                     ->maxLength(4)
                     ->minLength(4)
                     ->rule('digits:4')
+                    // Se entra solo con el PIN: si dos personas lo comparten,
+                    // una puede entrar como la otra (ver User::conPin).
+                    ->rule(fn (?User $record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                        if (filled($value) && User::pinEnUso((string) $value, $record?->id)) {
+                            $fail('Ese PIN ya lo usa otra persona. Elige otro.');
+                        }
+                    })
                     ->dehydrated(fn ($state) => filled($state))
                     ->required(fn (string $context) => $context === 'create')
                     ->helperText('Al crear un usuario nuevo, se le pedirá cambiarlo en su primer login.'),

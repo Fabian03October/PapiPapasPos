@@ -16,13 +16,14 @@ Route::get('/', function () {
 });
 
 Route::get('/login', [AuthController::class, 'showPinLogin'])->name('login.pin');
-Route::post('/login', [AuthController::class, 'loginPin'])->name('login.pin.submit');
+// Límite de intentos: el PIN es de 4 dígitos (10,000 combinaciones).
+Route::post('/login', [AuthController::class, 'loginPin'])->name('login.pin.submit')->middleware('throttle:login-pin');
 Route::post('/login/cambiar-pin', [AuthController::class, 'changePin'])->name('login.change-pin')->middleware('auth');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/login/olvide-pin', [ForgotPinController::class, 'showRequestForm'])->name('forgot-pin.show');
-Route::post('/login/olvide-pin', [ForgotPinController::class, 'sendResetLink'])->name('forgot-pin.send');
+Route::post('/login/olvide-pin', [ForgotPinController::class, 'sendResetLink'])->name('forgot-pin.send')->middleware('throttle:olvide-pin');
 Route::get('/login/restablecer-pin/{token}', [ForgotPinController::class, 'showResetForm'])->name('forgot-pin.reset.show');
-Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])->name('forgot-pin.reset');
+Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])->name('forgot-pin.reset')->middleware('throttle:restablecer-pin');
 
 Route::get('/registro', [CustomerRegistrationController::class, 'showForm'])->name('registro.form');
 Route::post('/registro', [CustomerRegistrationController::class, 'store'])->name('registro.store')->middleware('throttle:registro');

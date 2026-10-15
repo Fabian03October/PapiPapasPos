@@ -66,6 +66,8 @@ class PromotionForm
                         TextInput::make('percent_value')
                             ->label('Porcentaje de descuento')
                             ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
                             ->suffix('%')
                             ->visible(fn (Get $get) => $get('type') === 'discount' && $get('discount_mode') === 'percent')
                             ->required(fn (Get $get) => $get('type') === 'discount' && $get('discount_mode') === 'percent'),
@@ -73,6 +75,7 @@ class PromotionForm
                         TextInput::make('combo_price')
                             ->label('Precio fijo')
                             ->numeric()
+                            ->minValue(0)
                             ->prefix('$')
                             ->visible(fn (Get $get) => $get('type') === 'discount' && $get('discount_mode') === 'fixed_price')
                             ->required(fn (Get $get) => $get('type') === 'discount' && $get('discount_mode') === 'fixed_price')

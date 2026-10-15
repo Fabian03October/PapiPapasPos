@@ -19,10 +19,16 @@ use App\Services\ManualDiscountService;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SaleController extends Controller
 {
-    protected function buildItemsData(array $requestItems): array
+    /**
+     * @param  bool  $soloDisponibles  Rechazar productos, variantes o extras
+     *         desactivados (false solo para el regalo de fidelidad, que lo
+     *         agrega el sistema).
+     */
+    protected function buildItemsData(array $requestItems, bool $soloDisponibles = true): array
     {
         $subtotal = 0;
         $itemsData = [];
@@ -33,15 +39,44 @@ class SaleController extends Controller
             $unitPrice = (float) $product->base_price;
             $qty = (int) $item['qty'];
 
+            // El servidor no confía en el carrito: el producto tiene que
+            // seguir activo, y la variante y los extras tienen que ser de ESE
+            // producto y estar activos (pasa si el admin los desactiva
+            // mientras el cajero ya los tenía en el carrito).
+            $noDisponible = fn (string $que) => throw ValidationException::withMessages([
+                'items' => "{$que} de \"{$product->name}\" ya no está disponible. Quítalo del carrito y vuelve a agregarlo.",
+            ]);
+
+            if ($soloDisponibles && ! $product->is_active) {
+                $noDisponible('El producto');
+            }
+
             $variant = null;
             if (! empty($item['variant_id'])) {
-                $variant = ProductVariant::findOrFail($item['variant_id']);
+                $variant = ProductVariant::where('product_id', $product->id)->find($item['variant_id']);
+                if (! $variant || ($soloDisponibles && ! $variant->is_active)) {
+                    $noDisponible('La opción elegida');
+                }
                 $unitPrice += (float) $variant->price_delta;
             }
 
             $modifiers = [];
             if (! empty($item['modifier_ids'])) {
-                $modifiers = Modifier::whereIn('id', $item['modifier_ids'])->get();
+                $modifierIds = array_unique(array_map('intval', $item['modifier_ids']));
+                $allowedGroupIds = $product->modifierGroups()
+                    ->when($soloDisponibles, fn ($q) => $q->where('modifier_groups.is_active', true))
+                    ->pluck('modifier_groups.id')
+                    ->all();
+
+                $modifiers = Modifier::whereIn('id', $modifierIds)
+                    ->whereIn('modifier_group_id', $allowedGroupIds)
+                    ->when($soloDisponibles, fn ($q) => $q->where('is_active', true))
+                    ->get();
+
+                if ($modifiers->count() !== count($modifierIds)) {
+                    $noDisponible('Un extra');
+                }
+
                 foreach ($modifiers as $modifier) {
                     $unitPrice += (float) $modifier->price_delta;
                 }
@@ -203,7 +238,7 @@ class SaleController extends Controller
 
         [$giftSubtotal, $giftItemsData, $giftConsumption] = $this->buildItemsData([
             ['product_id' => $product->id, 'variant_id' => null, 'modifier_ids' => [], 'qty' => 1],
-        ]);
+        ], soloDisponibles: false);
 
         foreach ($giftConsumption as $ingredientId => $qty) {
             $ingredientConsumption[$ingredientId] = ($ingredientConsumption[$ingredientId] ?? 0) + $qty;

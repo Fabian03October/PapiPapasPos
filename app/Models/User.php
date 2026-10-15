@@ -46,6 +46,26 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Usuarios activos con este PIN. Se entra al sistema SOLO con el PIN, así
+     * que dos personas con el mismo PIN = una puede entrar como la otra
+     * (incluso como el manager). Los PIN se guardan cifrados: hay que
+     * compararlos uno por uno.
+     */
+    public static function conPin(string $pin): \Illuminate\Support\Collection
+    {
+        return static::with('role')
+            ->where('is_active', true)
+            ->get()
+            ->filter(fn (self $user) => $user->pin && \Illuminate\Support\Facades\Hash::check($pin, $user->pin))
+            ->values();
+    }
+
+    public static function pinEnUso(string $pin, ?int $exceptUserId = null): bool
+    {
+        return static::conPin($pin)->contains(fn (self $user) => $user->id !== $exceptUserId);
+    }
+
     public function esManager(): bool
     {
         return $this->role?->name === 'manager';

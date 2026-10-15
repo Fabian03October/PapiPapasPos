@@ -133,6 +133,9 @@
                 } else {
                     checkingScreen.classList.add('hidden');
                     pinScreen.classList.remove('hidden');
+                    // El mensaje del servidor: PIN incorrecto, PIN repetido
+                    // entre varias personas o demasiados intentos.
+                    pinError.textContent = data.message || 'PIN incorrecto';
                     pinError.classList.remove('hidden');
                     resetPin();
                 }
@@ -140,6 +143,7 @@
             .catch(() => {
                 checkingScreen.classList.add('hidden');
                 pinScreen.classList.remove('hidden');
+                pinError.textContent = 'PIN incorrecto';
                 pinError.classList.remove('hidden');
                 resetPin();
             });
@@ -217,7 +221,7 @@
                 if (data.success) {
                     window.location.href = data.redirect;
                 } else {
-                    changePinError.textContent = 'Ocurrió un error, intenta de nuevo';
+                    changePinError.textContent = data.message || 'Ocurrió un error, intenta de nuevo';
                     changePinError.classList.remove('hidden');
                 }
             });

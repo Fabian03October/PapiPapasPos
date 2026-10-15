@@ -51,6 +51,15 @@ class SaleIncidentController extends Controller
             return response()->json(['success' => false, 'message' => 'Ese producto ya estaba cancelado.'], 422);
         }
 
+        // Solo productos del turno abierto: cancelar algo de un turno ya
+        // cerrado cambiaría el total de un corte que ya se contó y entregó.
+        $openSession = CashSession::open();
+        $saleSessionId = Sale::whereKey($items->first()->sale_id)->value('cash_session_id');
+
+        if (! $openSession || $saleSessionId !== $openSession->id) {
+            return response()->json(['success' => false, 'message' => 'Solo se pueden cancelar o reponer productos del turno abierto.'], 422);
+        }
+
         $requestedBy = auth()->user();
 
         // Manager y gerente cancelan/reponen directo, sin código: lo autorizan

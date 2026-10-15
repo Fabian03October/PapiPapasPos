@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\PinResetMail;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -64,11 +65,22 @@ class ForgotPinController extends Controller
             return response()->json(['success' => false, 'message' => 'Este enlace ya no es válido, pide uno nuevo.'], 422);
         }
 
-        if (now()->diffInMinutes($record->created_at) > 60) {
+        // Antes: now()->diffInMinutes($record->created_at) > 60. Con Carbon 3
+        // eso da NEGATIVO para fechas pasadas (-300 para un enlace de hace 5
+        // horas), así que el enlace nunca vencía.
+        if (Carbon::parse($record->created_at)->addMinutes(60)->isPast()) {
             return response()->json(['success' => false, 'message' => 'Este enlace ya expiró, pide uno nuevo.'], 422);
         }
 
         $user = User::where('email', $request->email)->first();
+
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Este enlace ya no es válido, pide uno nuevo.'], 422);
+        }
+
+        if (User::pinEnUso($request->new_pin, $user->id)) {
+            return response()->json(['success' => false, 'message' => 'Ese PIN ya lo usa otra persona. Elige otro.'], 422);
+        }
         $user->pin = $request->new_pin;
         $user->must_change_pin = false;
         $user->save();

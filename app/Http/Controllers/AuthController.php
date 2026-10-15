@@ -20,14 +20,22 @@ class AuthController extends Controller
             'pin' => 'required|digits:4',
         ]);
 
-        $user = User::with('role')
-            ->where('is_active', true)
-            ->get()
-            ->first(fn ($u) => Hash::check($request->pin, $u->pin));
+        $matches = User::conPin($request->pin);
 
-        if (! $user) {
+        if ($matches->isEmpty()) {
             return response()->json(['success' => false, 'message' => 'PIN incorrecto'], 422);
         }
+
+        // Antes entraba con el primero que coincidiera: si un cajero tenía el
+        // mismo PIN que el manager, podía terminar dentro como el manager.
+        if ($matches->count() > 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ese PIN lo tienen varias personas. Pidan al manager que les asigne PINs distintos.',
+            ], 422);
+        }
+
+        $user = $matches->first();
 
         Auth::login($user);
 
@@ -61,6 +69,11 @@ class AuthController extends Controller
         ]);
 
         $user = auth()->user();
+
+        if (User::pinEnUso($request->new_pin, $user->id)) {
+            return response()->json(['success' => false, 'message' => 'Ese PIN ya lo usa otra persona. Elige otro.'], 422);
+        }
+
         $user->pin = $request->new_pin;
         $user->must_change_pin = false;
         $user->save();
