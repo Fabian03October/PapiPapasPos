@@ -129,7 +129,7 @@
                 <div id="modal-variants" class="flex gap-2 flex-wrap"></div>
             </div>
 
-            <div id="modal-groups" class="space-y-4"></div>
+            <div id="modal-groups" class="space-y-1"></div>
 
             <div>
                 <label class="text-sm font-medium text-neutral-900 dark:text-neutral-100 block mb-2">Notas para cocina <span class="text-neutral-400 dark:text-neutral-500 font-normal">· opcional</span></label>
@@ -861,7 +861,7 @@
                 }).join('');
 
                 return `
-                    <div class="${missing ? 'rounded-lg ring-2 ring-red-400 p-2 -m-2' : ''}">
+                    <div class="rounded-xl -mx-2 px-2 py-2 ring-2 ${missing ? 'ring-red-400' : 'ring-transparent'}">
                         <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">${escapeHtml(group.name)} <span class="${min > 0 ? 'text-red-500 dark:text-red-400' : 'text-neutral-400 dark:text-neutral-500'} font-normal">· ${label}</span></p>
                         <div class="flex gap-2 flex-wrap">${optionsHtml}</div>
                     </div>
