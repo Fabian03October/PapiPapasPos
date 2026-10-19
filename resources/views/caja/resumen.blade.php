@@ -98,9 +98,21 @@
                         <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">Resumen del turno</p>
 
                         <div class="flex flex-col gap-2.5 text-sm">
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-neutral-500 dark:text-neutral-400">Fondo inicial</span>
-                                <span class="text-neutral-900 dark:text-neutral-100">${{ number_format($session->opening_amount, 2) }}</span>
+                                <span class="flex items-center gap-2">
+                                    <span class="text-neutral-900 dark:text-neutral-100" id="fund-display">${{ number_format($session->opening_amount, 2) }}</span>
+                                    <button type="button" id="fund-edit-btn" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">Corregir</button>
+                                </span>
+                            </div>
+                            {{-- Corregir el fondo durante el turno (si se capturó mal al abrir). --}}
+                            <div id="fund-edit-row" class="hidden flex gap-2">
+                                <div class="relative flex-1">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500">$</span>
+                                    <input type="number" id="fund-input" step="0.01" min="0" inputmode="decimal" value="{{ (float) $session->opening_amount }}"
+                                        class="w-full h-10 pl-7 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                                </div>
+                                <button type="button" id="fund-save-btn" class="h-10 px-4 rounded-lg bg-primary-600 text-white text-sm font-medium">Guardar</button>
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-neutral-500 dark:text-neutral-400">Ventas en efectivo</span>
@@ -117,6 +129,14 @@
                             <div class="border-t border-neutral-100 dark:border-neutral-800 pt-2.5 flex justify-between">
                                 <span class="font-medium text-neutral-900 dark:text-neutral-100">Efectivo esperado</span>
                                 <span class="font-semibold text-neutral-900 dark:text-neutral-100">${{ number_format($expected, 2) }}</span>
+                            </div>
+                            <div class="border-t border-neutral-100 dark:border-neutral-800 pt-2.5 flex justify-between">
+                                <span class="text-neutral-500 dark:text-neutral-400">Tarjeta <span class="text-xs">(no entra a caja)</span></span>
+                                <span class="text-neutral-900 dark:text-neutral-100">${{ number_format($cardSales, 2) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-neutral-500 dark:text-neutral-400">Transferencia <span class="text-xs">(no entra a caja)</span></span>
+                                <span class="text-neutral-900 dark:text-neutral-100">${{ number_format($transferSales, 2) }}</span>
                             </div>
                         </div>
                     </x-card>
@@ -153,6 +173,29 @@
             .then(data => {
                 if (data.success) window.location.reload();
             });
+        });
+
+        // Corregir el fondo inicial durante el turno.
+        document.getElementById('fund-edit-btn').addEventListener('click', () => {
+            document.getElementById('fund-edit-row').classList.toggle('hidden');
+            document.getElementById('fund-input').select();
+        });
+        document.getElementById('fund-save-btn').addEventListener('click', () => {
+            fetch('{{ route("caja.fondo") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                body: JSON.stringify({ opening_amount: document.getElementById('fund-input').value }),
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    Toast.show(data.message || 'No se pudo guardar el fondo.', 'error');
+                    return;
+                }
+                Toast.show('Fondo actualizado.');
+                setTimeout(() => window.location.reload(), 700);
+            })
+            .catch(() => Toast.show('No se pudo guardar el fondo por la conexión.', 'error'));
         });
     </script>
 </x-layouts.app>

@@ -28,6 +28,7 @@ class ModifierGroupForm
                             ->default(0),
                         Toggle::make('is_required')
                             ->label('Obligatorio')
+                            ->helperText('Ej. Presentación (Domo, Charola): hay que elegirla antes de agregar el producto, y siempre sale primero.')
                             ->default(false),
                         Toggle::make('is_active')
                             ->label('Activo')

@@ -56,6 +56,7 @@ class ReportMetricsService
             'average_ticket' => $count > 0 ? $sales->sum('total') / $count : 0,
             'cash' => (float) $sales->where('payment_method', 'efectivo')->sum('total'),
             'card' => (float) $sales->where('payment_method', 'tarjeta')->sum('total'),
+            'transfer' => (float) $sales->where('payment_method', 'transferencia')->sum('total'),
         ];
     }
 

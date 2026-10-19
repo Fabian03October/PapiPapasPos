@@ -36,11 +36,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/caja', [CajaController::class, 'resumen'])->name('caja.resumen');
     Route::post('/caja/movimientos', [CajaController::class, 'addMovement'])->name('caja.movimientos.store');
+    Route::post('/caja/fondo', [CajaController::class, 'updateFund'])->name('caja.fondo');
     Route::get('/caja/cerrar/inventario', [CajaController::class, 'showInventoryCount'])->name('caja.cerrar.inventario');
     Route::post('/caja/cerrar/inventario', [CajaController::class, 'storeInventoryCount'])->name('caja.cerrar.inventario.store');
     Route::get('/caja/cerrar', [CajaController::class, 'showClose'])->name('caja.cerrar');
     Route::post('/caja/cerrar', [CajaController::class, 'closeStore'])->name('caja.cerrar.store');
     Route::get('/caja/{session}/reporte-cierre', [CajaController::class, 'reporteCierre'])->name('caja.reporte-cierre');
+    Route::get('/caja/{session}/reporte-cierre-bluetooth', [CajaController::class, 'reporteCierreBluetooth'])->name('caja.reporte-cierre.bt');
 
     Route::get('/venta', [VentaController::class, 'index'])->name('venta.index');
     Route::get('/venta/productos/{product}', [VentaController::class, 'productDetails'])->name('venta.product.details');
@@ -54,10 +56,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/venta/cliente/quitar', [VentaController::class, 'clearCustomer'])->name('venta.customers.clear');
 
     Route::get('/venta/clientes/buscar', [VentaController::class, 'searchCustomers'])->name('venta.customers.search');
+    Route::post('/venta/clientes', [VentaController::class, 'storeCustomer'])->name('venta.customers.store');
+    Route::get('/venta/clientes/{customer}', [VentaController::class, 'showCustomer'])->name('venta.customers.show');
+    Route::post('/venta/clientes/{customer}', [VentaController::class, 'updateCustomer'])->name('venta.customers.update');
     Route::get('/venta/clientes/qr/{qrCode}', [VentaController::class, 'findCustomerByQr'])->name('venta.customers.byqr');
 
     Route::get('/venta/historial', [SaleIncidentController::class, 'shiftHistory'])->name('venta.historial');
     Route::post('/venta/incidencias', [SaleIncidentController::class, 'store'])->name('venta.incidencias.store');
+    Route::post('/venta/{sale}/deshacer', [SaleIncidentController::class, 'undo'])->name('venta.deshacer');
 
     Route::get('/venta/{sale}/ticket', [TicketController::class, 'venta'])->name('venta.ticket');
     Route::get('/venta/{sale}/comanda', [TicketController::class, 'comanda'])->name('venta.comanda');

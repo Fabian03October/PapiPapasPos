@@ -18,6 +18,7 @@ class CustomerRegistrationController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'required|string',
+            'birthdate' => 'nullable|date|before_or_equal:today|after:' . now()->subYears(110)->toDateString(),
         ]);
 
         $phone = preg_replace('/\D/', '', $validated['phone']);
@@ -27,7 +28,7 @@ class CustomerRegistrationController extends Controller
         }
 
         $customer = Customer::where('phone', $phone)->first()
-            ?? Customer::create(['name' => $validated['name'], 'phone' => $phone]);
+            ?? Customer::create(['name' => $validated['name'], 'phone' => $phone, 'birthdate' => $validated['birthdate'] ?? null]);
 
         return redirect()->route('registro.confirmacion', $customer->qr_code);
     }

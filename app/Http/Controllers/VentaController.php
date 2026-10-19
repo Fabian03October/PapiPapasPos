@@ -39,7 +39,7 @@ class VentaController extends Controller
         $product->load([
             'variants' => fn ($q) => $q->where('is_active', true),
             'modifierGroups' => fn ($q) => $q->where('is_active', true),
-            'modifierGroups.modifiers' => fn ($q) => $q->where('is_active', true),
+            'modifierGroups.modifiers' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('id'),
         ]);
 
         return response()->json([
@@ -55,7 +55,9 @@ class VentaController extends Controller
                 // Un grupo sin ningún modificador activo no sirve de nada
                 // mostrarlo (y si era obligatorio, bloquearía la venta).
                 ->filter(fn ($g) => $g->modifiers->isNotEmpty())
-                ->sortBy('sort_order')
+                // Obligatorios primero (la presentación: Domo, Charola...) y
+                // luego el orden del admin. Mismo orden que la comanda.
+                ->sortBy(fn ($g) => [$g->is_required ? 0 : 1, $g->sort_order, $g->id])
                 ->values()
                 ->map(fn ($g) => [
                     'id' => $g->id,
@@ -92,6 +94,53 @@ class VentaController extends Controller
         session()->forget(['selected_customer_id', 'selected_customer_name']);
 
         return redirect()->route('venta.index');
+    }
+
+    /** Reglas comunes para dar de alta o editar un cliente desde la venta. */
+    protected function customerData(Request $request, ?Customer $customer = null): array
+    {
+        $request->merge(['phone' => preg_replace('/\D/', '', (string) $request->input('phone'))]);
+
+        return $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => ['required', 'digits:10', \Illuminate\Validation\Rule::unique('customers', 'phone')->ignore($customer?->id)],
+            'birthdate' => 'nullable|date|before_or_equal:today|after:' . now()->subYears(110)->toDateString(),
+        ], [
+            'phone.digits' => 'El teléfono debe tener 10 dígitos.',
+            'phone.unique' => 'Ese teléfono ya es de otro cliente. Búscalo en "Buscar".',
+        ]);
+    }
+
+    /** "+ Nuevo": registrar al cliente sin salir de la venta y dejarlo seleccionado. */
+    public function storeCustomer(Request $request)
+    {
+        $customer = Customer::create($this->customerData($request));
+
+        session(['selected_customer_id' => $customer->id, 'selected_customer_name' => $customer->name]);
+
+        return response()->json(['success' => true, 'id' => $customer->id, 'name' => $customer->name]);
+    }
+
+    /** Corregir nombre, teléfono o cumpleaños del cliente desde la venta. */
+    public function updateCustomer(Request $request, Customer $customer)
+    {
+        $customer->update($this->customerData($request, $customer));
+
+        if ((int) session('selected_customer_id') === $customer->id) {
+            session(['selected_customer_name' => $customer->name]);
+        }
+
+        return response()->json(['success' => true, 'id' => $customer->id, 'name' => $customer->name]);
+    }
+
+    public function showCustomer(Customer $customer)
+    {
+        return response()->json([
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'birthdate' => $customer->birthdate?->toDateString(),
+        ]);
     }
 
     public function findCustomerByQr(string $qrCode)

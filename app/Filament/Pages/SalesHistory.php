@@ -103,7 +103,7 @@ class SalesHistory extends Page implements HasTable
         return $table
             ->query(
                 Sale::query()
-                    ->with(['user', 'customer', 'items', 'incidents'])
+                    ->with(['user', 'customer', 'items', 'incidents', 'replacedBy'])
                     ->whereBetween('created_at', [$service->from, $service->until])
             )
             ->columns([
@@ -113,11 +113,19 @@ class SalesHistory extends Page implements HasTable
                 TextColumn::make('customer.name')->label('Cliente')->placeholder('—')->searchable(),
                 TextColumn::make('payment_method')
                     ->label('Pago')
-                    ->formatStateUsing(fn (string $state) => $state === 'efectivo' ? 'Efectivo' : 'Tarjeta'),
+                    ->formatStateUsing(fn (string $state) => Sale::paymentLabel($state)),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
                     ->formatStateUsing(function (Sale $record) {
+                        if ($record->revert_type === 'corregida') {
+                            return 'Corregida → #' . ($record->replacedBy?->folio ?? '?');
+                        }
+
+                        if ($record->revert_type === 'deshecha') {
+                            return 'Deshecha';
+                        }
+
                         if ($record->status === 'cancelada') {
                             return 'Cancelada';
                         }
@@ -133,6 +141,7 @@ class SalesHistory extends Page implements HasTable
                         return 'Pagada';
                     })
                     ->color(fn (Sale $record) => match (true) {
+                        $record->isReverted() => 'warning',
                         $record->status === 'cancelada' => 'danger',
                         $record->items->whereNotNull('cancelled_at')->isNotEmpty() => 'warning',
                         $record->incidents->where('type', 'reposicion')->where('status', 'aprobada')->isNotEmpty() => 'warning',
@@ -171,7 +180,7 @@ class SalesHistory extends Page implements HasTable
                                             $description .= ' (' . $item->variant->name . ')';
                                         }
 
-                                        foreach ($item->modifiers as $saleItemModifier) {
+                                        foreach ($item->orderedModifiers() as $saleItemModifier) {
                                             if ($saleItemModifier->modifier) {
                                                 $description .= "\n+ " . $saleItemModifier->modifier->name;
                                             }

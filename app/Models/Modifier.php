@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Modifier extends Model
 {
-    protected $fillable = ['modifier_group_id', 'name', 'price_delta', 'is_active'];
+    protected $fillable = ['modifier_group_id', 'name', 'price_delta', 'sort_order', 'is_active'];
 
     public function group()
     {

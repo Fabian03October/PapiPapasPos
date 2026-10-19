@@ -59,6 +59,7 @@
                 </p>
                 <button id="cart-clear" type="button" class="text-xs text-red-500 dark:text-red-400 hidden">Vaciar</button>
             </div>
+            <button type="button" id="undo-last-link" class="hidden -mt-1 mb-2 text-left text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">↶ Deshacer última venta</button>
 
             <div id="selected-customer-badge" class="hidden items-center justify-between bg-primary-50 dark:bg-primary-500/10 rounded-lg px-3 py-2 mb-3">
                 <span class="text-sm text-primary-700 dark:text-primary-400 flex items-center gap-1.5">
@@ -67,6 +68,7 @@
                     </svg>
                     <span id="selected-customer-name"></span>
                 </span>
+                <button type="button" id="customer-edit-btn" class="ml-auto mr-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline" title="Corregir datos del cliente">✎ Editar</button>
                 <a href="{{ route('venta.customers.clear') }}" class="text-primary-400 dark:text-primary-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -188,36 +190,62 @@
             </div>
         </div>
 
-        <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Método de pago</p>
-        <div class="grid grid-cols-2 gap-2 mb-4">
-            <button type="button" id="payment-method-efectivo" class="payment-method-btn h-12 rounded-lg border-2 border-primary-600 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 text-sm font-medium">
-                💵 Efectivo
+        {{-- Cobrar con un toque (como OaxacaWare): cada botón cobra en ese
+             momento, sin "Confirmar". Se habilitan cuando ya se calculó el
+             total (promociones, descuentos) y, si hay premio de lealtad,
+             cuando ya se contestó si lo canjea. --}}
+        <p id="pay-wait" class="hidden text-center text-xs text-amber-600 dark:text-amber-400 mb-2">Contesta primero si el cliente canjea su premio.</p>
+
+        <div id="pay-buttons">
+            <button type="button" id="pay-exact" class="pay-btn w-full min-h-14 rounded-xl bg-green-600 text-white text-base font-semibold mb-2 flex items-center justify-center gap-2">
+                💵 Efectivo exacto <span id="pay-exact-amount"></span>
             </button>
-            <button type="button" id="payment-method-tarjeta" class="payment-method-btn h-12 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-sm font-medium">
-                💳 Tarjeta
-            </button>
+            <div id="pay-bills" class="grid grid-cols-3 gap-2 mb-2"></div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button type="button" id="pay-card" class="pay-btn min-h-12 rounded-xl border-2 border-primary-600 text-primary-600 dark:text-primary-400 text-sm font-semibold">💳 Tarjeta</button>
+                <button type="button" id="pay-transfer" class="pay-btn min-h-12 rounded-xl border-2 border-primary-600 text-primary-600 dark:text-primary-400 text-sm font-semibold">🏦 Transferencia</button>
+            </div>
+            <button type="button" id="pay-other" class="pay-btn w-full h-10 rounded-lg text-sm text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">Otro monto en efectivo</button>
         </div>
 
-        <div id="cash-section">
+        <div id="pay-other-section" class="hidden">
             <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Monto recibido</p>
             <div class="relative mb-2">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500">$</span>
-                <input type="number" id="amount-received" step="0.01" class="w-full h-11 pl-7 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-lg font-semibold">
+                <input type="number" id="amount-received" step="0.01" inputmode="decimal" class="w-full h-12 pl-7 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-lg font-semibold">
             </div>
-            <div class="flex gap-2 mb-4" id="quick-amounts"></div>
-
-            <div class="flex justify-between items-center bg-green-50 dark:bg-green-500/10 rounded-lg p-3 mb-4">
-                <span class="text-sm font-medium text-green-700 dark:text-green-400">Cambio</span>
+            <div class="flex justify-between items-center bg-green-50 dark:bg-green-500/10 rounded-lg p-3 mb-3">
+                <span id="change-label" class="text-sm font-medium text-green-700 dark:text-green-400">Cambio</span>
                 <span id="change-amount" class="text-lg font-semibold text-green-700 dark:text-green-400">$0.00</span>
             </div>
+            <button type="button" id="pay-other-ok" class="pay-btn w-full min-h-12 rounded-xl bg-green-600 text-white text-base font-semibold mb-2">Cobrar</button>
+            <button type="button" id="pay-other-back" class="w-full h-9 text-xs text-neutral-500 dark:text-neutral-400">← Volver a las formas de pago</button>
         </div>
 
-        <x-slot:footer>
-            <button id="confirm-sale-btn" class="w-full bg-primary-600 text-white rounded-lg h-12 text-sm font-medium">
-                ✓ Confirmar venta
-            </button>
-        </x-slot:footer>
+        <p id="pay-saving" class="hidden text-center text-sm text-neutral-500 dark:text-neutral-400 mt-2">Guardando la venta…</p>
     </x-modal>
+
+    <!-- Venta registrada + Deshacer (la orden regresa al carrito para corregirla) -->
+    <div id="last-sale" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[56] items-center gap-3 rounded-xl bg-green-600 text-white px-4 py-3 shadow-lg max-w-[94vw] flex-wrap">
+        <div id="last-sale-main" class="flex items-center gap-3 flex-wrap">
+            <span class="text-sm">✓ Venta <b id="last-sale-folio"></b> · <span id="last-sale-detail"></span></span>
+            <button type="button" id="last-sale-undo" class="min-h-10 px-4 rounded-lg text-sm font-semibold bg-white/20">↶ Deshacer</button>
+            <button type="button" id="last-sale-close" class="min-h-10 px-2 text-sm opacity-80" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="last-sale-reasons" class="hidden flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-medium">¿Por qué?</span>
+            <button type="button" class="last-sale-reason min-h-10 px-3 rounded-lg text-sm font-medium bg-white/20" data-reason="Error de captura">Error de captura</button>
+            <button type="button" class="last-sale-reason min-h-10 px-3 rounded-lg text-sm font-medium bg-white/20" data-reason="El cliente cambió de opinión">El cliente cambió de opinión</button>
+            <button type="button" class="last-sale-reason min-h-10 px-3 rounded-lg text-sm font-medium bg-white/20" data-reason="Método de pago equivocado">Método de pago equivocado</button>
+            <button type="button" id="last-sale-cancel" class="min-h-10 px-3 rounded-lg text-sm opacity-80">No deshacer</button>
+        </div>
+    </div>
+
+    <!-- "Deshacer" al quitar un renglón o vaciar el carrito -->
+    <div id="cart-undo" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] items-center gap-3 rounded-xl bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-4 py-2 shadow-lg max-w-[92vw]">
+        <span id="cart-undo-text" class="text-sm"></span>
+        <button type="button" id="cart-undo-btn" class="h-9 px-3 rounded-lg text-sm font-bold underline">Deshacer</button>
+    </div>
 
     <!-- Aviso: la impresora Bluetooth se desconectó y quedó un ticket sin imprimir -->
     <div id="bt-pending" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] items-center gap-3 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 rounded-xl px-4 py-3 shadow-lg max-w-[92vw]">
@@ -225,6 +253,31 @@
         <button id="bt-pending-print" type="button" class="shrink-0 h-9 px-3 rounded-lg bg-amber-600 text-white text-sm font-medium">Imprimir aquí</button>
         <button id="bt-pending-dismiss" type="button" class="shrink-0 text-amber-700 dark:text-amber-400 text-sm">Omitir</button>
     </div>
+
+    <!-- Corregir datos del cliente desde la venta -->
+    <x-modal id="customer-modal" max-width="sm">
+        <x-slot:header>
+            <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Datos del cliente</p>
+            <button id="customer-modal-close" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0">✕</button>
+        </x-slot:header>
+
+        <div class="flex flex-col gap-3">
+            <label class="text-sm text-neutral-600 dark:text-neutral-400">Nombre
+                <input type="text" id="customer-name-input" maxlength="255" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+            </label>
+            <label class="text-sm text-neutral-600 dark:text-neutral-400">Teléfono (10 dígitos)
+                <input type="tel" id="customer-phone-input" maxlength="10" inputmode="numeric" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+            </label>
+            <label class="text-sm text-neutral-600 dark:text-neutral-400">Cumpleaños <span class="text-neutral-400">· opcional</span>
+                <input type="date" id="customer-birthdate-input" max="{{ now()->toDateString() }}" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+            </label>
+            <p id="customer-modal-error" class="hidden text-sm text-red-500 dark:text-red-400"></p>
+        </div>
+
+        <x-slot:footer>
+            <button id="customer-save-btn" type="button" class="w-full bg-primary-600 text-white rounded-lg h-12 text-sm font-medium">Guardar</button>
+        </x-slot:footer>
+    </x-modal>
 
     <!-- Popup de descuento / cortesía manual (a un producto o a toda la venta) -->
     <x-modal id="discount-modal" max-width="sm">
@@ -409,24 +462,35 @@
                 const itemDiscount = discountAmount(item.discount, item.lineTotal);
                 const isAutoGift = item.cartId === autoGiftCartId;
 
+                // Tocar el renglón reabre sus opciones (aderezos, extras,
+                // notas) para editarlo; − y + cambian la cantidad.
                 return `
-                    <div class="flex items-start gap-2 border-b border-neutral-200 dark:border-neutral-800 py-2">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm text-neutral-900 dark:text-neutral-100 truncate">${escapeHtml(item.name)} x${item.qty}</p>
+                    <div class="border-b border-neutral-200 dark:border-neutral-800 py-2">
+                    <div class="flex items-start gap-2">
+                        <button type="button" data-cart-id="${item.cartId}" class="cart-edit-btn flex-1 min-w-0 text-left" ${isAutoGift ? 'disabled' : ''} title="Tocar para cambiar opciones o notas">
+                            <p class="text-sm text-neutral-900 dark:text-neutral-100 truncate">${escapeHtml(item.name)}</p>
                             ${details ? `<p class="text-xs text-neutral-500 dark:text-neutral-500 truncate">${escapeHtml(details)}</p>` : ''}
                             ${itemDiscount > 0 ? `<p class="text-xs text-green-600 dark:text-green-400 truncate">${escapeHtml(discountLabel(item.discount))}</p>` : ''}
-                        </div>
+                        </button>
                         <div class="text-right whitespace-nowrap">
                             ${itemDiscount > 0 ? `<p class="text-xs text-neutral-400 dark:text-neutral-500 line-through">${formatMoney(item.lineTotal)}</p>` : ''}
                             <p class="text-sm text-neutral-900 dark:text-neutral-100">${formatMoney(item.lineTotal - itemDiscount)}</p>
                         </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-1.5">
+                        ${isAutoGift ? `<span class="text-xs text-neutral-400">x${item.qty}</span>` : `
+                        <button type="button" data-cart-id="${item.cartId}" data-step="-1" class="cart-qty-btn w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-base leading-none" aria-label="Uno menos">−</button>
+                        <span class="w-6 text-center text-sm font-semibold text-neutral-900 dark:text-neutral-100">${item.qty}</span>
+                        <button type="button" data-cart-id="${item.cartId}" data-step="1" class="cart-qty-btn w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-base leading-none" aria-label="Uno más">+</button>`}
+                        <span class="flex-1"></span>
                         ${isAutoGift ? '' : `
                         <button data-cart-id="${item.cartId}" class="cart-discount-btn shrink-0 text-sm ${item.discount ? 'opacity-100' : 'opacity-40 hover:opacity-100'}" title="Descuento o cortesía">🏷</button>`}
-                        <button data-cart-id="${item.cartId}" class="cart-remove-btn text-red-400 dark:text-red-500 shrink-0">
+                        <button data-cart-id="${item.cartId}" class="cart-remove-btn text-red-400 dark:text-red-500 shrink-0" title="Quitar">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
                         </button>
+                    </div>
                     </div>
                 `;
             }).join('');
@@ -442,17 +506,78 @@
                 });
             });
 
-            document.querySelectorAll('.cart-remove-btn').forEach(btn => {
+            document.querySelectorAll('.cart-edit-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const removedId = Number(btn.dataset.cartId);
-                    cart = cart.filter(item => item.cartId !== removedId);
-                    if (autoGiftCartId === removedId) autoGiftCartId = null;
+                    const item = cart.find(i => i.cartId === Number(btn.dataset.cartId));
+                    if (item && item.cartId !== autoGiftCartId) openModal(item.productId, item);
+                });
+            });
+
+            document.querySelectorAll('.cart-qty-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = cart.find(i => i.cartId === Number(btn.dataset.cartId));
+                    if (!item) return;
+                    if (item.qty + Number(btn.dataset.step) < 1) {
+                        removeFromCart(item.cartId);
+                        return;
+                    }
+                    item.qty += Number(btn.dataset.step);
+                    item.lineTotal = item.unitPrice * item.qty;
                     renderCart();
                 });
             });
+
+            document.querySelectorAll('.cart-remove-btn').forEach(btn => {
+                btn.addEventListener('click', () => removeFromCart(Number(btn.dataset.cartId)));
+            });
+        }
+
+        // --- "Deshacer" al quitar un renglón o vaciar el carrito ---
+        // (los clientes cambian de opinión y el cajero se equivoca de botón).
+        const cartUndo = document.getElementById('cart-undo');
+        let cartUndoTimer = null;
+        let cartUndoSnapshot = null;
+
+        function snapshotCart() {
+            return { cart: cart.map(item => ({ ...item })), autoGiftCartId, saleDiscount };
+        }
+
+        function offerCartUndo(text, snapshot) {
+            cartUndoSnapshot = snapshot;
+            document.getElementById('cart-undo-text').textContent = text;
+            cartUndo.classList.remove('hidden');
+            cartUndo.classList.add('flex');
+            clearTimeout(cartUndoTimer);
+            cartUndoTimer = setTimeout(hideCartUndo, 6000);
+        }
+
+        function hideCartUndo() {
+            cartUndo.classList.add('hidden');
+            cartUndo.classList.remove('flex');
+            cartUndoSnapshot = null;
+        }
+
+        document.getElementById('cart-undo-btn').addEventListener('click', () => {
+            if (!cartUndoSnapshot) return;
+            cart = cartUndoSnapshot.cart;
+            autoGiftCartId = cartUndoSnapshot.autoGiftCartId;
+            saleDiscount = cartUndoSnapshot.saleDiscount;
+            hideCartUndo();
+            renderCart();
+        });
+
+        function removeFromCart(cartId) {
+            const item = cart.find(i => i.cartId === cartId);
+            if (!item) return;
+            const snapshot = snapshotCart();
+            cart = cart.filter(i => i.cartId !== cartId);
+            if (autoGiftCartId === cartId) autoGiftCartId = null;
+            renderCart();
+            offerCartUndo('Se quitó ' + item.name, snapshot);
         }
 
         cartClearBtn.addEventListener('click', () => {
+            if (cart.length) offerCartUndo('Se vació el carrito', snapshotCart());
             cart = [];
             autoGiftCartId = null;
             saleDiscount = null;
@@ -590,17 +715,50 @@
         let currentProduct = null;
         let selectedVariant = null;
         let selectedModifiers = {};
+        let editingCartId = null; // si se está editando un renglón del carrito
 
-        function openModal(productId) {
+        // Mínimo y máximo por grupo. Obligatorio = al menos 1 (o su mínimo):
+        // la Presentación (Domo, Charola...) hay que elegirla sí o sí.
+        function groupMin(group) {
+            return group.is_required ? Math.max(1, group.min_select || 0) : (group.min_select || 0);
+        }
+
+        function groupMax(group) {
+            return group.max_select > 0 ? group.max_select : Infinity;
+        }
+
+        function sameConfig(a, b) {
+            const mods = x => [...x].sort((m, n) => m - n).join(',');
+            return a.productId === b.productId && a.variantId === b.variantId
+                && mods(a.modifierIds) === mods(b.modifierIds) && (a.notes || '') === (b.notes || '');
+        }
+
+        /**
+         * Agrega al carrito. Si ya hay un renglón IGUAL (mismo producto,
+         * opciones y notas, sin descuento), suma 1 en vez de duplicarlo:
+         * "un toque agrega, otro suma".
+         */
+        function addToCart(line) {
+            const existing = cart.find(item => item.cartId !== autoGiftCartId && !item.discount && sameConfig(item, line));
+            if (existing) {
+                existing.qty += 1;
+                existing.lineTotal = existing.unitPrice * existing.qty;
+            } else {
+                cart.push({ cartId: cartItemIdCounter++, qty: 1, ...line, lineTotal: line.unitPrice });
+            }
+            renderCart();
+        }
+
+        function openModal(productId, editItem = null) {
             fetch('/venta/productos/' + productId)
                 .then(res => res.json())
                 .then(data => {
                     const hasVariants = data.variants.length > 0;
                     const hasModifierGroups = data.modifier_groups.length > 0;
 
-                    if (!hasVariants && !hasModifierGroups) {
-                        cart.push({
-                            cartId: cartItemIdCounter++,
+                    // Producto sin opciones: un toque lo agrega directo (o suma).
+                    if (!editItem && !hasVariants && !hasModifierGroups) {
+                        addToCart({
                             productId: data.id,
                             name: data.name,
                             variantId: null,
@@ -608,17 +766,24 @@
                             modifierIds: [],
                             modifierNames: [],
                             notes: '',
-                            qty: 1,
-                            lineTotal: data.base_price,
+                            unitPrice: data.base_price,
                         });
-                        renderCart();
                         return;
                     }
 
                     currentProduct = data;
+                    editingCartId = editItem ? editItem.cartId : null;
+                    selectedVariant = editItem ? editItem.variantId : null;
                     selectedModifiers = {};
-                    selectedVariant = null;
-                    modalNotes.value = '';
+                    if (editItem) {
+                        data.modifier_groups.forEach(group => {
+                            selectedModifiers[group.id] = group.modifiers
+                                .filter(mod => editItem.modifierIds.includes(mod.id))
+                                .map(mod => mod.id);
+                        });
+                    }
+                    modalNotes.value = editItem ? (editItem.notes || '') : '';
+                    modalAddBtn.querySelector('span').textContent = editItem ? 'Guardar cambios' : 'Agregar al carrito';
 
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
@@ -631,12 +796,15 @@
         function closeModal() {
             modal.classList.add('hidden');
             modal.classList.remove('flex');
+            editingCartId = null;
         }
 
         modalClose.addEventListener('click', closeModal);
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeModal();
         });
+
+        let missingGroupId = null; // grupo obligatorio que falta (se resalta)
 
         function renderModal() {
             modalProductName.textContent = currentProduct.name;
@@ -645,12 +813,8 @@
             if (currentProduct.variants.length > 0) {
                 modalVariantsSection.classList.remove('hidden');
 
-                // Solo se pone la variante por default la primera vez que se
-                // abre el modal (selectedVariant viene en null desde
-                // openModal). Si ya se puso, renderModal() se vuelve a
-                // llamar cada vez que el cajero elige una - sin este check,
-                // aqui mismo se pisaba la eleccion y siempre regresaba a la
-                // primera opcion.
+                // La primera variante por default solo la primera vez (si no,
+                // cada clic regresaba a la primera opción).
                 if (selectedVariant === null) {
                     selectedVariant = currentProduct.variants[0].id;
                 }
@@ -658,7 +822,7 @@
                 modalVariants.innerHTML = currentProduct.variants.map(v => `
                     <button type="button" data-variant-id="${v.id}"
                         class="variant-btn px-4 py-2 rounded-full text-sm border ${v.id === selectedVariant ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'}">
-                        ${v.name}${v.price_delta > 0 ? ' +' + formatMoney(v.price_delta) : ''}
+                        ${escapeHtml(v.name)}${v.price_delta > 0 ? ' +' + formatMoney(v.price_delta) : ''}
                     </button>
                 `).join('');
 
@@ -672,10 +836,17 @@
                 modalVariantsSection.classList.add('hidden');
             }
 
+            // Los grupos ya vienen en el orden del negocio: obligatorios
+            // (Presentación) primero, luego el orden del admin.
             modalGroups.innerHTML = currentProduct.modifier_groups.map(group => {
                 if (!selectedModifiers[group.id]) selectedModifiers[group.id] = [];
                 const isSingle = group.max_select === 1;
-                const label = group.is_required ? 'elige 1' : (isSingle ? 'opcional · elige 1' : 'opcional, varios');
+                const min = groupMin(group);
+                const max = groupMax(group);
+                const label = min > 0
+                    ? (isSingle ? 'obligatorio · elige 1' : `obligatorio · elige al menos ${min}`)
+                    : (isSingle ? 'opcional · elige 1' : (max === Infinity ? 'opcional · varios' : `opcional · hasta ${max}`));
+                const missing = group.id === missingGroupId;
 
                 const optionsHtml = group.modifiers.map(mod => {
                     const isSelected = selectedModifiers[group.id].includes(mod.id);
@@ -684,14 +855,14 @@
                     return `
                         <button type="button" data-group-id="${group.id}" data-mod-id="${mod.id}" data-single="${isSingle}"
                             class="mod-btn px-4 py-2 rounded-full text-sm border ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'}">
-                            ${mod.name} ${priceLabel}
+                            ${escapeHtml(mod.name)} ${priceLabel}
                         </button>
                     `;
                 }).join('');
 
                 return `
-                    <div>
-                        <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">${group.name} <span class="text-neutral-400 dark:text-neutral-500 font-normal">· ${label}</span></p>
+                    <div class="${missing ? 'rounded-lg ring-2 ring-red-400 p-2 -m-2' : ''}">
+                        <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">${escapeHtml(group.name)} <span class="${min > 0 ? 'text-red-500 dark:text-red-400' : 'text-neutral-400 dark:text-neutral-500'} font-normal">· ${label}</span></p>
                         <div class="flex gap-2 flex-wrap">${optionsHtml}</div>
                     </div>
                 `;
@@ -699,18 +870,23 @@
 
             modalGroups.querySelectorAll('.mod-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const groupId = btn.dataset.groupId;
+                    const groupId = Number(btn.dataset.groupId);
                     const modId = Number(btn.dataset.modId);
+                    const group = currentProduct.modifier_groups.find(g => g.id === groupId);
+                    const current = selectedModifiers[groupId];
 
                     if (btn.dataset.single === 'true') {
-                        selectedModifiers[groupId] = [modId];
+                        selectedModifiers[groupId] = current.includes(modId) && !group.is_required ? [] : [modId];
+                    } else if (current.includes(modId)) {
+                        selectedModifiers[groupId] = current.filter(id => id !== modId);
+                    } else if (current.length >= groupMax(group)) {
+                        Toast.show(`Máximo ${groupMax(group)} en ${group.name}.`, 'error');
+                        return;
                     } else {
-                        const current = selectedModifiers[groupId];
-                        selectedModifiers[groupId] = current.includes(modId)
-                            ? current.filter(id => id !== modId)
-                            : [...current, modId];
+                        selectedModifiers[groupId] = [...current, modId];
                     }
 
+                    if (missingGroupId === groupId && selectedModifiers[groupId].length >= groupMin(group)) missingGroupId = null;
                     renderModal();
                 });
             });
@@ -741,31 +917,53 @@
         }
 
         modalAddBtn.addEventListener('click', () => {
-            const total = calculateModalTotal();
+            // Obligatorios primero: no se agrega sin la Presentación.
+            const missing = currentProduct.modifier_groups.find(group => (selectedModifiers[group.id] || []).length < groupMin(group));
+            if (missing) {
+                missingGroupId = missing.id;
+                renderModal();
+                Toast.show(`Elige ${missing.name} antes de continuar.`, 'error');
+                return;
+            }
+
             const variant = selectedVariant ? currentProduct.variants.find(v => v.id === selectedVariant) : null;
 
+            // Ids y nombres en el orden del negocio (el mismo de la comanda).
+            const modifierIds = [];
             const modifierNames = [];
             currentProduct.modifier_groups.forEach(group => {
-                (selectedModifiers[group.id] || []).forEach(modId => {
-                    const mod = group.modifiers.find(m => m.id === modId);
-                    if (mod) modifierNames.push(mod.name);
+                group.modifiers.forEach(mod => {
+                    if ((selectedModifiers[group.id] || []).includes(mod.id)) {
+                        modifierIds.push(mod.id);
+                        modifierNames.push(mod.name);
+                    }
                 });
             });
 
-            cart.push({
-                cartId: cartItemIdCounter++,
+            const line = {
                 productId: currentProduct.id,
                 name: currentProduct.name,
                 variantId: variant ? variant.id : null,
                 variantName: variant ? variant.name : null,
-                modifierIds: Object.values(selectedModifiers).flat(),
-                modifierNames: modifierNames,
+                modifierIds,
+                modifierNames,
                 notes: modalNotes.value.trim(),
-                qty: 1,
-                lineTotal: total,
-            });
+                unitPrice: calculateModalTotal(),
+            };
 
-            renderCart();
+            if (editingCartId !== null) {
+                // Editar un renglón: se conservan su cantidad y su descuento.
+                const item = cart.find(i => i.cartId === editingCartId);
+                if (item) {
+                    Object.assign(item, line);
+                    item.lineTotal = item.unitPrice * item.qty;
+                }
+                renderCart();
+            } else {
+                addToCart(line);
+            }
+
+            missingGroupId = null;
             closeModal();
         });
 
@@ -779,16 +977,15 @@
         const paymentModal = document.getElementById('payment-modal');
         const paymentModalClose = document.getElementById('payment-modal-close');
         const paymentTotalEl = document.getElementById('payment-total');
-        const methodEfectivoBtn = document.getElementById('payment-method-efectivo');
-        const methodTarjetaBtn = document.getElementById('payment-method-tarjeta');
-        const cashSection = document.getElementById('cash-section');
         const amountReceivedInput = document.getElementById('amount-received');
-        const quickAmountsEl = document.getElementById('quick-amounts');
         const changeAmountEl = document.getElementById('change-amount');
-        const confirmSaleBtn = document.getElementById('confirm-sale-btn');
 
-        let selectedPaymentMethod = 'efectivo';
         let currentCartTotal = 0;
+        let previewReady = false; // ya se calculó el total de ESTA orden
+        let savingSale = false;
+        let payMode = 'buttons'; // 'buttons' | 'other' (otro monto)
+        // Si la orden regresó de "Deshacer" para corregirla: la venta original.
+        let correctsSaleId = null;
         let rewardAnswer = null; // null = sin responder, true/false = ya contestó
 
         const rewardPrompt = document.getElementById('reward-prompt');
@@ -829,8 +1026,7 @@
                 btn.classList.toggle('dark:text-neutral-300', !active);
             });
 
-            confirmSaleBtn.disabled = rewardPrompt.classList.contains('hidden') ? false : rewardAnswer === null;
-            confirmSaleBtn.classList.toggle('opacity-50', confirmSaleBtn.disabled);
+            renderPayButtons();
         }
 
         function loadPaymentPreview(redeemReward) {
@@ -893,6 +1089,7 @@
                         modifierNames: ['🎁 Premio de fidelidad, gratis'],
                         notes: '',
                         qty: 1,
+                        unitPrice: 0,
                         lineTotal: 0,
                     });
                     renderCart();
@@ -938,9 +1135,9 @@
                 updateRewardAnswerButtons();
 
                 paymentTotalEl.textContent = formatMoney(currentCartTotal);
-                amountReceivedInput.value = currentCartTotal.toFixed(2);
-                renderQuickAmounts();
-                updateChange();
+                amountReceivedInput.value = '';
+                previewReady = true;
+                renderPayButtons();
             });
         }
 
@@ -959,7 +1156,9 @@
 
             rewardAnswer = null;
             rewardPrompt.classList.add('hidden');
-            setPaymentMethod('efectivo');
+            previewReady = false;
+            payMode = 'buttons';
+            renderPayButtons();
             loadPaymentPreview(false);
 
             paymentModal.classList.remove('hidden');
@@ -974,61 +1173,78 @@
             paymentModal.classList.remove('flex');
         });
 
-        function setPaymentMethod(method) {
-            selectedPaymentMethod = method;
+        // --- COBRAR CON UN TOQUE ---
+        const BILLS = [20, 50, 100, 200, 500, 1000];
 
-            if (method === 'efectivo') {
-                methodEfectivoBtn.classList.add('border-2', 'border-primary-600', 'bg-primary-50', 'dark:bg-primary-500/10', 'text-primary-600', 'dark:text-primary-400');
-                methodEfectivoBtn.classList.remove('border', 'border-neutral-200', 'dark:border-neutral-700', 'text-neutral-700', 'dark:text-neutral-300');
-                methodTarjetaBtn.classList.remove('border-2', 'border-primary-600', 'bg-primary-50', 'dark:bg-primary-500/10', 'text-primary-600', 'dark:text-primary-400');
-                methodTarjetaBtn.classList.add('border', 'border-neutral-200', 'dark:border-neutral-700', 'text-neutral-700', 'dark:text-neutral-300');
-                cashSection.classList.remove('hidden');
-            } else {
-                methodTarjetaBtn.classList.add('border-2', 'border-primary-600', 'bg-primary-50', 'dark:bg-primary-500/10', 'text-primary-600', 'dark:text-primary-400');
-                methodTarjetaBtn.classList.remove('border', 'border-neutral-200', 'dark:border-neutral-700', 'text-neutral-700', 'dark:text-neutral-300');
-                methodEfectivoBtn.classList.remove('border-2', 'border-primary-600', 'bg-primary-50', 'dark:bg-primary-500/10', 'text-primary-600', 'dark:text-primary-400');
-                methodEfectivoBtn.classList.add('border', 'border-neutral-200', 'dark:border-neutral-700', 'text-neutral-700', 'dark:text-neutral-300');
-                cashSection.classList.add('hidden');
-            }
+        /** Los 3 billetes siguientes al total (con los que suele pagar el cliente). */
+        function billOptions(total) {
+            return BILLS.filter(bill => bill > total).slice(0, 3);
         }
 
-        methodEfectivoBtn.addEventListener('click', () => setPaymentMethod('efectivo'));
-        methodTarjetaBtn.addEventListener('click', () => setPaymentMethod('tarjeta'));
+        function canPay() {
+            const waitingReward = !rewardPrompt.classList.contains('hidden') && rewardAnswer === null;
+            return previewReady && !savingSale && !waitingReward && cart.length > 0;
+        }
 
-        function renderQuickAmounts() {
-            const amounts = new Set();
-            amounts.add(Math.ceil(currentCartTotal));
-            [20, 50, 100, 200, 500].forEach(denom => {
-                const rounded = Math.ceil(currentCartTotal / denom) * denom;
-                if (rounded > currentCartTotal) amounts.add(rounded);
+        function renderPayButtons() {
+            const enabled = canPay();
+            const waitingReward = !rewardPrompt.classList.contains('hidden') && rewardAnswer === null;
+
+            document.getElementById('pay-wait').classList.toggle('hidden', !waitingReward);
+            document.getElementById('pay-saving').classList.toggle('hidden', !savingSale);
+            document.getElementById('pay-buttons').classList.toggle('hidden', payMode !== 'buttons');
+            document.getElementById('pay-other-section').classList.toggle('hidden', payMode !== 'other');
+            document.getElementById('pay-exact-amount').textContent = previewReady ? formatMoney(currentCartTotal) : '…';
+
+            document.getElementById('pay-bills').innerHTML = previewReady
+                ? billOptions(currentCartTotal).map(bill => `
+                    <button type="button" class="pay-btn pay-bill min-h-12 rounded-xl border border-green-600/40 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 text-base font-semibold" data-bill="${bill}">$${bill}</button>
+                `).join('')
+                : '';
+            document.querySelectorAll('.pay-bill').forEach(btn => {
+                btn.addEventListener('click', () => confirmSale('efectivo', Number(btn.dataset.bill)));
             });
 
-            const sorted = Array.from(amounts).sort((a, b) => a - b).slice(0, 4);
-
-            quickAmountsEl.innerHTML = sorted.map(amt => `
-                <button type="button" class="quick-amount-btn flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300" data-amount="${amt}">
-                    $${amt}
-                </button>
-            `).join('');
-
-            quickAmountsEl.querySelectorAll('.quick-amount-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    amountReceivedInput.value = btn.dataset.amount;
-                    updateChange();
-                });
+            document.querySelectorAll('.pay-btn').forEach(btn => {
+                btn.disabled = !enabled;
+                btn.classList.toggle('opacity-50', !enabled);
             });
+
+            if (payMode === 'other') updateChange();
         }
 
         function updateChange() {
             const received = parseFloat(amountReceivedInput.value) || 0;
             const change = received - currentCartTotal;
-            changeAmountEl.textContent = formatMoney(change >= 0 ? change : 0);
+            document.getElementById('change-label').textContent = change >= 0 ? 'Cambio' : 'Faltan';
+            changeAmountEl.textContent = formatMoney(Math.abs(change));
+            const okBtn = document.getElementById('pay-other-ok');
+            okBtn.disabled = !canPay() || received < currentCartTotal;
+            okBtn.classList.toggle('opacity-50', okBtn.disabled);
         }
 
         amountReceivedInput.addEventListener('input', updateChange);
 
-        confirmSaleBtn.addEventListener('click', () => {
-            if (confirmSaleBtn.disabled) return;
+        document.getElementById('pay-exact').addEventListener('click', () => confirmSale('efectivo', currentCartTotal));
+        document.getElementById('pay-card').addEventListener('click', () => confirmSale('tarjeta', null));
+        document.getElementById('pay-transfer').addEventListener('click', () => confirmSale('transferencia', null));
+        document.getElementById('pay-other').addEventListener('click', () => {
+            payMode = 'other';
+            renderPayButtons();
+            amountReceivedInput.focus();
+        });
+        document.getElementById('pay-other-back').addEventListener('click', () => {
+            payMode = 'buttons';
+            renderPayButtons();
+        });
+        document.getElementById('pay-other-ok').addEventListener('click', () => {
+            confirmSale('efectivo', parseFloat(amountReceivedInput.value) || currentCartTotal);
+        });
+
+        function confirmSale(method, received) {
+            if (!canPay()) return;
+            savingSale = true;
+            renderPayButtons();
 
             const payload = {
                 items: cart.map(item => ({
@@ -1040,9 +1256,10 @@
                     notes: item.notes || null,
                 })),
                 sale_discount: saleDiscount,
-                payment_method: selectedPaymentMethod,
+                payment_method: method,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: rewardAnswer === true,
+                corrects_sale_id: correctsSaleId,
             };
 
             fetch('{{ route("venta.cobrar") }}', {
@@ -1056,15 +1273,19 @@
             })
             .then(res => res.json().then(data => ({ status: res.status, data })))
             .then(({ status, data }) => {
+                savingSale = false;
+
                 if (status === 200 && data.success) {
-                    printBluetooth(data.sale_id, data.folio, selectedPaymentMethod === 'efectivo' ? parseFloat(amountReceivedInput.value) || null : null);
+                    const change = method === 'efectivo' && received ? Math.max(0, received - data.total) : null;
+                    printBluetooth(data.sale_id, data.folio, method === 'efectivo' ? received : null);
 
                     cart = [];
                     saleDiscount = null;
+                    correctsSaleId = null;
                     renderCart();
                     paymentModal.classList.add('hidden');
                     paymentModal.classList.remove('flex');
-                    Toast.show(`Venta registrada — Folio #${data.folio} — Total ${formatMoney(data.total)}`);
+                    showLastSale({ saleId: data.sale_id, folio: data.folio, total: data.total, change });
 
                     if (selectedCustomer) {
                         fetch('{{ route("venta.customers.clear") }}', {
@@ -1074,10 +1295,177 @@
                         updateCustomerBadge();
                     }
                 } else {
-                    alert('Error al guardar la venta: ' + (data.message || 'intenta de nuevo'));
+                    renderPayButtons();
+                    Toast.show('No se guardó la venta: ' + (data.message || 'intenta de nuevo'), 'error');
                 }
+            })
+            .catch(() => {
+                savingSale = false;
+                renderPayButtons();
+                Toast.show('No se guardó la venta por la conexión. Intenta de nuevo.', 'error');
+            });
+        }
+
+        // --- VENTA REGISTRADA + DESHACER (como OaxacaWare) ---
+        // Arriba sale "Venta #0012 · Cambio $55 · Deshacer". Deshacer regresa
+        // la orden al carrito para corregirla y volver a cobrarla. El aviso
+        // se quita a los 15 s, pero "↶ Deshacer última venta" queda a la mano
+        // mientras duren los minutos permitidos al cajero.
+        const UNDO_MINUTES = @json(\App\Services\SaleRevertService::UNDO_MINUTES);
+        const PUEDE_AUTORIZAR = @json(auth()->user()->puedeAutorizar());
+        const lastSaleEl = document.getElementById('last-sale');
+        const undoLink = document.getElementById('undo-last-link');
+        let lastSale = null;
+        let lastSaleTimer = null;
+        let undoLinkTimer = null;
+
+        function showLastSale(sale) {
+            lastSale = { ...sale, at: Date.now() };
+            document.getElementById('last-sale-folio').textContent = '#' + sale.folio;
+            document.getElementById('last-sale-detail').textContent = sale.change !== null && sale.change > 0
+                ? 'Cambio ' + formatMoney(sale.change)
+                : 'Total ' + formatMoney(sale.total);
+            document.getElementById('last-sale-reasons').classList.add('hidden');
+            document.getElementById('last-sale-main').classList.remove('hidden');
+            lastSaleEl.classList.remove('hidden');
+            lastSaleEl.classList.add('flex');
+
+            clearTimeout(lastSaleTimer);
+            lastSaleTimer = setTimeout(hideLastSale, 15000);
+
+            undoLink.classList.remove('hidden');
+            clearTimeout(undoLinkTimer);
+            undoLinkTimer = setTimeout(() => undoLink.classList.add('hidden'), UNDO_MINUTES * 60 * 1000);
+        }
+
+        function hideLastSale() {
+            lastSaleEl.classList.add('hidden');
+            lastSaleEl.classList.remove('flex');
+        }
+
+        function askUndoReason() {
+            clearTimeout(lastSaleTimer);
+            lastSaleEl.classList.remove('hidden');
+            lastSaleEl.classList.add('flex');
+            document.getElementById('last-sale-main').classList.add('hidden');
+            document.getElementById('last-sale-reasons').classList.remove('hidden');
+        }
+
+        document.getElementById('last-sale-undo').addEventListener('click', askUndoReason);
+        undoLink.addEventListener('click', askUndoReason);
+        document.getElementById('last-sale-close').addEventListener('click', hideLastSale);
+        document.getElementById('last-sale-cancel').addEventListener('click', hideLastSale);
+        document.querySelectorAll('.last-sale-reason').forEach(btn => {
+            btn.addEventListener('click', () => lastSale && undoSale(lastSale.saleId, btn.dataset.reason));
+        });
+
+        function undoSale(saleId, reason) {
+            fetch(`/venta/${saleId}/deshacer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                body: JSON.stringify({ reason }),
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                hideLastSale();
+                if (!ok) {
+                    Toast.show(data.message || 'No se pudo deshacer la venta.', 'error');
+                    return;
+                }
+                undoLink.classList.add('hidden');
+                lastSale = null;
+                restoreOrder(data.order);
+                Toast.show('Venta deshecha. La orden regresó para corregirla.');
+            })
+            .catch(() => Toast.show('No se pudo deshacer la venta por la conexión.', 'error'));
+        }
+
+        /** Pone en el carrito una orden deshecha (de aquí o de Ventas del turno). */
+        function restoreOrder(order) {
+            if (cart.length && !confirm('El carrito tiene productos. ¿Reemplazarlos por la orden #' + order.folio + '?')) return;
+
+            cart = order.items.map(item => ({
+                cartId: cartItemIdCounter++,
+                ...item,
+                lineTotal: item.unitPrice * item.qty,
+            }));
+            autoGiftCartId = null;
+            saleDiscount = order.sale_discount || null;
+            correctsSaleId = order.sale_id;
+
+            if (order.customer) {
+                selectedCustomer = { id: order.customer.id, name: order.customer.name };
+                fetch(`/venta/cliente/seleccionar/${order.customer.id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            } else {
+                selectedCustomer = null;
+            }
+
+            updateCustomerBadge();
+            renderCart();
+        }
+
+        // --- CORREGIR DATOS DEL CLIENTE DESDE LA VENTA ---
+        const customerModal = document.getElementById('customer-modal');
+        const customerError = document.getElementById('customer-modal-error');
+
+        function closeCustomerModal() {
+            customerModal.classList.add('hidden');
+            customerModal.classList.remove('flex');
+        }
+
+        document.getElementById('customer-edit-btn').addEventListener('click', () => {
+            if (!selectedCustomer) return;
+            customerError.classList.add('hidden');
+            fetch(`/venta/clientes/${selectedCustomer.id}`, { headers: { Accept: 'application/json' } })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('customer-name-input').value = data.name || '';
+                    document.getElementById('customer-phone-input').value = data.phone || '';
+                    document.getElementById('customer-birthdate-input').value = data.birthdate || '';
+                    customerModal.classList.remove('hidden');
+                    customerModal.classList.add('flex');
+                });
+        });
+
+        document.getElementById('customer-modal-close').addEventListener('click', closeCustomerModal);
+
+        document.getElementById('customer-save-btn').addEventListener('click', () => {
+            fetch(`/venta/clientes/${selectedCustomer.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('customer-name-input').value.trim(),
+                    phone: document.getElementById('customer-phone-input').value.trim(),
+                    birthdate: document.getElementById('customer-birthdate-input').value || null,
+                }),
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    customerError.textContent = data.message || 'Revisa los datos.';
+                    customerError.classList.remove('hidden');
+                    return;
+                }
+                selectedCustomer = { id: data.id, name: data.name };
+                updateCustomerBadge();
+                closeCustomerModal();
+                Toast.show('Datos del cliente actualizados.');
+            })
+            .catch(() => {
+                customerError.textContent = 'No se pudo guardar por la conexión.';
+                customerError.classList.remove('hidden');
             });
         });
+
+        // Si se deshizo desde "Ventas del turno", la orden llega aquí.
+        try {
+            const pending = sessionStorage.getItem('papispapas_orden_a_corregir');
+            if (pending) {
+                sessionStorage.removeItem('papispapas_orden_a_corregir');
+                restoreOrder(JSON.parse(pending));
+                Toast.show('La orden regresó al carrito para corregirla.');
+            }
+        } catch (e) {}
 
         // --- IMPRESIÓN AL COBRAR ---
         // 1. Si ESTE dispositivo tiene la impresora Bluetooth conectada, el

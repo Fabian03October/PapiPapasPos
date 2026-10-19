@@ -41,7 +41,7 @@
                 <td>{{ $item->qty }}x {{ $item->product->name }}{{ $item->variant ? ' (' . $item->variant->name . ')' : '' }}</td>
                 <td class="right">${{ number_format($item->line_total, 2) }}</td>
             </tr>
-            @foreach ($item->modifiers as $saleItemModifier)
+            @foreach ($item->orderedModifiers() as $saleItemModifier)
                 @if ($saleItemModifier->modifier)
                     <tr>
                         <td class="mod">+ {{ $saleItemModifier->modifier->name }}</td>
@@ -96,7 +96,7 @@
 
     <div class="line"></div>
 
-    <p>Pago: {{ $sale->payment_method === 'efectivo' ? 'Efectivo' : 'Tarjeta' }}</p>
+    <p>Pago: {{ \App\Models\Sale::paymentLabel($sale->payment_method) }}</p>
 
     <p class="center" style="margin-top: 8px;">
         @if ($business->personalize_thank_you && $sale->customer)

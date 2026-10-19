@@ -76,10 +76,30 @@ class SaleController extends Controller
                 if ($modifiers->count() !== count($modifierIds)) {
                     $noDisponible('Un extra');
                 }
+            }
 
-                foreach ($modifiers as $modifier) {
-                    $unitPrice += (float) $modifier->price_delta;
+            // Obligatorios (la Presentación: Domo, Charola...) y máximos por
+            // grupo: la pantalla ya no deja seguir sin ellos, pero el servidor
+            // tampoco confía en eso.
+            if ($soloDisponibles) {
+                $elegidosPorGrupo = collect($modifiers)->countBy('modifier_group_id');
+
+                foreach ($product->modifierGroups()->where('modifier_groups.is_active', true)->whereHas('modifiers', fn ($q) => $q->where('is_active', true))->get() as $group) {
+                    $elegidos = $elegidosPorGrupo->get($group->id, 0);
+                    $minimo = $group->is_required ? max(1, (int) $group->min_select) : (int) $group->min_select;
+
+                    if ($elegidos < $minimo) {
+                        throw ValidationException::withMessages(['items' => "Falta elegir {$group->name} de \"{$product->name}\"."]);
+                    }
+
+                    if ($group->max_select > 0 && $elegidos > $group->max_select) {
+                        throw ValidationException::withMessages(['items' => "En {$group->name} de \"{$product->name}\" se pueden elegir máximo {$group->max_select}."]);
+                    }
                 }
+            }
+
+            foreach ($modifiers as $modifier) {
+                $unitPrice += (float) $modifier->price_delta;
             }
 
             $lineTotal = $unitPrice * $qty;
@@ -285,8 +305,9 @@ class SaleController extends Controller
     {
         $request->validate([
             ...$this->itemRules(),
-            'payment_method' => 'required|in:efectivo,tarjeta',
+            'payment_method' => 'required|in:' . implode(',', array_keys(Sale::PAYMENT_METHODS)),
             'redeem_reward' => 'nullable|boolean',
+            'corrects_sale_id' => 'nullable|integer|exists:sales,id',
         ]);
 
         $cashSession = CashSession::open();
@@ -416,6 +437,17 @@ class SaleController extends Controller
 
             return $sale;
         });
+
+        // La orden venía de "Deshacer" (para corregirla): la original queda
+        // como "Corregida → #nueva" y la comanda sale marcada CORRECCIÓN.
+        if ($request->filled('corrects_sale_id')) {
+            $original = Sale::find($request->corrects_sale_id);
+
+            if ($original && $original->revert_type === 'deshecha' && ! $original->replaced_by_sale_id
+                && $original->cash_session_id === $sale->cash_session_id) {
+                app(\App\Services\SaleRevertService::class)->linkCorrection($original, $sale);
+            }
+        }
 
         return response()->json([
             'success' => true,

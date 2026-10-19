@@ -26,11 +26,22 @@
         });
     }
 
+    // Pausa entre comanda y ticket (configurable en "Datos del negocio")
+    // para que la térmica no se sature; viene en <meta name="print-delay">.
+    function printDelayMs() {
+        const seconds = parseInt(document.querySelector('meta[name="print-delay"]')?.content, 10);
+        return (Number.isFinite(seconds) ? seconds : 6) * 1000;
+    }
+
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    /** Comanda (para cocina, primero), pausa, y ticket del cliente. */
     async function printSaleDocuments(saleId) {
         if (!saleId) return;
 
-        await printUrl(`/venta/${saleId}/ticket`);
         await printUrl(`/venta/${saleId}/comanda`);
+        await sleep(printDelayMs());
+        await printUrl(`/venta/${saleId}/ticket`);
     }
 
     window.PrintDocs = { printUrl, printSaleDocuments, isPrintStation, setPrintStation };

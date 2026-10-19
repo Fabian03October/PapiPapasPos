@@ -16,7 +16,7 @@
             <div class="flex flex-col lg:flex-row gap-4">
 
                 <!-- Pestañas: fila en celular, columna en desktop -->
-                <div class="grid grid-cols-2 lg:flex lg:flex-col gap-2 lg:w-52 lg:shrink-0">
+                <div class="grid grid-cols-3 lg:flex lg:flex-col gap-2 lg:w-52 lg:shrink-0">
                     <button type="button" data-tab="scan" class="customer-tab-btn flex flex-col lg:flex-row items-center lg:justify-start gap-1 lg:gap-3 px-2 lg:px-4 py-3 rounded-xl text-xs lg:text-sm font-medium bg-primary-600 text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5h4.5m-4.5 0v4.5m0-4.5L9 9M3.75 19.5h4.5m-4.5 0v-4.5m0 4.5L9 15M20.25 4.5h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 10.5h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -28,6 +28,10 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>
                         Buscar
+                    </button>
+                    <button type="button" data-tab="new" class="customer-tab-btn flex flex-col lg:flex-row items-center lg:justify-start gap-1 lg:gap-3 px-2 lg:px-4 py-3 rounded-xl text-xs lg:text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800">
+                        <span class="text-lg leading-5">+</span>
+                        Nuevo
                     </button>
                 </div>
 
@@ -56,6 +60,23 @@
                             <p class="text-sm text-neutral-400 dark:text-neutral-600 text-center py-8 col-span-full">Escribe al menos 2 letras para buscar</p>
                         </div>
                     </div>
+
+                    <!-- Tab: nuevo (registrarlo sin salir de la venta) -->
+                    <div id="customer-tab-new" class="hidden">
+                        <form id="new-customer-form" class="flex flex-col gap-3 max-w-md">
+                            <label class="text-sm text-neutral-600 dark:text-neutral-400">Nombre
+                                <input type="text" name="name" required maxlength="255" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                            </label>
+                            <label class="text-sm text-neutral-600 dark:text-neutral-400">Teléfono (10 dígitos)
+                                <input type="tel" name="phone" required maxlength="10" inputmode="numeric" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                            </label>
+                            <label class="text-sm text-neutral-600 dark:text-neutral-400">Cumpleaños <span class="text-neutral-400">· opcional</span>
+                                <input type="date" name="birthdate" max="{{ now()->toDateString() }}" class="mt-1 w-full h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                            </label>
+                            <p id="new-customer-error" class="hidden text-sm text-red-500 dark:text-red-400"></p>
+                            <button type="submit" class="h-12 rounded-lg bg-primary-600 text-white text-sm font-medium">Registrar y usar en la venta</button>
+                        </form>
+                    </div>
                 </x-card>
             </div>
         </div>
@@ -79,6 +100,7 @@
 
             document.getElementById('customer-tab-scan').classList.toggle('hidden', tab !== 'scan');
             document.getElementById('customer-tab-search').classList.toggle('hidden', tab !== 'search');
+            document.getElementById('customer-tab-new').classList.toggle('hidden', tab !== 'new');
 
             stopScanner();
 
@@ -179,6 +201,37 @@
                         `).join('');
                     });
             }, 300);
+        });
+
+        document.getElementById('new-customer-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const errorEl = document.getElementById('new-customer-error');
+            errorEl.classList.add('hidden');
+
+            fetch('{{ route("venta.customers.store") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                body: JSON.stringify({
+                    name: form.name.value.trim(),
+                    phone: form.phone.value.trim(),
+                    birthdate: form.birthdate.value || null,
+                }),
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    errorEl.textContent = data.message || 'Revisa los datos.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                // Ya quedó seleccionado en la sesión: de regreso a vender.
+                window.location.href = '{{ route("venta.index") }}';
+            })
+            .catch(() => {
+                errorEl.textContent = 'No se pudo registrar por la conexión.';
+                errorEl.classList.remove('hidden');
+            });
         });
     </script>
 </x-layouts.app>

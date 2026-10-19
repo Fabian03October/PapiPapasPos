@@ -54,7 +54,7 @@ class ThermalTicketBuilder
             $name = $item->qty . 'x ' . $item->product->name . ($item->variant ? ' (' . $item->variant->name . ')' : '');
             $this->row($name, $this->money($item->line_total));
 
-            foreach ($item->modifiers as $saleItemModifier) {
+            foreach ($item->orderedModifiers() as $saleItemModifier) {
                 if ($saleItemModifier->modifier) {
                     $this->row(
                         ' + ' . $saleItemModifier->modifier->name,
@@ -96,7 +96,7 @@ class ThermalTicketBuilder
         }
         $this->separator();
 
-        $this->text('Pago: ' . ($sale->payment_method === 'efectivo' ? 'Efectivo' : 'Tarjeta'));
+        $this->text('Pago: ' . Sale::paymentLabel($sale->payment_method));
         if ($sale->payment_method === 'efectivo' && $received !== null && $received >= (float) $sale->total) {
             $this->row('Recibido', $this->money($received));
             $this->row('Cambio', $this->money($received - (float) $sale->total));
@@ -115,11 +115,17 @@ class ThermalTicketBuilder
 
     public function forKitchen(Sale $sale): array
     {
-        $sale->loadMissing(['items.product', 'items.variant', 'items.modifiers.modifier.group']);
+        $sale->loadMissing(['items.product', 'items.variant', 'items.modifiers.modifier.group', 'customer', 'correctsSale']);
         $this->lines = [];
 
         $this->text('COMANDA', 'center', bold: true, size: 'big');
         $this->text('#' . $sale->folio, 'center', bold: true, size: 'big');
+        if ($sale->correctsSale) {
+            $this->text('CORRECCION de #' . $sale->correctsSale->folio, 'center', bold: true, underline: true);
+        }
+        if ($sale->customer) {
+            $this->text($sale->customer->name, 'center', bold: true, size: 'tall');
+        }
         $this->text($sale->created_at->format('H:i'), 'center');
         $this->separator();
 
@@ -134,12 +140,11 @@ class ThermalTicketBuilder
                 size: 'tall'
             );
 
-            foreach ($item->modifiers as $saleItemModifier) {
-                if (! $saleItemModifier->modifier) {
-                    continue;
-                }
-                $isExtra = $saleItemModifier->modifier->group?->name === 'Extras';
-                $this->text('  + ' . ($isExtra ? 'EXTRA ' : '') . $saleItemModifier->modifier->name, bold: $isExtra);
+            // Orden del negocio (presentación, Queso, Mayonesa...); extras en
+            // negrita y subrayado para que cocina no se los salte.
+            foreach ($item->orderedModifiers() as $saleItemModifier) {
+                $isExtra = $saleItemModifier->isExtra();
+                $this->text('  + ' . ($isExtra ? 'EXTRA ' : '') . $saleItemModifier->modifier->name, bold: $isExtra, underline: $isExtra);
             }
 
             if ($item->notes) {
@@ -150,15 +155,99 @@ class ThermalTicketBuilder
         return $this->lines;
     }
 
+    /** Corte de caja (mismos números que tickets/cierre-caja, vía CorteCajaService). */
+    public function forCashClose(\App\Models\CashSession $session): array
+    {
+        $c = (new CorteCajaService)->resumen($session);
+        $this->lines = [];
+        $diff = function (?float $value, string $label = '') {
+            if ($value !== null && abs($value) >= 0.01) {
+                $this->row(($value > 0 ? 'Sobra' : 'Falta') . $label, $this->money(abs($value)), bold: true);
+            }
+        };
+
+        $this->text(BusinessSettings::current()->name, 'center', bold: true, size: 'tall');
+        $this->text('CORTE DE CAJA', 'center', bold: true);
+        $this->separator();
+        $this->text('Apertura: ' . $session->opened_at->format('d/m/Y H:i'));
+        $this->text('Cierre: ' . ($session->closed_at?->format('d/m/Y H:i') ?? '-'));
+        $this->text('Abrió: ' . ($session->user?->name ?? '-'));
+        $this->text('Cerró: ' . ($session->closedByUser?->name ?? '-'));
+        $this->separator();
+
+        $this->text('1. FONDO DE CAJA', bold: true);
+        $this->row('Fondo inicial', $this->money($c['fondo']['esperado']));
+        if ($c['separado']) {
+            $this->row('Contado', $this->money($c['fondo']['contado']));
+            $diff($c['fondo']['diferencia']);
+        }
+        $this->separator();
+
+        $this->text('2. VENTAS DEL TURNO (' . $c['salesCount'] . ')', bold: true);
+        foreach ($c['porMetodo'] as $metodo) {
+            $this->row($metodo['label'] . ' (' . $metodo['count'] . ')', $this->money($metodo['total']));
+        }
+        $this->row('Total ventas', $this->money($c['ventasTotal']), bold: true);
+        if ($c['deshechas'] > 0) {
+            $this->row('Deshechas/corregidas', (string) $c['deshechas']);
+        }
+        $this->separator();
+
+        $this->text('3. DINERO DE VENTAS (EFECTIVO)', bold: true);
+        $this->row('Ventas en efectivo', $this->money($c['porMetodo']['efectivo']['total']));
+        if ($c['ingresos'] > 0) {
+            $this->row('+ Ingresos', $this->money($c['ingresos']));
+        }
+        if ($c['gastos'] > 0) {
+            $this->row('- Gastos', $this->money($c['gastos']));
+        }
+        $this->row('Esperado', $this->money($c['ventasEfectivo']['esperado']));
+        if ($c['separado']) {
+            $this->row('Contado', $this->money($c['ventasEfectivo']['contado']));
+            $diff($c['ventasEfectivo']['diferencia']);
+        }
+        $this->separator();
+
+        $this->text('4. TOTAL EN CAJA', bold: true);
+        $this->row('Fondo + ventas efectivo', $this->money($c['totalCaja']['esperado']));
+        if ($c['totalCaja']['contado'] !== null) {
+            $this->row('Contado', $this->money($c['totalCaja']['contado']), bold: true);
+            $this->row('Diferencia', $this->money($c['totalCaja']['diferencia']), bold: true);
+        }
+        if ($c['motivo']) {
+            $this->text('Motivo: ' . $c['motivo']);
+        }
+
+        if ($c['mermas']->isNotEmpty()) {
+            $this->separator();
+            $this->text('MERMAS DEL TURNO', bold: true);
+            foreach ($c['mermas'] as $merma) {
+                $this->row($merma->name, $this->money($merma->value));
+            }
+        }
+
+        $this->text('');
+        $this->text('');
+        $this->separator();
+        $this->text($session->closedByUser?->name ?? '-', 'center');
+        $this->text('Firma de quien cerró la caja', 'center');
+
+        return $this->lines;
+    }
+
     /**
      * Texto libre, partido en varios renglones si no cabe.
      */
-    protected function text(string $text, string $align = 'left', bool $bold = false, string $size = 'normal'): void
+    protected function text(string $text, string $align = 'left', bool $bold = false, string $size = 'normal', bool $underline = false): void
     {
         $width = $size === 'big' ? intdiv(self::COLUMNS, 2) : self::COLUMNS;
 
         foreach ($this->wrap($this->clean($text), $width) as $chunk) {
-            $this->lines[] = ['text' => $chunk, 'align' => $align, 'bold' => $bold, 'size' => $size];
+            $line = ['text' => $chunk, 'align' => $align, 'bold' => $bold, 'size' => $size];
+            if ($underline) {
+                $line['underline'] = true;
+            }
+            $this->lines[] = $line;
         }
     }
 

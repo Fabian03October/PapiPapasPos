@@ -49,6 +49,7 @@ class BusinessSettingsPage extends Page
             'iva_rate' => $settings->iva_rate,
             'thank_you_message' => $settings->thank_you_message,
             'personalize_thank_you' => $settings->personalize_thank_you,
+            'print_delay_seconds' => $settings->print_delay_seconds,
         ]);
     }
 
@@ -103,6 +104,18 @@ class BusinessSettingsPage extends Page
                             ->live()
                             ->helperText('Si la venta tiene un cliente identificado, se le pone su nombre (ej. "¡Gracias, Fabian, por tu compra!"). Si no hay cliente, siempre se usa el mensaje de arriba.')
                             ->columnSpanFull(),
+                    ]),
+
+                Section::make('Impresión')
+                    ->schema([
+                        TextInput::make('print_delay_seconds')
+                            ->label('Pausa entre comanda y ticket (segundos)')
+                            ->helperText('Se imprime primero la comanda de cocina y después el ticket del cliente. La pausa evita que la impresora térmica se sature o se atasque. Recomendado: 5 a 7.')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(0)
+                            ->maxValue(15)
+                            ->required(),
                     ]),
             ])
             ->statePath('data');

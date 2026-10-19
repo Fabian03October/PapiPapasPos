@@ -16,6 +16,7 @@ class BusinessSettings extends Model
         'iva_rate',
         'thank_you_message',
         'personalize_thank_you',
+        'print_delay_seconds',
     ];
 
     protected function casts(): array

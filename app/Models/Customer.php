@@ -11,12 +11,20 @@ class Customer extends Model
     protected $fillable = [
         'name',
         'phone',
+        'birthdate',
         'email',
         'qr_code',
         'current_level',
         'current_visits',
         'is_active',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'birthdate' => 'date',
+        ];
+    }
 
     protected static function booted(): void
     {

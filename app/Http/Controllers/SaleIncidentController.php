@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashSession;
 use App\Models\Sale;
 use App\Services\SaleIncidentService;
+use App\Services\SaleRevertService;
 use Illuminate\Http\Request;
 
 class SaleIncidentController extends Controller
@@ -14,13 +15,28 @@ class SaleIncidentController extends Controller
         $session = CashSession::whereNull('closed_at')->latest('opened_at')->first();
 
         $sales = $session
-            ? Sale::with(['items.product', 'items.modifiers.modifier', 'customer', 'incidents'])
+            ? Sale::with(['items.product', 'items.modifiers.modifier.group', 'customer', 'incidents', 'replacedBy', 'correctsSale', 'revertedByUser'])
                 ->where('cash_session_id', $session->id)
                 ->orderByDesc('created_at')
                 ->get()
             : collect();
 
         return view('venta.historial', compact('sales', 'session'));
+    }
+
+    /**
+     * Deshacer una venta: se deshace y su orden regresa para corregirla
+     * (ver SaleRevertService para las reglas).
+     */
+    public function undo(Request $request, Sale $sale, SaleRevertService $reverts)
+    {
+        $data = $request->validate(['reason' => 'required|string|min:3|max:255']);
+
+        if ($why = $reverts->whyNot($sale, $request->user())) {
+            return response()->json(['success' => false, 'message' => $why], 422);
+        }
+
+        return response()->json(['success' => true, 'order' => $reverts->revert($sale, $request->user(), $data['reason'])]);
     }
 
         public function store(Request $request, SaleIncidentService $service)

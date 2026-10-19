@@ -32,6 +32,11 @@ class CustomersTable
                 TextColumn::make('phone')
                     ->label('Teléfono')
                     ->searchable(),
+                TextColumn::make('birthdate')
+                    ->label('Cumpleaños')
+                    ->date('d/M')
+                    ->placeholder('—')
+                    ->sortable(),
                 TextColumn::make('email')
                     ->label('Correo')
                     ->searchable(),

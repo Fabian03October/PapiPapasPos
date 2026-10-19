@@ -36,7 +36,7 @@
 
                                     <div class="hidden md:flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 min-w-0">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium {{ $sale->payment_method === 'efectivo' ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400' }}">
-                                            {{ $sale->payment_method === 'efectivo' ? '💵 Efectivo' : '💳 Tarjeta' }}
+                                            {{ (\App\Models\Sale::PAYMENT_ICONS[$sale->payment_method] ?? '') . ' ' . \App\Models\Sale::paymentLabel($sale->payment_method) }}
                                         </span>
                                         @if ($sale->customer)
                                             <span class="truncate">{{ $sale->customer->name }}</span>
@@ -44,7 +44,11 @@
                                     </div>
 
                                     <div class="flex items-center justify-end md:justify-start gap-2">
-                                        @if ($sale->status === 'cancelada')
+                                        @if ($sale->revert_type === 'corregida')
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">Corregida → #{{ $sale->replacedBy?->folio }}</span>
+                                        @elseif ($sale->revert_type === 'deshecha')
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">Deshecha</span>
+                                        @elseif ($sale->status === 'cancelada')
                                             <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">Cancelada</span>
                                         @elseif ($sale->items->whereNotNull('cancelled_at')->isNotEmpty())
                                             <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">Con cancelación parcial</span>
@@ -55,6 +59,9 @@
                                         @endif
                                         @if ($sale->manual_discount > 0)
                                             <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400">Con descuento</span>
+                                        @endif
+                                        @if ($sale->correctsSale)
+                                            <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400">Corrige a #{{ $sale->correctsSale->folio }}</span>
                                         @endif
                                     </div>
 
@@ -71,13 +78,30 @@
                                 <div class="hidden border-t border-neutral-100 dark:border-neutral-800/70 px-4 py-3.5">
                                     <div class="flex items-center justify-between gap-2 mb-2">
                                         <p class="md:hidden text-xs text-neutral-500 dark:text-neutral-500">
-                                            {{ $sale->payment_method === 'efectivo' ? '💵 Efectivo' : '💳 Tarjeta' }}
+                                            {{ (\App\Models\Sale::PAYMENT_ICONS[$sale->payment_method] ?? '') . ' ' . \App\Models\Sale::paymentLabel($sale->payment_method) }}
                                             @if ($sale->customer) · {{ $sale->customer->name }} @endif
                                         </p>
-                                        <button type="button" class="reprint-btn ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1" data-sale-id="{{ $sale->id }}">
-                                            🖨 Reimprimir ticket
-                                        </button>
+                                        <div class="ml-auto flex flex-wrap items-center justify-end gap-3">
+                                            @if (! $sale->isReverted() && $sale->status === 'pagada' && $sale->items->whereNotNull('cancelled_at')->isEmpty())
+                                                <button type="button" class="undo-btn text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline" data-sale-id="{{ $sale->id }}" data-folio="{{ $sale->folio }}">
+                                                    ↶ Deshacer / corregir
+                                                </button>
+                                            @endif
+                                            <button type="button" class="reprint-comanda-btn text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline" data-sale-id="{{ $sale->id }}">
+                                                🍳 Reimprimir comanda
+                                            </button>
+                                            <button type="button" class="reprint-btn text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1" data-sale-id="{{ $sale->id }}">
+                                                🖨 Reimprimir ticket
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    @if ($sale->isReverted())
+                                        <p class="text-xs text-amber-700 dark:text-amber-400 mb-2">
+                                            {{ $sale->revert_type === 'corregida' ? 'Corregida' : 'Deshecha' }}
+                                            por {{ $sale->revertedByUser?->name ?? '-' }} a las {{ $sale->reverted_at?->format('H:i') }}: {{ $sale->revert_reason }}
+                                        </p>
+                                    @endif
 
                                     <div class="flex flex-col gap-1.5 mb-1">
                                         @foreach ($sale->items as $item)
@@ -337,6 +361,55 @@
                 } else {
                     Toast.show(data.message || 'Ocurrió un error.', 'error');
                 }
+            });
+        });
+
+        document.querySelectorAll('.reprint-comanda-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const saleId = btn.dataset.saleId;
+                btn.disabled = true;
+                try {
+                    if (window.ImpresoraBT && ImpresoraBT.isEnabled()) {
+                        if (!ImpresoraBT.isConnected()) await ImpresoraBT.conectar();
+                        await ImpresoraBT.imprimirComanda(saleId);
+                    } else {
+                        await PrintDocs.printUrl(`/venta/${saleId}/comanda`);
+                    }
+                    Toast.show('Comanda reimpresa.');
+                } catch (err) {
+                    if (err.name !== 'NotFoundError') Toast.show('No se pudo imprimir: ' + err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
+
+        // Deshacer / corregir: la venta se deshace y su orden regresa al
+        // carrito de "Vender" para corregirla y volver a cobrarla.
+        document.querySelectorAll('.undo-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const reason = prompt(`¿Por qué se deshace la venta #${btn.dataset.folio}?\n(ej. Error de captura, El cliente cambió de opinión, Método de pago equivocado)`, 'Error de captura');
+                if (reason === null) return;
+                if (reason.trim().length < 3) {
+                    Toast.show('Escribe el motivo.', 'error');
+                    return;
+                }
+
+                fetch(`/venta/${btn.dataset.saleId}/deshacer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                    body: JSON.stringify({ reason: reason.trim() }),
+                })
+                .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        Toast.show(data.message || 'No se pudo deshacer.', 'error');
+                        return;
+                    }
+                    try { sessionStorage.setItem('papispapas_orden_a_corregir', JSON.stringify(data.order)); } catch (e) {}
+                    window.location.href = '{{ route("venta.index") }}';
+                })
+                .catch(() => Toast.show('No se pudo deshacer por la conexión.', 'error'));
             });
         });
     </script>

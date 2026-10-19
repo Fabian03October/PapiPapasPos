@@ -21,6 +21,12 @@
                 <input type="tel" name="phone" value="{{ old('phone') }}" required inputmode="numeric" maxlength="10" placeholder="55 1234 5678"
                     class="w-full h-12 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
             </div>
+            <div>
+                <label class="text-sm text-neutral-500 dark:text-neutral-400 block mb-1.5">Cumpleaños <span class="text-neutral-400">· opcional</span></label>
+                <input type="date" name="birthdate" value="{{ old('birthdate') }}" max="{{ now()->toDateString() }}"
+                    class="w-full h-12 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                @error('birthdate')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+            </div>
 
             <x-button type="submit">Registrarme</x-button>
 

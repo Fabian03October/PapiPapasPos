@@ -569,6 +569,7 @@
             bytes.push(
                 ESC, 0x61, ALIGN[line.align] ?? 0,
                 ESC, 0x45, line.bold ? 1 : 0,
+                ESC, 0x2d, line.underline ? 1 : 0, // subrayado (extras en la comanda)
                 GS, 0x21, SIZE[line.size] ?? 0,
                 ...textBytes(line.text || ''),
                 LF
@@ -576,7 +577,7 @@
         }
 
         // Sin cortador: 4 renglones en blanco para poder arrancar el papel.
-        bytes.push(ESC, 0x61, 0, ESC, 0x45, 0, GS, 0x21, 0, LF, LF, LF, LF);
+        bytes.push(ESC, 0x61, 0, ESC, 0x45, 0, ESC, 0x2d, 0, GS, 0x21, 0, LF, LF, LF, LF);
 
         return new Uint8Array(bytes);
     }
@@ -621,14 +622,37 @@
     }
 
     /** Ticket (y comanda, si está activado) de una venta ya guardada. */
-    async function imprimirVenta(saleId, { recibido = null, comanda = config.printComanda } = {}) {
+    /**
+     * Comanda (para cocina, primero) y ticket del cliente de una venta.
+     * Entre uno y otro se hace la pausa configurada en "Datos del negocio"
+     * (5-7 s por default) para que la térmica no se sature y se atasque.
+     */
+    async function imprimirVenta(saleId, { recibido = null, comanda = config.printComanda, ticket = true } = {}) {
         const url = `/venta/${saleId}/impresion-bluetooth` + (recibido !== null ? `?recibido=${encodeURIComponent(recibido)}` : '');
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error('No se pudo obtener el ticket (' + res.status + ')');
         const data = await res.json();
 
-        await imprimir(data.ticket);
-        if (comanda) await imprimir(data.comanda);
+        const docs = [];
+        if (comanda) docs.push(data.comanda);
+        if (ticket) docs.push(data.ticket);
+
+        for (let i = 0; i < docs.length; i++) {
+            if (i > 0) await sleep((data.delay_seconds ?? 6) * 1000);
+            await imprimir(docs[i]);
+        }
+    }
+
+    /** Solo la comanda (para reimprimirla a cocina). */
+    function imprimirComanda(saleId) {
+        return imprimirVenta(saleId, { comanda: true, ticket: false });
+    }
+
+    /** Corte de caja al cerrar el turno. */
+    async function imprimirCorte(sessionId) {
+        const res = await fetch(`/caja/${sessionId}/reporte-cierre-bluetooth`, { headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error('No se pudo obtener el corte (' + res.status + ')');
+        await imprimir((await res.json()).ticket);
     }
 
     /**
@@ -772,7 +796,7 @@
     window.ImpresoraBT = {
         isSupported, isEnabled, isConnected, deviceName, onChange,
         conectar, reconectarSiSePuede, olvidar, caracteristicas, usarCaracteristica,
-        imprimir, imprimirVenta, encode, config, isStation, setStation,
+        imprimir, imprimirVenta, imprimirComanda, imprimirCorte, encode, config, isStation, setStation,
         eventos, limpiarEventos: () => set(KEYS.events, null), esPrincipal, encolar, pendientes,
     };
 

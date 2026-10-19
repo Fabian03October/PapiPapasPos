@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\CashMovement;
 use App\Models\CashSession;
+use App\Models\CashSessionDenomination;
 use App\Models\Ingredient;
 use App\Models\InventoryCount;
 use App\Models\InventoryCountItem;
 use App\Models\InventoryMovement;
+use App\Services\CorteCajaService;
+use App\Services\ThermalTicketBuilder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CajaController extends Controller
 {
@@ -22,8 +26,16 @@ class CajaController extends Controller
             ->latest('closed_at')
             ->first();
 
+        // Se propone el fondo que se dejó en la caja al cerrar el turno
+        // anterior (o su fondo inicial, si se cerró antes de que existiera el
+        // conteo separado). Sin turnos anteriores, no hay qué proponer.
+        $fondoSugerido = $ultimaCerrada
+            ? (float) ($ultimaCerrada->fund_counted_amount ?? $ultimaCerrada->opening_amount)
+            : null;
+
         return view('caja.abrir', [
             'ultimaCerrada' => $ultimaCerrada,
+            'fondoSugerido' => $fondoSugerido,
         ]);
     }
 
@@ -61,6 +73,7 @@ class CajaController extends Controller
 
         $cashSales = $session->sales()->where('payment_method', 'efectivo')->sum('total');
         $cardSales = $session->sales()->where('payment_method', 'tarjeta')->sum('total');
+        $transferSales = $session->sales()->where('payment_method', 'transferencia')->sum('total');
         $ingresos = $session->movements()->where('type', 'ingreso')->sum('amount');
         $gastos = $session->movements()->where('type', 'gasto')->sum('amount');
 
@@ -68,10 +81,27 @@ class CajaController extends Controller
             'session' => $session,
             'cashSales' => $cashSales,
             'cardSales' => $cardSales,
+            'transferSales' => $transferSales,
             'ingresos' => $ingresos,
             'gastos' => $gastos,
             'expected' => $session->calculateExpectedCash(),
         ]);
+    }
+
+    /** Corregir el fondo inicial durante el turno (si se capturó mal al abrir). */
+    public function updateFund(Request $request)
+    {
+        $request->validate(['opening_amount' => 'required|numeric|min:0|max:999999']);
+
+        $session = CashSession::open();
+
+        if (! $session) {
+            return response()->json(['success' => false, 'message' => 'No hay una caja abierta'], 422);
+        }
+
+        $session->update(['opening_amount' => $request->opening_amount]);
+
+        return response()->json(['success' => true]);
     }
 
     public function addMovement(Request $request)
@@ -206,16 +236,32 @@ class CajaController extends Controller
 
         return view('caja.cerrar', [
             'session' => $session,
-            'expected' => $session->calculateExpectedCash(),
+            'fundExpected' => (float) $session->opening_amount,
+            'salesExpected' => $session->salesCashExpected(),
+            'cashSales' => (float) $session->sales()->where('payment_method', 'efectivo')->sum('total'),
+            'ingresos' => (float) $session->movements()->where('type', 'ingreso')->sum('amount'),
+            'gastos' => (float) $session->movements()->where('type', 'gasto')->sum('amount'),
         ]);
     }
 
+    /**
+     * Cierre con dos conteos: el fondo y el dinero de las ventas. Cada uno
+     * llega como "cuadra" (matches) o con su desglose de billetes y monedas.
+     */
     public function closeStore(Request $request)
     {
         $request->validate([
-            'denominations' => 'required|array',
-            'denominations.*.value' => 'required|numeric',
-            'denominations.*.qty' => 'required|integer|min:0',
+            'fund' => 'required|array',
+            'fund.matches' => 'required|boolean',
+            'fund.denominations' => 'array',
+            'fund.denominations.*.value' => 'required|numeric|min:0',
+            'fund.denominations.*.qty' => 'required|integer|min:0',
+            'sales' => 'required|array',
+            'sales.matches' => 'required|boolean',
+            'sales.denominations' => 'array',
+            'sales.denominations.*.value' => 'required|numeric|min:0',
+            'sales.denominations.*.qty' => 'required|integer|min:0',
+            'difference_reason' => 'nullable|string|max:255',
         ]);
 
         $session = CashSession::open();
@@ -228,29 +274,65 @@ class CajaController extends Controller
             return response()->json(['success' => false, 'message' => 'Falta registrar el conteo físico de inventario'], 422);
         }
 
-        $countedAmount = 0;
+        $fundExpected = round((float) $session->opening_amount, 2);
+        $salesExpected = $session->salesCashExpected();
 
-        foreach ($request->denominations as $row) {
-            if ($row['qty'] > 0) {
-                \App\Models\CashSessionDenomination::create([
-                    'cash_session_id' => $session->id,
-                    'denomination_value' => $row['value'],
-                    'quantity' => $row['qty'],
-                ]);
+        $contar = function (array $part, float $expected): float {
+            if ($part['matches']) {
+                return $expected;
             }
-            $countedAmount += $row['value'] * $row['qty'];
+
+            return round(collect($part['denominations'] ?? [])->sum(fn ($row) => $row['value'] * $row['qty']), 2);
+        };
+
+        $fundCounted = $contar($request->fund, $fundExpected);
+        $salesCounted = $contar($request->sales, $salesExpected);
+        $fundDifference = round($fundCounted - $fundExpected, 2);
+        $salesDifference = round($salesCounted - $salesExpected, 2);
+
+        if ((abs($fundDifference) >= 0.01 || abs($salesDifference) >= 0.01) && blank($request->difference_reason)) {
+            return response()->json(['success' => false, 'message' => 'Escribe por qué no cuadra.'], 422);
         }
 
-        $expected = $session->calculateExpectedCash();
-        $difference = $countedAmount - $expected;
+        $closed = DB::transaction(function () use ($request, $session, $fundExpected, $salesExpected, $fundCounted, $salesCounted, $fundDifference, $salesDifference) {
+            // Solo se cierra si sigue abierta (un doble toque no cierra dos veces).
+            $updated = CashSession::whereKey($session->id)->whereNull('closed_at')->update([
+                'expected_amount' => round($fundExpected + $salesExpected, 2),
+                'counted_amount' => round($fundCounted + $salesCounted, 2),
+                'difference' => round($fundDifference + $salesDifference, 2),
+                'fund_counted_amount' => $fundCounted,
+                'fund_difference' => $fundDifference,
+                'sales_expected_amount' => $salesExpected,
+                'sales_counted_amount' => $salesCounted,
+                'sales_difference' => $salesDifference,
+                'difference_reason' => $request->difference_reason,
+                'closed_at' => now(),
+                'closed_by' => auth()->id(),
+            ]);
 
-        $session->update([
-            'expected_amount' => $expected,
-            'counted_amount' => $countedAmount,
-            'difference' => $difference,
-            'closed_at' => now(),
-            'closed_by' => auth()->id(),
-        ]);
+            if (! $updated) {
+                return false;
+            }
+
+            foreach (['fondo' => $request->fund, 'ventas' => $request->sales] as $kind => $part) {
+                foreach ($part['denominations'] ?? [] as $row) {
+                    if ($row['qty'] > 0) {
+                        CashSessionDenomination::create([
+                            'cash_session_id' => $session->id,
+                            'kind' => $kind,
+                            'denomination_value' => $row['value'],
+                            'quantity' => $row['qty'],
+                        ]);
+                    }
+                }
+            }
+
+            return true;
+        });
+
+        if (! $closed) {
+            return response()->json(['success' => false, 'message' => 'Esta caja ya se había cerrado.'], 422);
+        }
 
         return response()->json([
             'success' => true,
@@ -259,54 +341,14 @@ class CajaController extends Controller
         ]);
     }
 
-    public function reporteCierre(CashSession $session)
+    public function reporteCierre(CashSession $session, CorteCajaService $corte)
     {
-        $session->load(['user', 'closedByUser']);
+        return view('tickets.cierre-caja', $corte->resumen($session));
+    }
 
-        $sales = $session->sales()->where('status', '!=', 'cancelada')->get();
-        $cashSales = $sales->where('payment_method', 'efectivo');
-        $cardSales = $sales->where('payment_method', 'tarjeta');
-
-        $ingresos = $session->movements()->where('type', 'ingreso')->sum('amount');
-        $gastos = $session->movements()->where('type', 'gasto')->sum('amount');
-
-        $lowStock = Ingredient::where('is_active', true)
-            ->whereColumn('stock_qty', '<=', 'min_stock')
-            ->orderBy('stock_qty')
-            ->get();
-
-        $mermas = InventoryMovement::where('type', 'merma')
-            ->whereBetween('created_at', [$session->opened_at, $session->closed_at ?? now()])
-            ->with('ingredient')
-            ->get()
-            ->filter(fn ($movement) => $movement->ingredient !== null)
-            ->groupBy('ingredient_id')
-            ->map(function ($movements) {
-                $ingredient = $movements->first()->ingredient;
-
-                return (object) [
-                    'name' => $ingredient->name,
-                    'unit' => $ingredient->unit,
-                    'qty' => $movements->sum(fn ($m) => abs($m->qty)),
-                    'value' => $movements->sum(fn ($m) => abs($m->qty) * (float) $m->unit_cost),
-                ];
-            })
-            ->sortByDesc('value')
-            ->values();
-
-        return view('tickets.cierre-caja', [
-            'session' => $session,
-            'salesCount' => $sales->count(),
-            'cashCount' => $cashSales->count(),
-            'cashTotal' => $cashSales->sum('total'),
-            'cardCount' => $cardSales->count(),
-            'cardTotal' => $cardSales->sum('total'),
-            'grandTotal' => $sales->sum('total'),
-            'ingresos' => $ingresos,
-            'gastos' => $gastos,
-            'lowStock' => $lowStock,
-            'mermas' => $mermas,
-            'mermasTotal' => $mermas->sum('value'),
-        ]);
+    /** El corte para la impresora Bluetooth (impresora-bt.js), a 32 columnas. */
+    public function reporteCierreBluetooth(CashSession $session, ThermalTicketBuilder $builder)
+    {
+        return response()->json(['ticket' => $builder->forCashClose($session)]);
     }
 }

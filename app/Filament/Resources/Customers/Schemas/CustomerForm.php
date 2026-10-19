@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Customers\Schemas;
 
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
@@ -18,6 +19,12 @@ class CustomerForm
                 TextInput::make('phone')
                     ->label('Teléfono')
                     ->tel(),
+                DatePicker::make('birthdate')
+                    ->label('Cumpleaños')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->maxDate(now())
+                    ->minDate(now()->subYears(110)),
                 TextInput::make('email')
                     ->label('Correo')
                     ->email(),

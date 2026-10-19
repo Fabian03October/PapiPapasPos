@@ -45,6 +45,10 @@ class ModifiersRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('name')
+            // Arrastrar para ordenar (Queso, Mayonesa, Kétchup...): es el
+            // orden en la pantalla de venta y en la comanda.
+            ->reorderable('sort_order')
+            ->defaultSort('sort_order')
             ->columns([
                 TextColumn::make('name')
                     ->label('Nombre')

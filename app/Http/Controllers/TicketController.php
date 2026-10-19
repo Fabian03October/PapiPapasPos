@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BusinessSettings;
 use App\Models\Sale;
 use App\Services\ThermalTicketBuilder;
 use Illuminate\Http\Request;
@@ -35,6 +36,8 @@ class TicketController extends Controller
         return response()->json([
             'ticket' => $builder->forSale($sale, $received),
             'comanda' => $builder->forKitchen($sale),
+            // Pausa entre comanda y ticket (configurable en "Datos del negocio").
+            'delay_seconds' => max(0, min(15, (int) BusinessSettings::current()->print_delay_seconds)),
         ]);
     }
 

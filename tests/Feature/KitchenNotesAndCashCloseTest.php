@@ -85,7 +85,8 @@ class KitchenNotesAndCashCloseTest extends TestCase
         $this->actingAs($this->cajero)->get('/caja/cerrar')->assertOk();
 
         $this->actingAs($this->cajero)->postJson('/caja/cerrar', [
-            'denominations' => [['value' => 500, 'qty' => 1]],
+            'fund' => ['matches' => true],
+            'sales' => ['matches' => true],
         ])->assertOk()->assertJson(['success' => true]);
 
         $this->assertNotNull($session->fresh()->closed_at);

@@ -21,4 +21,13 @@ class SaleItemModifier extends Model
     {
         return $this->belongsTo(Modifier::class);
     }
+
+    /**
+     * Los extras (grupo "Extras") van destacados en la comanda: negrita y
+     * subrayado, para que cocina no se los salte.
+     */
+    public function isExtra(): bool
+    {
+        return str_contains(mb_strtolower(trim((string) $this->modifier?->group?->name)), 'extra');
+    }
 }

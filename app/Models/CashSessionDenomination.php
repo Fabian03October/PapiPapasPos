@@ -8,6 +8,7 @@ class CashSessionDenomination extends Model
 {
     protected $fillable = [
         'cash_session_id',
+        'kind',
         'denomination_value',
         'quantity',
     ];

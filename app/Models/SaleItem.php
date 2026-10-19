@@ -55,6 +55,28 @@ class SaleItem extends Model
         return $this->hasMany(SaleItemModifier::class);
     }
 
+    /**
+     * Los extras/aderezos en el orden canónico del negocio (el de la venta y
+     * la comanda): primero los grupos obligatorios (la presentación: Domo,
+     * Charola...), luego por el orden de cada grupo y, dentro del grupo, por
+     * el orden de cada aderezo (Queso, Mayonesa, Kétchup...). Se configura en
+     * el admin, arrastrando.
+     */
+    public function orderedModifiers(): \Illuminate\Support\Collection
+    {
+        $this->loadMissing('modifiers.modifier.group');
+
+        return $this->modifiers
+            ->filter(fn (SaleItemModifier $m) => $m->modifier !== null)
+            ->sortBy(fn (SaleItemModifier $m) => [
+                $m->modifier->group?->is_required ? 0 : 1,
+                $m->modifier->group?->sort_order ?? PHP_INT_MAX,
+                $m->modifier->sort_order ?? 0,
+                $m->modifier->id,
+            ])
+            ->values();
+    }
+
     protected function casts(): array
     {
         return [

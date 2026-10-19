@@ -15,6 +15,12 @@ class CashSession extends Model
         'expected_amount',
         'counted_amount',
         'difference',
+        'fund_counted_amount',
+        'fund_difference',
+        'sales_expected_amount',
+        'sales_counted_amount',
+        'sales_difference',
+        'difference_reason',
     ];
 
     protected function casts(): array
@@ -55,12 +61,23 @@ class CashSession extends Model
         return static::whereNull('closed_at')->latest('opened_at')->first();
     }
 
-    public function calculateExpectedCash(): float
+    /**
+     * El dinero de las ventas que debe haber en la caja (sin el fondo):
+     * ventas en efectivo + ingresos − gastos. Las ventas canceladas o
+     * deshechas ya tienen total 0.
+     */
+    public function salesCashExpected(): float
     {
         $cashSales = $this->sales()->where('payment_method', 'efectivo')->sum('total');
         $ingresos = $this->movements()->where('type', 'ingreso')->sum('amount');
         $gastos = $this->movements()->where('type', 'gasto')->sum('amount');
 
-        return (float) $this->opening_amount + (float) $cashSales + (float) $ingresos - (float) $gastos;
+        return round((float) $cashSales + (float) $ingresos - (float) $gastos, 2);
+    }
+
+    /** Todo el efectivo que debe haber: fondo + dinero de las ventas. */
+    public function calculateExpectedCash(): float
+    {
+        return round((float) $this->opening_amount + $this->salesCashExpected(), 2);
     }
 }

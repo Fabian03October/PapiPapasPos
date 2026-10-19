@@ -15,6 +15,9 @@ class ModifierGroupsTable
     public static function configure(Table $table): Table
     {
         return $table
+            // Arrastrar para ordenar los grupos (la presentación, que es
+            // obligatoria, siempre sale primero de todos modos).
+            ->reorderable('sort_order')
             ->defaultSort('sort_order')
             ->columns([
                 TextColumn::make('name')

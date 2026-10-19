@@ -21,6 +21,7 @@ class FinancialStatsOverview extends BaseWidget
             Stat::make('Ticket promedio', '$' . number_format($totals['average_ticket'], 2)),
             Stat::make('Efectivo', '$' . number_format($totals['cash'], 2)),
             Stat::make('Tarjeta', '$' . number_format($totals['card'], 2)),
+            Stat::make('Transferencia', '$' . number_format($totals['transfer'], 2)),
         ];
     }
 }
