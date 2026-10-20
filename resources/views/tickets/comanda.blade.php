@@ -28,7 +28,7 @@
     @foreach ($sale->items as $item)
         @continue($item->cancelled_at)
         <p class="item">{{ $item->qty }}x {{ $item->product->name }}{{ $item->variant ? ' (' . $item->variant->name . ')' : '' }}</p>
-        {{-- En el orden del negocio: presentación, Queso, Mayonesa, Kétchup... (ver SaleItem::orderedModifiers) --}}
+        {{-- En el orden del negocio: Queso, presentación, Mayonesa, Kétchup... (ver SaleItem::orderedModifiers) --}}
         @foreach ($item->orderedModifiers() as $saleItemModifier)
             @if ($saleItemModifier->isExtra())
                 <p class="mod-extra">+ EXTRA {{ $saleItemModifier->modifier->name }}</p>

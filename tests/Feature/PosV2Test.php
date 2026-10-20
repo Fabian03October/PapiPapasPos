@@ -104,12 +104,12 @@ class PosV2Test extends TestCase
 
         $this->actingAs($this->cajero)->get("/venta/{$sale->id}/comanda")
             ->assertOk()
-            ->assertSeeInOrder(['Ana López', '+ Domo', '+ Queso', '+ Mayonesa', 'EXTRA Salchicha', 'NOTA: sin sal']);
+            ->assertSeeInOrder(['Ana López', '+ Queso', '+ Domo', '+ Mayonesa', 'EXTRA Salchicha', 'NOTA: sin sal']);
 
         $lines = (new ThermalTicketBuilder)->forKitchen($sale);
         $texts = array_column($lines, 'text');
         $this->assertContains('Ana López', $texts);
-        $this->assertSame(['  + Domo', '  + Queso', '  + Mayonesa', '  + EXTRA Salchicha'],
+        $this->assertSame(['  + Queso', '  + Domo', '  + Mayonesa', '  + EXTRA Salchicha'],
             array_values(array_filter($texts, fn ($t) => str_starts_with($t, '  + '))));
         $extra = collect($lines)->firstWhere('text', '  + EXTRA Salchicha');
         $this->assertTrue($extra['bold'] && ($extra['underline'] ?? false));
@@ -148,7 +148,7 @@ class PosV2Test extends TestCase
             ->assertOk()->json('order');
 
         $this->assertSame($original->id, $order['sale_id']);
-        $this->assertSame(['Domo', 'Queso', 'Mayonesa'], $order['items'][0]['modifierNames']);
+        $this->assertSame(['Queso', 'Domo', 'Mayonesa'], $order['items'][0]['modifierNames']);
         $this->assertSame('sin sal', $order['items'][0]['notes']);
         $original->refresh();
         $this->assertSame('deshecha', $original->revert_type);

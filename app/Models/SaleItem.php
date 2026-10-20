@@ -69,12 +69,21 @@ class SaleItem extends Model
         return $this->modifiers
             ->filter(fn (SaleItemModifier $m) => $m->modifier !== null)
             ->sortBy(fn (SaleItemModifier $m) => [
+                // Pedido del negocio: el Queso va siempre hasta arriba en la
+                // comanda, incluso antes que la presentación.
+                self::isQueso($m->modifier->name) ? 0 : 1,
                 $m->modifier->group?->is_required ? 0 : 1,
                 $m->modifier->group?->sort_order ?? PHP_INT_MAX,
                 $m->modifier->sort_order ?? 0,
                 $m->modifier->id,
             ])
             ->values();
+    }
+
+    /** "Queso" tal cual (sin importar mayúsculas/espacios); "Extra queso" no cuenta. */
+    public static function isQueso(?string $name): bool
+    {
+        return mb_strtolower(trim((string) $name)) === 'queso';
     }
 
     protected function casts(): array
