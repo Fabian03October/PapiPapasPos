@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\CustomerLoyaltyRedemption;
 use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Modifier;
@@ -17,6 +18,7 @@ use App\Models\SaleItemModifier;
 use App\Services\LoyaltyService;
 use App\Services\ManualDiscountService;
 use App\Services\PromotionService;
+use App\Services\SaleRevertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,8 +27,8 @@ class SaleController extends Controller
 {
     /**
      * @param  bool  $soloDisponibles  Rechazar productos, variantes o extras
-     *         desactivados (false solo para el regalo de fidelidad, que lo
-     *         agrega el sistema).
+     *                                 desactivados (false solo para el regalo de fidelidad, que lo
+     *                                 agrega el sistema).
      */
     protected function buildItemsData(array $requestItems, bool $soloDisponibles = true): array
     {
@@ -282,7 +284,7 @@ class SaleController extends Controller
      * pendiente más viejo del cliente (de una visita anterior que no se
      * canjeó en el momento), si tiene uno sin vencer.
      *
-     * @return array{0: ?array, 1: ?\App\Models\CustomerLoyaltyRedemption}
+     * @return array{0: ?array, 1: ?CustomerLoyaltyRedemption}
      */
     protected function resolveReward(LoyaltyService $loyaltyService, Customer $customer, array $loyaltyPreview, float $baseAmount, array $itemsData): array
     {
@@ -305,9 +307,10 @@ class SaleController extends Controller
     {
         $request->validate([
             ...$this->itemRules(),
-            'payment_method' => 'required|in:' . implode(',', array_keys(Sale::PAYMENT_METHODS)),
+            'payment_method' => 'required|in:'.implode(',', array_keys(Sale::PAYMENT_METHODS)),
             'redeem_reward' => 'nullable|boolean',
             'corrects_sale_id' => 'nullable|integer|exists:sales,id',
+            'amount_received' => 'nullable|numeric|min:0|max:1000000',
         ]);
 
         $cashSession = CashSession::open();
@@ -361,7 +364,7 @@ class SaleController extends Controller
             if (! $ingredient || $ingredient->stock_qty < $neededQty) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No hay suficiente inventario de "' . ($ingredient->name ?? 'un insumo') . '" para completar esta venta.',
+                    'message' => 'No hay suficiente inventario de "'.($ingredient->name ?? 'un insumo').'" para completar esta venta.',
                 ], 422);
             }
         }
@@ -379,6 +382,11 @@ class SaleController extends Controller
                 'discount_breakdown' => $breakdown ?: null,
                 'total' => $total,
                 'payment_method' => $request->payment_method,
+                // Efectivo: con cuánto pagó (nunca menos que el total; si no
+                // llegó el dato o es menor, se cobró exacto).
+                'amount_received' => $request->payment_method === 'efectivo'
+                    ? max((float) $total, (float) ($request->amount_received ?? 0))
+                    : null,
             ]);
 
             $sale->update(['folio' => str_pad($sale->id, 4, '0', STR_PAD_LEFT)]);
@@ -445,7 +453,7 @@ class SaleController extends Controller
 
             if ($original && $original->revert_type === 'deshecha' && ! $original->replaced_by_sale_id
                 && $original->cash_session_id === $sale->cash_session_id) {
-                app(\App\Services\SaleRevertService::class)->linkCorrection($original, $sale);
+                app(SaleRevertService::class)->linkCorrection($original, $sale);
             }
         }
 

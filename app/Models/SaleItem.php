@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\ManualDiscountService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class SaleItem extends Model
 {
@@ -62,17 +63,18 @@ class SaleItem extends Model
      * el orden de cada aderezo (Queso, Mayonesa, Kétchup...). Se configura en
      * el admin, arrastrando.
      */
-    public function orderedModifiers(): \Illuminate\Support\Collection
+    public function orderedModifiers(): Collection
     {
         $this->loadMissing('modifiers.modifier.group');
 
         return $this->modifiers
             ->filter(fn (SaleItemModifier $m) => $m->modifier !== null)
             ->sortBy(fn (SaleItemModifier $m) => [
-                // Pedido del negocio: el Queso va siempre hasta arriba en la
-                // comanda, incluso antes que la presentación.
-                self::isQueso($m->modifier->name) ? 0 : 1,
+                // Primero la presentación (grupo obligatorio); justo después
+                // el Queso, antes que cualquier otro aderezo o salsa; luego
+                // todo lo demás en el orden del catálogo.
                 $m->modifier->group?->is_required ? 0 : 1,
+                self::isQueso($m->modifier->name) ? 0 : 1,
                 $m->modifier->group?->sort_order ?? PHP_INT_MAX,
                 $m->modifier->sort_order ?? 0,
                 $m->modifier->id,

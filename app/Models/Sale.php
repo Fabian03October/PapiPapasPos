@@ -41,6 +41,7 @@ class Sale extends Model
         'discount_breakdown',
         'total',
         'payment_method',
+        'amount_received',
     ];
 
     public function user()
@@ -85,9 +86,22 @@ class Sale extends Model
         return $this->revert_type !== null;
     }
 
-        public function incidents()
+    public function incidents()
     {
         return $this->hasMany(SaleIncident::class);
+    }
+
+    /**
+     * Con cuánto pagó en efectivo, para "Recibido / Cambio" en el ticket.
+     * $override es lo que mandó la pantalla al cobrar (impresión al
+     * momento); si no, lo guardado en la venta. Nunca menos que el total.
+     * Ventas anteriores a que se guardara (null) no lo muestran: no se sabe.
+     */
+    public function cashReceived(?float $override = null): ?float
+    {
+        $paid = $override ?? ($this->amount_received !== null ? (float) $this->amount_received : null);
+
+        return $paid === null ? null : max($paid, (float) $this->total);
     }
 
     protected function casts(): array

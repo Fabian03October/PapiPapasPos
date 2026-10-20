@@ -97,6 +97,12 @@
     <div class="line"></div>
 
     <p>Pago: {{ \App\Models\Sale::paymentLabel($sale->payment_method) }}</p>
+    @if ($sale->payment_method === 'efectivo' && ($paid = $sale->cashReceived()) !== null)
+        <table>
+            <tr><td>Recibido</td><td class="right">${{ number_format($paid, 2) }}</td></tr>
+            <tr><td>Cambio</td><td class="right">${{ number_format($paid - (float) $sale->total, 2) }}</td></tr>
+        </table>
+    @endif
 
     <p class="center" style="margin-top: 8px;">
         @if ($business->personalize_thank_you && $sale->customer)

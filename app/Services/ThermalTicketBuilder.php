@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BusinessSettings;
+use App\Models\CashSession;
 use App\Models\Sale;
 
 /**
@@ -38,11 +39,11 @@ class ThermalTicketBuilder
         $this->text('Ticket de venta', 'center');
         $this->separator();
 
-        $this->text('Folio: #' . $sale->folio);
-        $this->text('Fecha: ' . $sale->created_at->format('d/m/Y H:i'));
-        $this->text('Cajero: ' . ($sale->user->name ?? '-'));
+        $this->text('Folio: #'.$sale->folio);
+        $this->text('Fecha: '.$sale->created_at->format('d/m/Y H:i'));
+        $this->text('Cajero: '.($sale->user->name ?? '-'));
         if ($sale->customer) {
-            $this->text('Cliente: ' . $sale->customer->name);
+            $this->text('Cliente: '.$sale->customer->name);
         }
         $this->separator();
 
@@ -51,20 +52,20 @@ class ThermalTicketBuilder
                 continue;
             }
 
-            $name = $item->qty . 'x ' . $item->product->name . ($item->variant ? ' (' . $item->variant->name . ')' : '');
+            $name = $item->qty.'x '.$item->product->name.($item->variant ? ' ('.$item->variant->name.')' : '');
             $this->row($name, $this->money($item->line_total));
 
             foreach ($item->orderedModifiers() as $saleItemModifier) {
                 if ($saleItemModifier->modifier) {
                     $this->row(
-                        ' + ' . $saleItemModifier->modifier->name,
+                        ' + '.$saleItemModifier->modifier->name,
                         $saleItemModifier->price_delta > 0 ? $this->money($saleItemModifier->price_delta * $item->qty) : ''
                     );
                 }
             }
 
             if ($label = $item->manualDiscountLabel()) {
-                $this->row(' ' . $label, '-' . $this->money($item->manual_discount));
+                $this->row(' '.$label, '-'.$this->money($item->manual_discount));
             }
         }
         $this->separator();
@@ -78,13 +79,13 @@ class ThermalTicketBuilder
 
                     continue;
                 }
-                $this->row($line['label'], '-' . $this->money($line['amount']));
+                $this->row($line['label'], '-'.$this->money($line['amount']));
             }
             if ($productDiscounts > 0) {
-                $this->row('Desc. en productos', '-' . $this->money($productDiscounts));
+                $this->row('Desc. en productos', '-'.$this->money($productDiscounts));
             }
         } elseif ($sale->discount > 0) {
-            $this->row('Descuento', '-' . $this->money($sale->discount));
+            $this->row('Descuento', '-'.$this->money($sale->discount));
         }
         $this->row('TOTAL', $this->money($sale->total), bold: true);
 
@@ -92,20 +93,20 @@ class ThermalTicketBuilder
             // Mismo cálculo que tickets.venta: 16% directo sobre el total.
             $ivaRate = (float) $business->iva_rate;
             $rateLabel = rtrim(rtrim(number_format($ivaRate, 2), '0'), '.');
-            $this->text('(IVA incluido (' . $rateLabel . '%): ' . $this->money($sale->total * $ivaRate / 100) . ')');
+            $this->text('(IVA incluido ('.$rateLabel.'%): '.$this->money($sale->total * $ivaRate / 100).')');
         }
         $this->separator();
 
-        $this->text('Pago: ' . Sale::paymentLabel($sale->payment_method));
-        if ($sale->payment_method === 'efectivo' && $received !== null && $received >= (float) $sale->total) {
-            $this->row('Recibido', $this->money($received));
-            $this->row('Cambio', $this->money($received - (float) $sale->total));
+        $this->text('Pago: '.Sale::paymentLabel($sale->payment_method));
+        if ($sale->payment_method === 'efectivo' && ($paid = $sale->cashReceived($received)) !== null) {
+            $this->row('Recibido', $this->money($paid));
+            $this->row('Cambio', $this->money($paid - (float) $sale->total));
         }
 
         $this->text('');
         $this->text(
             $business->personalize_thank_you && $sale->customer
-                ? '¡Gracias, ' . $sale->customer->name . ', por tu compra!'
+                ? '¡Gracias, '.$sale->customer->name.', por tu compra!'
                 : (string) $business->thank_you_message,
             'center'
         );
@@ -119,9 +120,9 @@ class ThermalTicketBuilder
         $this->lines = [];
 
         $this->text('COMANDA', 'center', bold: true, size: 'big');
-        $this->text('#' . $sale->folio, 'center', bold: true, size: 'big');
+        $this->text('#'.$sale->folio, 'center', bold: true, size: 'big');
         if ($sale->correctsSale) {
-            $this->text('CORRECCION de #' . $sale->correctsSale->folio, 'center', bold: true, underline: true);
+            $this->text('CORRECCION de #'.$sale->correctsSale->folio, 'center', bold: true, underline: true);
         }
         if ($sale->customer) {
             $this->text($sale->customer->name, 'center', bold: true, size: 'tall');
@@ -135,7 +136,7 @@ class ThermalTicketBuilder
             }
 
             $this->text(
-                $item->qty . 'x ' . $item->product->name . ($item->variant ? ' (' . $item->variant->name . ')' : ''),
+                $item->qty.'x '.$item->product->name.($item->variant ? ' ('.$item->variant->name.')' : ''),
                 bold: true,
                 size: 'tall'
             );
@@ -144,11 +145,11 @@ class ThermalTicketBuilder
             // negrita y subrayado para que cocina no se los salte.
             foreach ($item->orderedModifiers() as $saleItemModifier) {
                 $isExtra = $saleItemModifier->isExtra();
-                $this->text('  + ' . ($isExtra ? 'EXTRA ' : '') . $saleItemModifier->modifier->name, bold: $isExtra, underline: $isExtra);
+                $this->text('  + '.($isExtra ? 'EXTRA ' : '').$saleItemModifier->modifier->name, bold: $isExtra, underline: $isExtra);
             }
 
             if ($item->notes) {
-                $this->text('  NOTA: ' . $item->notes, bold: true);
+                $this->text('  NOTA: '.$item->notes, bold: true);
             }
         }
 
@@ -156,23 +157,23 @@ class ThermalTicketBuilder
     }
 
     /** Corte de caja (mismos números que tickets/cierre-caja, vía CorteCajaService). */
-    public function forCashClose(\App\Models\CashSession $session): array
+    public function forCashClose(CashSession $session): array
     {
         $c = (new CorteCajaService)->resumen($session);
         $this->lines = [];
         $diff = function (?float $value, string $label = '') {
             if ($value !== null && abs($value) >= 0.01) {
-                $this->row(($value > 0 ? 'Sobra' : 'Falta') . $label, $this->money(abs($value)), bold: true);
+                $this->row(($value > 0 ? 'Sobra' : 'Falta').$label, $this->money(abs($value)), bold: true);
             }
         };
 
         $this->text(BusinessSettings::current()->name, 'center', bold: true, size: 'tall');
         $this->text('CORTE DE CAJA', 'center', bold: true);
         $this->separator();
-        $this->text('Apertura: ' . $session->opened_at->format('d/m/Y H:i'));
-        $this->text('Cierre: ' . ($session->closed_at?->format('d/m/Y H:i') ?? '-'));
-        $this->text('Abrió: ' . ($session->user?->name ?? '-'));
-        $this->text('Cerró: ' . ($session->closedByUser?->name ?? '-'));
+        $this->text('Apertura: '.$session->opened_at->format('d/m/Y H:i'));
+        $this->text('Cierre: '.($session->closed_at?->format('d/m/Y H:i') ?? '-'));
+        $this->text('Abrió: '.($session->user?->name ?? '-'));
+        $this->text('Cerró: '.($session->closedByUser?->name ?? '-'));
         $this->separator();
 
         $this->text('1. FONDO DE CAJA', bold: true);
@@ -183,9 +184,9 @@ class ThermalTicketBuilder
         }
         $this->separator();
 
-        $this->text('2. VENTAS DEL TURNO (' . $c['salesCount'] . ')', bold: true);
+        $this->text('2. VENTAS DEL TURNO ('.$c['salesCount'].')', bold: true);
         foreach ($c['porMetodo'] as $metodo) {
-            $this->row($metodo['label'] . ' (' . $metodo['count'] . ')', $this->money($metodo['total']));
+            $this->row($metodo['label'].' ('.$metodo['count'].')', $this->money($metodo['total']));
         }
         $this->row('Total ventas', $this->money($c['ventasTotal']), bold: true);
         if ($c['deshechas'] > 0) {
@@ -216,7 +217,7 @@ class ThermalTicketBuilder
             $this->row(abs($totalDiff) < 0.01 ? 'Diferencia' : ($totalDiff > 0 ? 'Sobra' : 'Falta'), $this->money(abs($totalDiff)), bold: true);
         }
         if ($c['motivo']) {
-            $this->text('Motivo: ' . $c['motivo']);
+            $this->text('Motivo: '.$c['motivo']);
         }
 
         if ($c['mermas']->isNotEmpty()) {
@@ -269,7 +270,7 @@ class ThermalTicketBuilder
         }
 
         $padding = max(1, self::COLUMNS - mb_strlen($last) - mb_strlen($right));
-        $this->lines[] = ['text' => $last . str_repeat(' ', $padding) . $right, 'align' => 'left', 'bold' => $bold, 'size' => 'normal'];
+        $this->lines[] = ['text' => $last.str_repeat(' ', $padding).$right, 'align' => 'left', 'bold' => $bold, 'size' => 'normal'];
     }
 
     protected function separator(): void
@@ -279,7 +280,7 @@ class ThermalTicketBuilder
 
     protected function money(float|string $amount): string
     {
-        return '$' . number_format((float) $amount, 2);
+        return '$'.number_format((float) $amount, 2);
     }
 
     /**
@@ -313,7 +314,7 @@ class ThermalTicketBuilder
         // La sangría se repite en cada renglón partido.
         $indent = str_repeat(' ', mb_strlen($text) - mb_strlen(ltrim($text)));
         if ($indent !== '') {
-            return array_map(fn ($line) => $indent . $line, $this->wrap(ltrim($text), $width - mb_strlen($indent)));
+            return array_map(fn ($line) => $indent.$line, $this->wrap(ltrim($text), $width - mb_strlen($indent)));
         }
 
         $lines = [];
@@ -329,7 +330,7 @@ class ThermalTicketBuilder
                 $word = mb_substr($word, $width);
             }
 
-            $candidate = $current === '' ? $word : $current . ' ' . $word;
+            $candidate = $current === '' ? $word : $current.' '.$word;
 
             if (mb_strlen($candidate) <= $width) {
                 $current = $candidate;

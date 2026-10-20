@@ -1260,6 +1260,7 @@
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: rewardAnswer === true,
                 corrects_sale_id: correctsSaleId,
+                amount_received: method === 'efectivo' ? received : null,
             };
 
             fetch('{{ route("venta.cobrar") }}', {

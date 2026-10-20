@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BusinessSettings;
 use App\Models\CashSession;
+use App\Models\CashSessionDenomination;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Ingredient;
@@ -90,7 +91,7 @@ class PosV2Test extends TestCase
 
     public function test_la_pantalla_recibe_la_presentacion_primero_y_los_aderezos_en_su_orden(): void
     {
-        $groups = $this->actingAs($this->cajero)->getJson('/venta/productos/' . $this->papas->id)->json('modifier_groups');
+        $groups = $this->actingAs($this->cajero)->getJson('/venta/productos/'.$this->papas->id)->json('modifier_groups');
 
         $this->assertSame(['Presentación', 'Aderezos', 'Extras'], array_column($groups, 'name'));
         $this->assertSame(['Queso', 'Mayonesa'], array_column($groups[1]['modifiers'], 'name'));
@@ -104,15 +105,56 @@ class PosV2Test extends TestCase
 
         $this->actingAs($this->cajero)->get("/venta/{$sale->id}/comanda")
             ->assertOk()
-            ->assertSeeInOrder(['Ana López', '+ Queso', '+ Domo', '+ Mayonesa', 'EXTRA Salchicha', 'NOTA: sin sal']);
+            ->assertSeeInOrder(['Ana López', '+ Domo', '+ Queso', '+ Mayonesa', 'EXTRA Salchicha', 'NOTA: sin sal']);
 
         $lines = (new ThermalTicketBuilder)->forKitchen($sale);
         $texts = array_column($lines, 'text');
         $this->assertContains('Ana López', $texts);
-        $this->assertSame(['  + Queso', '  + Domo', '  + Mayonesa', '  + EXTRA Salchicha'],
+        $this->assertSame(['  + Domo', '  + Queso', '  + Mayonesa', '  + EXTRA Salchicha'],
             array_values(array_filter($texts, fn ($t) => str_starts_with($t, '  + '))));
         $extra = collect($lines)->firstWhere('text', '  + EXTRA Salchicha');
         $this->assertTrue($extra['bold'] && ($extra['underline'] ?? false));
+    }
+
+    public function test_queso_va_justo_despues_de_la_presentacion_aunque_en_el_catalogo_este_al_final(): void
+    {
+        $this->mod['queso']->update(['sort_order' => 99]);
+        $this->cobrar(['mayonesa', 'queso', 'salchicha', 'domo'])->assertOk();
+        $sale = Sale::latest('id')->first();
+
+        $names = $sale->items->first()->orderedModifiers()->map(fn ($m) => $m->modifier->name)->all();
+
+        $this->assertSame(['Domo', 'Queso', 'Mayonesa', 'Salchicha'], $names);
+    }
+
+    public function test_todo_ticket_en_efectivo_muestra_recibido_y_cambio_aunque_se_reimprima(): void
+    {
+        // Pagó con $200 una venta de $72 (papas $60 + salchicha $12).
+        $this->cobrar(['domo', 'salchicha'], ['amount_received' => 200])->assertOk();
+        $sale = Sale::latest('id')->first();
+        $this->assertSame('200.00', (string) $sale->amount_received);
+
+        // Chrome / reimpresión: sale de lo guardado.
+        $this->actingAs($this->cajero)->get("/venta/{$sale->id}/ticket")
+            ->assertOk()->assertSeeInOrder(['Recibido', '$200.00', 'Cambio', '$128.00']);
+
+        // Bluetooth sin "recibido" en la URL (estación de impresión, reintento).
+        $texts = collect($this->actingAs($this->cajero)->getJson("/venta/{$sale->id}/impresion-bluetooth")->json('ticket'))->pluck('text')->implode("\n");
+        $this->assertStringContainsString('Recibido', $texts);
+        $this->assertStringContainsString('$128.00', $texts);
+    }
+
+    public function test_efectivo_exacto_sin_dato_muestra_cambio_cero_y_tarjeta_no_muestra_nada(): void
+    {
+        $this->cobrar(['domo'])->assertOk(); // no mandó amount_received
+        $cash = Sale::latest('id')->first();
+        $this->assertSame((string) $cash->total, (string) $cash->amount_received);
+        $this->actingAs($this->cajero)->get("/venta/{$cash->id}/ticket")->assertSeeInOrder(['Recibido', 'Cambio', '$0.00']);
+
+        $this->cobrar(['domo'], ['payment_method' => 'tarjeta', 'amount_received' => 500])->assertOk();
+        $card = Sale::latest('id')->first();
+        $this->assertNull($card->amount_received);
+        $this->actingAs($this->cajero)->get("/venta/{$card->id}/ticket")->assertDontSee('Recibido');
     }
 
     public function test_la_pausa_entre_tickets_se_configura(): void
@@ -120,7 +162,7 @@ class PosV2Test extends TestCase
         BusinessSettings::current()->update(['print_delay_seconds' => 7]);
         $this->cobrar(['domo'])->assertOk();
 
-        $this->actingAs($this->cajero)->getJson('/venta/' . Sale::latest('id')->value('id') . '/impresion-bluetooth')
+        $this->actingAs($this->cajero)->getJson('/venta/'.Sale::latest('id')->value('id').'/impresion-bluetooth')
             ->assertJson(['delay_seconds' => 7]);
     }
 
@@ -148,7 +190,7 @@ class PosV2Test extends TestCase
             ->assertOk()->json('order');
 
         $this->assertSame($original->id, $order['sale_id']);
-        $this->assertSame(['Queso', 'Domo', 'Mayonesa'], $order['items'][0]['modifierNames']);
+        $this->assertSame(['Domo', 'Queso', 'Mayonesa'], $order['items'][0]['modifierNames']);
         $this->assertSame('sin sal', $order['items'][0]['notes']);
         $original->refresh();
         $this->assertSame('deshecha', $original->revert_type);
@@ -161,8 +203,8 @@ class PosV2Test extends TestCase
         $correccion = Sale::latest('id')->first();
         $this->assertSame('corregida', $original->fresh()->revert_type);
         $this->assertSame($correccion->id, $original->fresh()->replaced_by_sale_id);
-        $this->actingAs($this->cajero)->get("/venta/{$correccion->id}/comanda")->assertSee('CORRECCIÓN de #' . $original->folio);
-        $this->actingAs($this->cajero)->get('/venta/historial')->assertSee('Corregida → #' . $correccion->folio)->assertSee('Corrige a #' . $original->folio);
+        $this->actingAs($this->cajero)->get("/venta/{$correccion->id}/comanda")->assertSee('CORRECCIÓN de #'.$original->folio);
+        $this->actingAs($this->cajero)->get('/venta/historial')->assertSee('Corregida → #'.$correccion->folio)->assertSee('Corrige a #'.$original->folio);
     }
 
     public function test_reglas_para_deshacer(): void
@@ -191,7 +233,7 @@ class PosV2Test extends TestCase
         $this->cobrar(['domo'], ['customer_id' => $customer->id])->assertOk();
         $this->assertSame(3, $customer->fresh()->current_visits);
 
-        $this->actingAs($this->cajero)->postJson('/venta/' . Sale::latest('id')->value('id') . '/deshacer', ['reason' => 'Error de captura'])->assertOk();
+        $this->actingAs($this->cajero)->postJson('/venta/'.Sale::latest('id')->value('id').'/deshacer', ['reason' => 'Error de captura'])->assertOk();
 
         $this->assertSame(2, $customer->fresh()->current_visits);
     }
@@ -229,7 +271,7 @@ class PosV2Test extends TestCase
         $this->assertEquals(50, $closed->sales_counted_amount);
         $this->assertEquals(-10, $closed->sales_difference);
         $this->assertEquals(550, $closed->counted_amount);
-        $this->assertSame('ventas', $closed->hasMany(\App\Models\CashSessionDenomination::class)->value('kind'));
+        $this->assertSame('ventas', $closed->hasMany(CashSessionDenomination::class)->value('kind'));
 
         $this->actingAs($this->cajero)->get("/caja/{$closed->id}/reporte-cierre")->assertOk()
             ->assertSeeInOrder(['1. Fondo de caja', '2. Ventas del turno', 'Transferencia', '3. Dinero de ventas', 'Falta', '4. Total en caja', 'Se dio cambio de más']);
