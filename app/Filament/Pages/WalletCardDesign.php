@@ -63,7 +63,7 @@ class WalletCardDesign extends Page
                 ColorPicker::make('hex_background_color')->label('Color de fondo de la tarjeta'),
                 FileUpload::make('logo_path')
                     ->label('Logotipo')
-                    ->helperText('PNG, JPG, WEBP o SVG. Máximo 2MB — entre más pesada la imagen, más tarda Google en aceptar el cambio.')
+                    ->helperText('PNG o JPG (Google Wallet no acepta SVG ni WEBP), cuadrado de al menos 660×660. Máximo 2MB — entre más pesada la imagen, más tarda Google en aceptar el cambio.')
                     // Sin ->image()/->acceptedFileTypes(): esos validan el
                     // tipo de archivo detectando el contenido real del
                     // archivo en el servidor, y en Railway a veces falla y
@@ -76,7 +76,7 @@ class WalletCardDesign extends Page
                     ->visibility('public'),
                 FileUpload::make('hero_image_path')
                     ->label('Imagen de banner (opcional)')
-                    ->helperText('Aparece como fondo arriba del logo en la tarjeta. PNG, JPG, WEBP o SVG. Máximo 2MB.')
+                    ->helperText('Aparece como banner en la tarjeta. PNG o JPG de 1032×336. Máximo 2MB.')
                     ->maxSize(2048)
                     ->disk('public')
                     ->directory('wallet')

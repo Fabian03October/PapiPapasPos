@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 
 class SyncGoogleWalletClass extends Command
 {
-    protected $signature = 'wallet:sync-class';
+    protected $signature = 'wallet:sync-class {--force : No preguntar antes de sobrescribir}';
 
     protected $description = 'Crea o actualiza la LoyaltyClass de Google Wallet (plantilla del programa de fidelidad)';
 
@@ -17,6 +17,17 @@ class SyncGoogleWalletClass extends Command
             $this->error('Google Wallet está deshabilitado o le faltan credenciales (revisa GOOGLE_WALLET_* en .env).');
 
             return self::FAILURE;
+        }
+
+        // La clase ya está aprobada y diseñada en la consola de Google Pay &
+        // Wallet. Esto la REEMPLAZA con lo guardado aquí (nombre, color,
+        // logo) y puede mandarla a revisión otra vez.
+        if (! $this->option('force') && ! $this->confirm(
+            'Esto reemplaza el diseño de la tarjeta que está en la consola de Google (nombre, color y logo) con el del sistema. ¿Continuar?'
+        )) {
+            $this->info('No se cambió nada.');
+
+            return self::SUCCESS;
         }
 
         $result = $wallet->upsertClass();

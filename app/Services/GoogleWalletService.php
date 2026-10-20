@@ -6,6 +6,8 @@ use App\Models\Customer;
 use App\Models\WalletCardSettings;
 use Firebase\JWT\JWT;
 use Google\Auth\Credentials\ServiceAccountCredentials;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -16,9 +18,9 @@ class GoogleWalletService
 
     private const BASE_URL = 'https://walletobjects.googleapis.com/walletobjects/v1';
 
-    public function __construct(protected LoyaltyService $loyalty)
-    {
-    }
+    private const TOKEN_CACHE_KEY = 'google_wallet_access_token';
+
+    public function __construct(protected LoyaltyService $loyalty) {}
 
     public function isEnabled(): bool
     {
@@ -30,33 +32,54 @@ class GoogleWalletService
     public function buildLoyaltyObjectPayload(Customer $customer): array
     {
         $reward = $this->loyalty->nextRewardSummary($customer);
+        $remaining = $reward['visits_remaining'];
+
+        $modules = [
+            [
+                'id' => 'member_since',
+                'header' => 'Miembro desde',
+                // En español fijo: la app puede estar en otro idioma (APP_LOCALE).
+                'body' => $customer->created_at?->copy()->locale('es')->translatedFormat('F Y') ?? '',
+            ],
+            [
+                'id' => 'next_reward',
+                'header' => 'Próximo premio',
+                'body' => $remaining === 1
+                    ? "{$reward['label']} · falta 1 visita"
+                    : "{$reward['label']} · faltan {$remaining} visitas",
+            ],
+        ];
+
+        // Un premio ganado que no se ha cobrado: que el cliente lo vea en su
+        // tarjeta (si no, se le olvida y se vence).
+        if ($pending = $this->loyalty->pendingRewardFor($customer)) {
+            $label = $pending->type === 'discount'
+                ? ($pending->loyaltyLevel?->discount_description ?: ($pending->loyaltyLevel?->discount_percent ?? '').'% de descuento')
+                : ($pending->loyaltyLevel?->gift_description ?: 'Producto gratis');
+
+            $modules[] = [
+                'id' => 'pending_reward',
+                'header' => '🎁 Premio por cobrar',
+                'body' => "{$label} · vence el ".$pending->expires_at->copy()->locale('es')->translatedFormat('j \d\e F'),
+            ];
+        }
 
         return [
             'id' => $this->objectId($customer),
             'classId' => $this->classId(),
-            'state' => 'ACTIVE',
+            // Cliente dado de baja: la tarjeta se ve inactiva en su teléfono.
+            'state' => $customer->is_active !== null && ! (bool) $customer->is_active ? 'INACTIVE' : 'ACTIVE',
             'accountId' => (string) $customer->id,
             'accountName' => $customer->name,
             'loyaltyPoints' => [
                 'label' => 'Visitas',
-                'balance' => ['string' => "{$customer->current_visits} de 8"],
+                'balance' => ['string' => "{$customer->current_visits} de ".LoyaltyService::VISITS_FOR_GIFT],
             ],
             'barcode' => [
                 'type' => 'QR_CODE',
-                'value' => $customer->qr_code,
+                'value' => $customer->ensureQrCode(),
             ],
-            'textModulesData' => [
-                [
-                    'id' => 'member_since',
-                    'header' => 'Miembro desde',
-                    'body' => $customer->created_at->translatedFormat('F Y'),
-                ],
-                [
-                    'id' => 'next_reward',
-                    'header' => 'Próximo premio',
-                    'body' => "{$reward['label']} · faltan {$reward['visits_remaining']} visitas",
-                ],
-            ],
+            'textModulesData' => $modules,
         ];
     }
 
@@ -185,7 +208,12 @@ class GoogleWalletService
 
     /**
      * Actualiza el pase del cliente en Google. Si el cliente nunca guardó su
-     * tarjeta, el objeto no existe todavía en Google — se ignora sin error.
+     * tarjeta, el objeto no existe todavía en Google — se ignora sin error
+     * (cuando la guarde, el enlace ya lleva los datos al día).
+     *
+     * Errores pasajeros (Google caído, 429, 5xx, sin red) lanzan excepción
+     * para que el job se reintente; los permanentes (400/401/403) solo se
+     * registran, reintentar no los arregla.
      */
     public function syncCustomerObject(Customer $customer): void
     {
@@ -193,33 +221,52 @@ class GoogleWalletService
             return;
         }
 
-        $token = $this->accessToken();
+        $this->patchObject($this->objectId($customer), $this->buildLoyaltyObjectPayload($customer), ['customer_id' => $customer->id]);
+    }
 
-        if (! $token) {
+    /** Cliente borrado: su tarjeta queda inactiva (el QR ya no sirve en caja). */
+    public function deactivateObject(string $objectId): void
+    {
+        if (! $this->isEnabled()) {
             return;
         }
 
-        try {
-            $response = Http::withToken($token)->timeout(20)->patch(
-                self::BASE_URL."/loyaltyObject/{$this->objectId($customer)}",
-                $this->buildLoyaltyObjectPayload($customer)
-            );
-        } catch (\Throwable $e) {
-            Log::error('Google Wallet: excepción al actualizar el pase del cliente', [
-                'customer_id' => $customer->id,
-                'error' => $e->getMessage(),
-            ]);
+        $this->patchObject($objectId, ['state' => 'INACTIVE'], ['object_id' => $objectId]);
+    }
 
-            return;
+    protected function patchObject(string $objectId, array $payload, array $context): void
+    {
+        $token = $this->accessToken();
+
+        if (! $token) {
+            throw new \RuntimeException('Google Wallet: no se pudo obtener el token de acceso');
+        }
+
+        try {
+            $response = Http::withToken($token)->timeout(20)->patch(self::BASE_URL."/loyaltyObject/{$objectId}", $payload);
+        } catch (ConnectionException $e) {
+            Log::warning('Google Wallet: sin conexión al actualizar el pase, se reintentará', $context + ['error' => $e->getMessage()]);
+
+            throw $e;
         }
 
         if ($response->status() === 404) {
             return;
         }
 
+        if ($response->status() === 401) {
+            // Token vencido o revocado: se pide uno nuevo en el reintento.
+            Cache::forget(self::TOKEN_CACHE_KEY);
+        }
+
+        if ($response->status() === 429 || $response->status() === 401 || $response->serverError()) {
+            Log::warning('Google Wallet: error pasajero al actualizar el pase, se reintentará', $context + ['status' => $response->status()]);
+
+            throw new \RuntimeException("Google Wallet respondió {$response->status()}");
+        }
+
         if ($response->failed()) {
-            Log::error('Google Wallet: no se pudo actualizar el pase del cliente', [
-                'customer_id' => $customer->id,
+            Log::error('Google Wallet: no se pudo actualizar el pase del cliente', $context + [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
@@ -276,7 +323,11 @@ class GoogleWalletService
                 'body' => $response->body(),
             ]);
 
-            return ['success' => false, 'quota_exceeded' => $quotaExceeded, 'error' => $response->body()];
+            $error = $response->status() === 404 && str_contains($path, '/loyaltyObject/')
+                ? 'Este cliente todavía no ha guardado su tarjeta en Google Wallet.'
+                : $response->body();
+
+            return ['success' => false, 'quota_exceeded' => $quotaExceeded, 'error' => $error];
         }
 
         return ['success' => true, 'quota_exceeded' => false, 'error' => null];
@@ -295,12 +346,7 @@ class GoogleWalletService
      */
     public function objectId(Customer $customer): string
     {
-        if (empty($customer->qr_code)) {
-            $customer->qr_code = (string) Str::uuid();
-            $customer->saveQuietly();
-        }
-
-        return config('services.google_wallet.issuer_id').'.'.config('services.google_wallet.class_suffix').'_'.$customer->qr_code;
+        return config('services.google_wallet.issuer_id').'.'.config('services.google_wallet.class_suffix').'_'.$customer->ensureQrCode();
     }
 
     protected function serviceAccount(): array
@@ -310,10 +356,19 @@ class GoogleWalletService
 
     protected function accessToken(): ?string
     {
+        if ($cached = Cache::get(self::TOKEN_CACHE_KEY)) {
+            return $cached;
+        }
+
         try {
             $credentials = new ServiceAccountCredentials(self::SCOPE, $this->serviceAccount());
+            $token = $credentials->fetchAuthToken()['access_token'] ?? null;
 
-            return $credentials->fetchAuthToken()['access_token'] ?? null;
+            if ($token) {
+                Cache::put(self::TOKEN_CACHE_KEY, $token, now()->addMinutes(50));
+            }
+
+            return $token;
         } catch (\Throwable $e) {
             Log::error('Google Wallet: no se pudo obtener el token de acceso', ['error' => $e->getMessage()]);
 

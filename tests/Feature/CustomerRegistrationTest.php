@@ -25,7 +25,7 @@ class CustomerRegistrationTest extends TestCase
         $response->assertRedirect(route('registro.confirmacion', $customer->qr_code));
     }
 
-    public function test_telefono_repetido_no_duplica_cliente(): void
+    public function test_telefono_repetido_no_duplica_ni_muestra_la_tarjeta_del_otro(): void
     {
         $existing = Customer::create(['name' => 'Ana López', 'phone' => '5599998888']);
 
@@ -35,7 +35,8 @@ class CustomerRegistrationTest extends TestCase
         ]);
 
         $this->assertSame(1, Customer::where('phone', '5599998888')->count());
-        $response->assertRedirect(route('registro.confirmacion', $existing->qr_code));
+        $response->assertSessionHasErrors('phone');
+        $this->assertStringNotContainsString($existing->qr_code, (string) $response->headers->get('Location'));
     }
 
     public function test_nombre_requerido(): void

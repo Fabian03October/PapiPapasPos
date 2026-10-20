@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Jobs\SyncGoogleWalletObjectJob;
 use App\Mail\Transport\BrevoApiTransport;
 use App\Models\Customer;
+use App\Models\CustomerLoyaltyRedemption;
 use App\Observers\CustomerObserver;
+use App\Services\GoogleWalletService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -28,6 +31,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Customer::observe(CustomerObserver::class);
+
+        // Ganar, cobrar o deshacer un premio cambia lo que dice la tarjeta
+        // de Wallet ("Premio por cobrar"), aunque las visitas no cambien.
+        $syncWallet = function (CustomerLoyaltyRedemption $redemption): void {
+            if ($redemption->customer && app(GoogleWalletService::class)->isEnabled()) {
+                SyncGoogleWalletObjectJob::dispatch($redemption->customer);
+            }
+        };
+        CustomerLoyaltyRedemption::saved($syncWallet);
+        CustomerLoyaltyRedemption::deleted($syncWallet);
 
         RateLimiter::for('registro', function (Request $request) {
             return Limit::perMinute(5)->by($request->ip());

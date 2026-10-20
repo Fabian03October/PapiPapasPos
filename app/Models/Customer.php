@@ -35,6 +35,17 @@ class Customer extends Model
         });
     }
 
+    /** Clientes viejos pueden no tener QR: se le asigna uno al necesitarlo. */
+    public function ensureQrCode(): string
+    {
+        if (empty($this->qr_code)) {
+            $this->qr_code = (string) Str::uuid();
+            $this->saveQuietly();
+        }
+
+        return $this->qr_code;
+    }
+
     public function sales()
     {
         return $this->hasMany(Sale::class);

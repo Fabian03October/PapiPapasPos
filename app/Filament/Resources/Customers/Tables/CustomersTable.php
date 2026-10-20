@@ -10,8 +10,8 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -65,13 +65,22 @@ class CustomersTable
                     ->default(true),
             ])
             ->recordActions([
+                // Antes abría el enlace de guardado en el dispositivo del
+                // encargado: la tarjeta del cliente terminaba en la cuenta de
+                // Google del encargado. Ahora se muestra un QR para que el
+                // CLIENTE lo escanee con su teléfono.
                 Action::make('wallet_link')
-                    ->label('Ver en Wallet')
+                    ->label('Tarjeta Wallet')
                     ->icon(Heroicon::OutlinedWallet)
                     ->color('gray')
                     ->visible(fn () => app(GoogleWalletService::class)->isEnabled())
-                    ->url(fn (Customer $record) => app(GoogleWalletService::class)->generateSaveLink($record))
-                    ->openUrlInNewTab(),
+                    ->modalHeading(fn (Customer $record) => "Tarjeta de {$record->name}")
+                    ->modalContent(fn (Customer $record) => view('filament.wallet-card-qr', [
+                        'customer' => $record,
+                        'url' => route('registro.confirmacion', $record->ensureQrCode()),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar'),
                 Action::make('send_message')
                     ->label('Mandar mensaje')
                     ->icon(Heroicon::OutlinedChatBubbleLeftRight)
