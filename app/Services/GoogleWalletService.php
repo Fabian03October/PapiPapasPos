@@ -287,9 +287,20 @@ class GoogleWalletService
         return config('services.google_wallet.issuer_id').'.'.config('services.google_wallet.class_suffix');
     }
 
-    protected function objectId(Customer $customer): string
+    /**
+     * Antes era "cliente_{id}", pero el emisor de Google lo comparten
+     * producción, staging y el sistema del café: el cliente #5 de un lado
+     * chocaba con el #5 del otro y Google entregaba la tarjeta ya existente
+     * (con el nombre de otra persona). El UUID del QR es único en todos.
+     */
+    public function objectId(Customer $customer): string
     {
-        return config('services.google_wallet.issuer_id').'.cliente_'.$customer->id;
+        if (empty($customer->qr_code)) {
+            $customer->qr_code = (string) Str::uuid();
+            $customer->saveQuietly();
+        }
+
+        return config('services.google_wallet.issuer_id').'.'.config('services.google_wallet.class_suffix').'_'.$customer->qr_code;
     }
 
     protected function serviceAccount(): array

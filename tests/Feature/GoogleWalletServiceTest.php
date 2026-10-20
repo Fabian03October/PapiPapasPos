@@ -67,10 +67,24 @@ class GoogleWalletServiceTest extends TestCase
         $this->assertSame('savetowallet', $decoded->typ);
 
         $object = $decoded->payload->loyaltyObjects[0];
-        $this->assertSame('3388000000000000000.cliente_'.$customer->id, $object->id);
+        // Único entre sistemas (producción, staging, café): no el id numérico.
+        $this->assertSame('3388000000000000000.test_class_'.$customer->qr_code, $object->id);
         $this->assertSame('3388000000000000000.test_class', $object->classId);
         $this->assertSame($customer->qr_code, $object->barcode->value);
         $this->assertSame('QR_CODE', $object->barcode->type);
+    }
+
+    public function test_un_cliente_sin_qr_recibe_uno_para_su_tarjeta(): void
+    {
+        config(['services.google_wallet.issuer_id' => '3388000000000000000', 'services.google_wallet.class_suffix' => 'test_class']);
+        $customer = Customer::create(['name' => 'Sin QR', 'phone' => '5511113333']);
+        $customer->forceFill(['qr_code' => null])->saveQuietly();
+
+        $id = app(GoogleWalletService::class)->objectId($customer->fresh());
+
+        $qr = $customer->fresh()->qr_code;
+        $this->assertNotEmpty($qr);
+        $this->assertSame('3388000000000000000.test_class_'.$qr, $id);
     }
 
     public function test_generate_save_link_regresa_null_si_esta_deshabilitado(): void
