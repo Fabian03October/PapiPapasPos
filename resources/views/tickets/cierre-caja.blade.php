@@ -77,7 +77,7 @@
         <tr><td>Fondo + ventas en efectivo</td><td class="right">${{ number_format($totalCaja['esperado'], 2) }}</td></tr>
         @if ($totalCaja['contado'] !== null)
             <tr><td><strong>Contado</strong></td><td class="right"><strong>${{ number_format($totalCaja['contado'], 2) }}</strong></td></tr>
-            <tr><td><strong>Diferencia</strong></td><td class="right"><strong>${{ number_format($totalCaja['diferencia'], 2) }}</strong></td></tr>
+            <tr><td><strong>{{ abs($totalCaja['diferencia']) < 0.01 ? 'Diferencia' : ($totalCaja['diferencia'] > 0 ? 'Sobra' : 'Falta') }}</strong></td><td class="right"><strong>${{ number_format(abs($totalCaja['diferencia']), 2) }}</strong></td></tr>
         @endif
     </table>
     @if ($motivo)

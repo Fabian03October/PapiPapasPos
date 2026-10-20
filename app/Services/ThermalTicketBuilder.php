@@ -212,7 +212,8 @@ class ThermalTicketBuilder
         $this->row('Fondo + ventas efectivo', $this->money($c['totalCaja']['esperado']));
         if ($c['totalCaja']['contado'] !== null) {
             $this->row('Contado', $this->money($c['totalCaja']['contado']), bold: true);
-            $this->row('Diferencia', $this->money($c['totalCaja']['diferencia']), bold: true);
+            $totalDiff = (float) $c['totalCaja']['diferencia'];
+            $this->row(abs($totalDiff) < 0.01 ? 'Diferencia' : ($totalDiff > 0 ? 'Sobra' : 'Falta'), $this->money(abs($totalDiff)), bold: true);
         }
         if ($c['motivo']) {
             $this->text('Motivo: ' . $c['motivo']);
