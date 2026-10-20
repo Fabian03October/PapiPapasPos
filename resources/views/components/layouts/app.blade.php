@@ -51,7 +51,16 @@
         if (t === 'dark' || ((t === 'system' || !t) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         }
+        // Menú lateral escondido (botón ☰ de la barra, tablet/compu): se
+        // aplica antes de dibujar para que no parpadee.
+        try { if (localStorage.getItem('pos_menu_oculto') === '1') document.documentElement.classList.add('menu-oculto'); } catch (e) {}
     </script>
+    <style>
+        @media (min-width: 768px) {
+            html.menu-oculto #pos-grid { grid-template-columns: 1fr; }
+            html.menu-oculto #sidebar { display: none; }
+        }
+    </style>
 </head>
 @if ($embedded)
 <body class="bg-neutral-100 dark:bg-neutral-950 h-dvh flex flex-col overflow-hidden">
@@ -81,7 +90,17 @@
             ->implode('');
     @endphp
     <header id="pos-header" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
-        <p class="font-bold text-neutral-900 dark:text-neutral-100">Papi Papas</p>
+        <div class="flex items-center gap-2">
+            {{-- Esconder/mostrar el menú lateral (tablet y compu). En el
+                 celular el menú ya va escondido con su propio botón. --}}
+            <button id="menu-collapse" type="button" aria-label="Esconder menú" aria-expanded="true"
+                class="hidden md:flex w-9 h-9 -ml-1 rounded-lg items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+                </svg>
+            </button>
+            <p class="font-bold text-neutral-900 dark:text-neutral-100">Papi Papas</p>
+        </div>
 
         <div class="relative flex items-center gap-2">
             {{-- Aparece solo si la impresora lleva unos segundos desconectada

@@ -17,6 +17,24 @@ if (menuToggle) menuToggle.addEventListener('click', openSidebar);
 if (sidebarClose) sidebarClose.addEventListener('click', closeSidebar);
 if (backdrop) backdrop.addEventListener('click', closeSidebar);
 
+// Esconder/mostrar el menú lateral en tablet y compu (se recuerda en este
+// dispositivo). Lo de en medio (la venta) se hace más ancho al esconderlo.
+const menuCollapse = document.getElementById('menu-collapse');
+
+if (menuCollapse) {
+    const syncCollapse = () => {
+        const oculto = document.documentElement.classList.contains('menu-oculto');
+        menuCollapse.setAttribute('aria-expanded', oculto ? 'false' : 'true');
+        menuCollapse.setAttribute('aria-label', oculto ? 'Mostrar menú' : 'Esconder menú');
+    };
+    syncCollapse();
+    menuCollapse.addEventListener('click', () => {
+        const oculto = document.documentElement.classList.toggle('menu-oculto');
+        try { localStorage.setItem('pos_menu_oculto', oculto ? '1' : '0'); } catch (e) {}
+        syncCollapse();
+    });
+}
+
 const userMenuTrigger = document.getElementById('user-menu-trigger');
 const userMenu = document.getElementById('user-menu');
 

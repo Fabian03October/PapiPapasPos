@@ -1,6 +1,8 @@
 <x-layouts.app title="Vender - posPapisV1" active="vender" page-title="Vender">
 
-    <div class="flex flex-col lg:flex-row gap-4 min-h-0 flex-1">
+    {{-- Carrito a la derecha desde tablet (md). Ojo: esta pantalla vive dentro del marco, así que su ancho
+         es el de la tablet MENOS el menú lateral; con lg (1024) una tablet de ~1200 la veía como teléfono. --}}
+    <div class="flex flex-col md:flex-row gap-4 min-h-0 flex-1">
 
         <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
 
@@ -49,7 +51,7 @@
             </div>
         </div>
 
-        <div class="bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 lg:w-[280px] shrink-0 flex flex-col min-h-0 max-h-[45vh] lg:max-h-none">
+        <div class="bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-4 md:w-[260px] lg:w-[300px] shrink-0 flex flex-col min-h-0 max-h-[45vh] md:max-h-none">
             <div class="flex items-center justify-between mb-3">
                 <p class="text-sm font-medium flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
