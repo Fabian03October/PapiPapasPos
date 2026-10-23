@@ -35,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'login/restablecer-pin',
             // Apple Wallet: lo llama el iPhone (se autentica con su token).
             'wallet/apple/*',
+            // Avisos de "Mi tarjeta": la autenticación es el enlace secreto del cliente.
+            'mi-tarjeta/*/avisos',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

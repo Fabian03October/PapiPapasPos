@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Jobs\SendWebPushJob;
 use App\Mail\Transport\BrevoApiTransport;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Observers\CustomerObserver;
 use App\Services\Wallet\WalletNotifier;
+use App\Services\WebPushService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -39,6 +41,16 @@ class AppServiceProvider extends ServiceProvider
             }
         };
         CustomerLoyaltyRedemption::saved($syncWallet);
+
+        // "Mi tarjeta": aviso al ganar un premio que queda por cobrar.
+        CustomerLoyaltyRedemption::created(function (CustomerLoyaltyRedemption $redemption): void {
+            if ($redemption->status === 'pending' && config('services.webpush.reward_earned')
+                && app(WebPushService::class)->isEnabled()) {
+                SendWebPushJob::dispatch($redemption->customer_id, '🎉 ¡Ganaste tu premio!',
+                    "{$redemption->rewardLabel()}. Cóbralo en tu próxima visita (vence el "
+                    .$redemption->expires_at->copy()->locale('es')->translatedFormat('j \\d\\e F').').', "premio-{$redemption->id}");
+            }
+        });
         CustomerLoyaltyRedemption::deleted($syncWallet);
 
         RateLimiter::for('registro', function (Request $request) {

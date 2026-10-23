@@ -6,9 +6,10 @@ use App\Filament\Resources\Customers\CustomerResource;
 use App\Jobs\SendWalletMessageJob;
 use App\Models\WalletMessage;
 use App\Services\GoogleWalletService;
+use App\Services\WebPushService;
 use Filament\Actions\Action;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
@@ -25,7 +26,7 @@ class ListCustomers extends ListRecords
                 ->label('Mandar mensaje a todos')
                 ->icon(Heroicon::OutlinedMegaphone)
                 ->color('gray')
-                ->visible(fn () => app(GoogleWalletService::class)->isEnabled())
+                ->visible(fn () => app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled())
                 ->schema([
                     TextInput::make('title')
                         ->label('Título')

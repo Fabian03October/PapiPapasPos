@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\WalletMessage;
 use App\Services\GoogleWalletService;
+use App\Services\WebPushService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,13 +27,27 @@ class SendWalletMessageJob implements ShouldQueue
             $result = $this->send($wallet, false);
         }
 
+        // Google Wallet apagado no es un fallo: el mensaje igual sale en "Mi tarjeta".
+        $skipped = $result['skipped'] ?? false;
+        $days = (int) config('services.google_wallet.message_days', 7);
+
         $this->message->update([
-            'status' => $result['success'] ? 'sent' : 'failed',
-            'error' => $result['error'],
+            'status' => ($result['success'] || $skipped) ? 'sent' : 'failed',
+            'error' => $skipped ? null : $result['error'],
             // Historial: desde y hasta cuándo se vio en las tarjetas.
-            'starts_at' => $result['starts_at'] ?? $this->message->starts_at,
-            'ends_at' => $result['ends_at'] ?? $this->message->ends_at,
+            'starts_at' => $result['starts_at'] ?? ($skipped ? now() : $this->message->starts_at),
+            'ends_at' => $result['ends_at'] ?? ($skipped && $days > 0 ? now()->addDays($days) : $this->message->ends_at),
         ]);
+
+        // Con notificación: también suena en los celulares con "Mi tarjeta".
+        if ($this->message->notify && app(WebPushService::class)->isEnabled()) {
+            SendWebPushJob::dispatch(
+                $this->message->audience === 'all' ? null : $this->message->customer_id,
+                $this->message->title,
+                $this->message->body,
+                'mensaje-'.$this->message->id,
+            );
+        }
     }
 
     protected function send(GoogleWalletService $wallet, bool $notify): array

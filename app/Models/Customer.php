@@ -74,6 +74,11 @@ class Customer extends Model
         return 'https://wa.me/'.$phone.'?text='.rawurlencode($text);
     }
 
+    public function pushSubscriptions()
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     public function appleWalletPass()
     {
         return $this->hasOne(AppleWalletPass::class);

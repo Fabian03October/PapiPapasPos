@@ -52,6 +52,18 @@ return [
         'message_days' => (int) env('GOOGLE_WALLET_MESSAGE_DAYS', 7),
     ],
 
+    // Avisos de "Mi tarjeta" (Web Push). Gratis, también en iPhone (iOS 16.4+
+    // con la tarjeta en la pantalla de inicio). Llaves: php artisan webpush:llaves
+    'webpush' => [
+        'public_key' => env('WEBPUSH_VAPID_PUBLIC_KEY'),
+        'private_key' => env('WEBPUSH_VAPID_PRIVATE_KEY'),
+        'subject' => env('WEBPUSH_VAPID_SUBJECT', 'mailto:'.env('MAIL_FROM_ADDRESS', 'papaspapi609@gmail.com')),
+        // Avisos automáticos (cada uno se puede apagar).
+        'reward_earned' => env('WEBPUSH_AVISO_PREMIO_GANADO', true),
+        'reward_expiring' => env('WEBPUSH_AVISO_PREMIO_VENCE', true),
+        'birthday' => env('WEBPUSH_AVISO_CUMPLEANOS', true),
+    ],
+
     // Apple Wallet (.pkpass). Apagado mientras no estén los certificados:
     // ver docs/apple-wallet.md. Los certificados van en base64 en variables
     // de entorno (Railway no guarda archivos entre despliegues).

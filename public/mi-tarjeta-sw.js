@@ -7,8 +7,10 @@
  * - Páginas y datos de la tarjeta: primero internet (siempre lo más nuevo);
  *   sin internet, la última copia guardada (el QR va dentro del HTML).
  * - Estilos e íconos: de la copia guardada (cambian de nombre al cambiar).
+ * - Avisos (Web Push): los muestra aunque la tarjeta esté cerrada; al
+ *   tocarlos abre la tarjeta del cliente.
  */
-const CACHE = 'mi-tarjeta-v1';
+const CACHE = 'mi-tarjeta-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -76,6 +78,34 @@ self.addEventListener('fetch', (event) => {
                     { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
                 )))
     );
+});
+
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
+
+    event.waitUntil(self.registration.showNotification(data.title || "Papi's Papas", {
+        body: data.body || '',
+        icon: '/pwa/icon-192.png',
+        badge: '/pwa/icon-192.png',
+        tag: data.tag || undefined,
+        data: { url: data.url || '/' },
+    }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const url = new URL(event.notification.data && event.notification.data.url || '/', self.location.origin).href;
+
+    // Si la tarjeta ya está abierta, se trae al frente y se recarga; si no, se abre.
+    event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+        for (const win of windows) {
+            if (win.url.split('?')[0] === url.split('?')[0] && 'focus' in win) {
+                return win.focus().then((w) => w && w.navigate ? w.navigate(url) : w);
+            }
+        }
+        return self.clients.openWindow(url);
+    }));
 });
 
 // "?app=1" o "?nuevo=1" no cambian la tarjeta: se guarda una sola copia.

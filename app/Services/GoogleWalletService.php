@@ -267,7 +267,8 @@ class GoogleWalletService
     protected function sendMessage(string $path, string $header, string $body, bool $notify): array
     {
         if (! $this->isEnabled()) {
-            return ['success' => false, 'quota_exceeded' => false, 'error' => 'Google Wallet está deshabilitado'];
+            // skipped: no es un error, simplemente no se usa Google (llega por "Mi tarjeta").
+            return ['success' => false, 'skipped' => true, 'quota_exceeded' => false, 'error' => 'Google Wallet está deshabilitado'];
         }
 
         $token = $this->accessToken();

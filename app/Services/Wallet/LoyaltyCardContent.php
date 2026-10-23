@@ -31,12 +31,7 @@ class LoyaltyCardContent
 
         $pendingText = null;
         if ($pending = $this->loyalty->pendingRewardFor($customer)) {
-            $level = $pending->loyaltyLevel;
-            $label = $pending->type === 'discount'
-                ? ($level?->discount_description ?: ($level?->discount_percent ?? '').'% de descuento')
-                : ($level?->gift_description ?: 'Producto gratis');
-
-            $pendingText = "{$label} · vence el ".$pending->expires_at->copy()->locale('es')->translatedFormat('j \d\e F');
+            $pendingText = "{$pending->rewardLabel()} · vence el ".$pending->expires_at->copy()->locale('es')->translatedFormat('j \d\e F');
         }
 
         return [

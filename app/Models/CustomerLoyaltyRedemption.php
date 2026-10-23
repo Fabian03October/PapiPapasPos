@@ -53,4 +53,14 @@ class CustomerLoyaltyRedemption extends Model
     {
         return $this->belongsTo(SaleItem::class);
     }
+
+    /** "10% de descuento", "Papis chicas gratis"... (lo que dice la tarjeta y los avisos). */
+    public function rewardLabel(): string
+    {
+        $level = $this->loyaltyLevel;
+
+        return $this->type === 'discount'
+            ? ($level?->discount_description ?: ($level?->discount_percent ?? '').'% de descuento')
+            : ($level?->gift_description ?: 'Producto gratis');
+    }
 }

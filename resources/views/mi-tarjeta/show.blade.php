@@ -99,6 +99,24 @@
         </section>
     @endif
 
+    {{-- Avisos (Web Push): el estado lo decide el script según el celular. --}}
+    @if ($pushKey && $card['active'])
+        <section id="avisos" hidden class="mt-4 rounded-3xl bg-[#18181b] p-5"
+            data-key="{{ $pushKey }}" data-url="{{ route('mi-tarjeta.avisos', $customer->qr_code) }}">
+            <div id="avisos-activar" hidden>
+                <p class="text-base font-semibold">🔔 Recibe avisos</p>
+                <p class="mt-1 text-sm text-neutral-300">Te avisamos cuando ganes un premio, un día antes de que se venza y cuando haya promociones.</p>
+                <button id="btn-avisos" type="button" class="mt-3 h-12 w-full rounded-2xl bg-[#f5b32f] font-semibold text-[#0a0a0a]">Activar avisos</button>
+            </div>
+            <div id="avisos-activos" hidden class="flex items-center justify-between gap-3">
+                <p class="text-sm"><span class="font-semibold">🔔 Avisos activados</span><br><span class="text-neutral-400">Te avisaremos de tus premios y promos.</span></p>
+                <button id="btn-avisos-quitar" type="button" class="shrink-0 text-xs text-neutral-400 underline">Desactivar</button>
+            </div>
+            <p id="avisos-instalar" hidden class="text-sm text-neutral-300">🔔 Para recibir avisos en tu iPhone, primero guarda la tarjeta en tu pantalla de inicio (pasos de abajo) y ábrela desde el ícono.</p>
+            <p id="avisos-bloqueados" hidden class="text-sm text-neutral-300">🔕 Los avisos están bloqueados. Si los quieres, actívalos en los ajustes de notificaciones de tu celular.</p>
+        </section>
+    @endif
+
     {{-- Guardar la tarjeta: cada botón aparece solo donde aplica (ver script). --}}
     <section id="guardar" class="mt-4 flex flex-col gap-3">
         <button id="btn-instalar" type="button" hidden
@@ -173,12 +191,77 @@
         document.getElementById('btn-instalar').hidden = true;
     });
 
+    // Avisos (Web Push).
+    const avisos = document.getElementById('avisos');
+    const verAvisos = (estado) => {
+        if (!avisos) return;
+        avisos.hidden = false;
+        for (const id of ['activar', 'activos', 'instalar', 'bloqueados']) {
+            document.getElementById('avisos-' + id).hidden = id !== estado;
+        }
+    };
+    const llave = (base64) => {
+        const pad = '='.repeat((4 - base64.length % 4) % 4);
+        const raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+    };
+    const guardarAvisos = (sub, metodo = 'POST') => fetch(avisos.dataset.url, {
+        method: metodo,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(sub.toJSON ? sub.toJSON() : sub),
+    });
+
+    async function prepararAvisos(reg) {
+        if (!avisos) return;
+        if (!('PushManager' in window) || !('Notification' in window)) {
+            // iPhone: solo funciona instalada en la pantalla de inicio.
+            if (esIphone && !instalada) verAvisos('instalar');
+            return;
+        }
+        if (Notification.permission === 'denied') return verAvisos('bloqueados');
+        const sub = await reg.pushManager.getSubscription();
+        if (sub && Notification.permission === 'granted') {
+            guardarAvisos(sub).catch(() => {}); // por si el servidor no la tenía
+            return verAvisos('activos');
+        }
+        verAvisos('activar');
+    }
+
+    document.getElementById('btn-avisos')?.addEventListener('click', async () => {
+        const boton = document.getElementById('btn-avisos');
+        boton.disabled = true;
+        try {
+            const permiso = await Notification.requestPermission();
+            if (permiso !== 'granted') return verAvisos(permiso === 'denied' ? 'bloqueados' : 'activar');
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: llave(avisos.dataset.key) });
+            const res = await guardarAvisos(sub);
+            verAvisos(res.ok ? 'activos' : 'activar');
+        } catch (e) {
+            verAvisos('activar');
+            alert('No se pudieron activar los avisos. Revisa tu conexión e intenta de nuevo.');
+        } finally {
+            boton.disabled = false;
+        }
+    });
+
+    document.getElementById('btn-avisos-quitar')?.addEventListener('click', async () => {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+            await guardarAvisos({ endpoint: sub.endpoint }, 'DELETE').catch(() => {});
+            await sub.unsubscribe();
+        }
+        verAvisos('activar');
+    });
+
     // Sin internet: el service worker solo controla /mi-tarjeta/ (nunca el POS).
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/mi-tarjeta-sw.js', { scope: '/mi-tarjeta/' }).then(() => navigator.serviceWorker.ready).then((reg) => {
             const guardar = [location.pathname, ...[...document.querySelectorAll('link[rel="stylesheet"], link[rel="manifest"], img[src^="/"]')]
                 .map((el) => el.getAttribute('href') || el.getAttribute('src'))];
             reg.active && reg.active.postMessage({ guardar });
+            return prepararAvisos(reg);
         }).catch(() => {});
     }
 })();

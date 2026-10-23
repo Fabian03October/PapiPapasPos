@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\PushSubscription;
 use App\Services\Portal\CustomerPortal;
+use App\Services\WebPushService;
+use Illuminate\Http\Request;
 
 /**
  * "Mi tarjeta": la página del cliente (instalable como app, funciona sin
@@ -24,6 +27,7 @@ class CustomerPortalController extends Controller
                 'customer' => $customer,
                 'card' => $this->portal->snapshot($customer),
                 'qrSvg' => $customer->loyaltyQrBase64(320),
+                'pushKey' => app(WebPushService::class)->publicKey(),
             ])
             // Que siempre pida la versión nueva cuando hay internet (sin
             // internet la da el service worker).
@@ -63,6 +67,45 @@ class CustomerPortalController extends Controller
                 ['src' => '/pwa/icon-512-maskable.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
             ],
         ], 200, ['Content-Type' => 'application/manifest+json']);
+    }
+
+    /** El celular aceptó avisos: guarda su "dirección" (endpoint + llaves). */
+    public function subscribe(Request $request, string $qrCode)
+    {
+        $customer = $this->customer($qrCode);
+
+        $data = $request->validate([
+            'endpoint' => ['required', 'url:https', 'max:1000'],
+            'keys.p256dh' => ['required', 'string', 'max:255'],
+            'keys.auth' => ['required', 'string', 'max:255'],
+        ]);
+
+        // Si ese celular estaba ligado a otro cliente (cambió de tarjeta), se mueve.
+        PushSubscription::updateOrCreate(
+            ['endpoint_hash' => PushSubscription::hashEndpoint($data['endpoint'])],
+            [
+                'customer_id' => $customer->id,
+                'endpoint' => $data['endpoint'],
+                'public_key' => $data['keys']['p256dh'],
+                'auth_token' => $data['keys']['auth'],
+                'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            ],
+        );
+
+        return response()->json(['ok' => true], 201);
+    }
+
+    /** Desactivó los avisos desde la tarjeta. */
+    public function unsubscribe(Request $request, string $qrCode)
+    {
+        $customer = $this->customer($qrCode);
+        $endpoint = (string) $request->input('endpoint');
+
+        PushSubscription::where('customer_id', $customer->id)
+            ->where('endpoint_hash', PushSubscription::hashEndpoint($endpoint))
+            ->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     protected function customer(string $qrCode): Customer

@@ -14,3 +14,7 @@ Artisan::command('inspire', function () {
 // BackupWasSuccessful de spatie/laravel-backup) y se borra del disco local
 // de inmediato - el correo es el respaldo real, fuera de Railway.
 Schedule::command('backup:run --only-db')->daily()->at('03:00');
+
+// Avisos de "Mi tarjeta" que dependen del día: premio que vence mañana y
+// cumpleaños. A mediodía (nunca de noche).
+Schedule::command('fidelidad:avisos-diarios')->dailyAt('12:00')->timezone('America/Mexico_City');

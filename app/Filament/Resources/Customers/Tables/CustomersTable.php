@@ -6,6 +6,7 @@ use App\Jobs\SendWalletMessageJob;
 use App\Models\Customer;
 use App\Models\WalletMessage;
 use App\Services\GoogleWalletService;
+use App\Services\WebPushService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -94,7 +95,7 @@ class CustomersTable
                     ->label('Mandar mensaje')
                     ->icon(Heroicon::OutlinedChatBubbleLeftRight)
                     ->color('gray')
-                    ->visible(fn () => app(GoogleWalletService::class)->isEnabled())
+                    ->visible(fn () => app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled())
                     ->schema([
                         TextInput::make('title')
                             ->label('Título')
