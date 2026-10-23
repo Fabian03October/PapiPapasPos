@@ -11,7 +11,9 @@ use Carbon\Carbon;
 class LoyaltyService
 {
     public const VISITS_FOR_DISCOUNT = 4;
+
     public const VISITS_FOR_GIFT = 8;
+
     public const PENDING_REWARD_DAYS = 7;
 
     /**
@@ -63,7 +65,7 @@ class LoyaltyService
         if ($visits < self::VISITS_FOR_DISCOUNT) {
             $target = self::VISITS_FOR_DISCOUNT;
             $label = $level
-                ? ($level->discount_description ?: $level->discount_percent . '% de descuento')
+                ? ($level->discount_description ?: $level->discount_percent.'% de descuento')
                 : 'Descuento';
         } else {
             $target = self::VISITS_FOR_GIFT;
@@ -84,7 +86,8 @@ class LoyaltyService
      */
     public function pendingRewardFor(Customer $customer): ?CustomerLoyaltyRedemption
     {
-        return CustomerLoyaltyRedemption::where('customer_id', $customer->id)
+        return CustomerLoyaltyRedemption::with('loyaltyLevel')
+            ->where('customer_id', $customer->id)
             ->where('status', 'pending')
             ->where('expires_at', '>', Carbon::now())
             ->oldest('earned_at')
@@ -115,7 +118,7 @@ class LoyaltyService
             return [
                 'type' => 'discount',
                 'discount_amount' => round($baseAmount * ((float) $level->discount_percent / 100), 2),
-                'description' => $level->discount_description ?: $level->discount_percent . '% de descuento',
+                'description' => $level->discount_description ?: $level->discount_percent.'% de descuento',
                 'free_product_id' => null,
                 'free_product_name' => null,
                 'free_product_in_cart' => false,

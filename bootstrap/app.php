@@ -28,14 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'login/cambiar-pin',
         ]);
-        
+
         $middleware->validateCsrfTokens(except: [
             'login/cambiar-pin',
             'login/olvide-pin',
             'login/restablecer-pin',
+            // Apple Wallet: lo llama el iPhone (se autentica con su token).
+            'wallet/apple/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
-    

@@ -117,7 +117,14 @@ class GoogleWalletSyncTest extends TestCase
         $customer->update(['current_visits' => 1]);
         Queue::assertPushed(SyncGoogleWalletObjectJob::class, 1);
 
+        // Ya hay uno en cola para este cliente: no se encola otro (el que
+        // está en cola, al correr, manda el dato más reciente).
         $customer->update(['is_active' => false]);
+        Queue::assertPushed(SyncGoogleWalletObjectJob::class, 1);
+
+        // Ya que se procesó (se suelta el candado), un cambio nuevo sí encola.
+        Cache::lock('laravel_unique_job:'.SyncGoogleWalletObjectJob::class.':'.$customer->id)->forceRelease();
+        $customer->update(['name' => 'Ana María']);
         Queue::assertPushed(SyncGoogleWalletObjectJob::class, 2);
     }
 

@@ -8,8 +8,8 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 
 class WalletMessages extends Page implements HasTable
@@ -31,7 +31,7 @@ class WalletMessages extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(WalletMessage::query()->latest())
+            ->query(WalletMessage::query()->with(['customer:id,name', 'sentBy:id,name'])->latest())
             ->columns([
                 TextColumn::make('title')->label('Título')->searchable(),
                 TextColumn::make('audience')

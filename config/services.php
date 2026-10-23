@@ -50,4 +50,22 @@ return [
         'notify_on_visit_update' => env('GOOGLE_WALLET_NOTIFY_ON_VISIT_UPDATE', false),
     ],
 
+    // Apple Wallet (.pkpass). Apagado mientras no estén los certificados:
+    // ver docs/apple-wallet.md. Los certificados van en base64 en variables
+    // de entorno (Railway no guarda archivos entre despliegues).
+    'apple_wallet' => [
+        'enabled' => env('APPLE_WALLET_ENABLED', false),
+        'pass_type_identifier' => env('APPLE_WALLET_PASS_TYPE_ID'),   // pass.com.tudominio.papipapas
+        'team_identifier' => env('APPLE_WALLET_TEAM_ID'),             // 10 caracteres, Apple Developer
+        'organization_name' => env('APPLE_WALLET_ORGANIZATION', "Papi's Papas"),
+        'description' => env('APPLE_WALLET_DESCRIPTION', "Tarjeta de fidelidad Papi's Papas"),
+        'certificate_base64' => env('APPLE_WALLET_CERTIFICATE_P12_BASE64'), // el .p12 del Pass Type ID
+        'certificate_password' => env('APPLE_WALLET_CERTIFICATE_PASSWORD', ''),
+        'background_color' => env('APPLE_WALLET_BACKGROUND_COLOR', 'rgb(0, 0, 0)'),
+        'foreground_color' => env('APPLE_WALLET_FOREGROUND_COLOR', 'rgb(255, 255, 255)'),
+        'label_color' => env('APPLE_WALLET_LABEL_COLOR', 'rgb(245, 179, 47)'),
+        // Notificaciones de actualización (APNs). Producción salvo que se pruebe con sandbox.
+        'apns_host' => env('APPLE_WALLET_APNS_HOST', 'https://api.push.apple.com'),
+    ],
+
 ];

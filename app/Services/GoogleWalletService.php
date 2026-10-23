@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\WalletCardSettings;
+use App\Services\Wallet\LoyaltyCardContent;
 use Firebase\JWT\JWT;
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Http\Client\ConnectionException;
@@ -20,7 +21,7 @@ class GoogleWalletService
 
     private const TOKEN_CACHE_KEY = 'google_wallet_access_token';
 
-    public function __construct(protected LoyaltyService $loyalty) {}
+    public function __construct(protected LoyaltyCardContent $content) {}
 
     public function isEnabled(): bool
     {
@@ -31,53 +32,33 @@ class GoogleWalletService
 
     public function buildLoyaltyObjectPayload(Customer $customer): array
     {
-        $reward = $this->loyalty->nextRewardSummary($customer);
-        $remaining = $reward['visits_remaining'];
+        $card = $this->content->for($customer);
 
         $modules = [
-            [
-                'id' => 'member_since',
-                'header' => 'Miembro desde',
-                // En español fijo: la app puede estar en otro idioma (APP_LOCALE).
-                'body' => $customer->created_at?->copy()->locale('es')->translatedFormat('F Y') ?? '',
-            ],
-            [
-                'id' => 'next_reward',
-                'header' => 'Próximo premio',
-                'body' => $remaining === 1
-                    ? "{$reward['label']} · falta 1 visita"
-                    : "{$reward['label']} · faltan {$remaining} visitas",
-            ],
+            ['id' => 'member_since', 'header' => 'Miembro desde', 'body' => $card['member_since']],
+            ['id' => 'next_reward', 'header' => 'Próximo premio', 'body' => $card['next_reward']],
         ];
 
         // Un premio ganado que no se ha cobrado: que el cliente lo vea en su
         // tarjeta (si no, se le olvida y se vence).
-        if ($pending = $this->loyalty->pendingRewardFor($customer)) {
-            $label = $pending->type === 'discount'
-                ? ($pending->loyaltyLevel?->discount_description ?: ($pending->loyaltyLevel?->discount_percent ?? '').'% de descuento')
-                : ($pending->loyaltyLevel?->gift_description ?: 'Producto gratis');
-
-            $modules[] = [
-                'id' => 'pending_reward',
-                'header' => '🎁 Premio por cobrar',
-                'body' => "{$label} · vence el ".$pending->expires_at->copy()->locale('es')->translatedFormat('j \d\e F'),
-            ];
+        if ($card['pending_reward']) {
+            $modules[] = ['id' => 'pending_reward', 'header' => '🎁 Premio por cobrar', 'body' => $card['pending_reward']];
         }
 
         return [
             'id' => $this->objectId($customer),
             'classId' => $this->classId(),
             // Cliente dado de baja: la tarjeta se ve inactiva en su teléfono.
-            'state' => $customer->is_active !== null && ! (bool) $customer->is_active ? 'INACTIVE' : 'ACTIVE',
+            'state' => $card['active'] ? 'ACTIVE' : 'INACTIVE',
             'accountId' => (string) $customer->id,
-            'accountName' => $customer->name,
+            'accountName' => $card['name'],
             'loyaltyPoints' => [
                 'label' => 'Visitas',
-                'balance' => ['string' => "{$customer->current_visits} de ".LoyaltyService::VISITS_FOR_GIFT],
+                'balance' => ['string' => $card['visits_label']],
             ],
             'barcode' => [
                 'type' => 'QR_CODE',
-                'value' => $customer->ensureQrCode(),
+                'value' => $card['qr'],
             ],
             'textModulesData' => $modules,
         ];

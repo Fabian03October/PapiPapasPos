@@ -46,6 +46,11 @@ class Customer extends Model
         return $this->qr_code;
     }
 
+    public function appleWalletPass()
+    {
+        return $this->hasOne(AppleWalletPass::class);
+    }
+
     public function sales()
     {
         return $this->hasMany(Sale::class);

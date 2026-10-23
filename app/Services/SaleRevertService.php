@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Models\Sale;
 use App\Models\User;
@@ -48,7 +49,7 @@ class SaleRevertService
             }
 
             if ($sale->created_at->lt(now()->subMinutes(self::UNDO_MINUTES))) {
-                return 'Ya pasaron más de ' . self::UNDO_MINUTES . ' minutos. Pídele al manager o gerente que la deshaga, o cancélala con código.';
+                return 'Ya pasaron más de '.self::UNDO_MINUTES.' minutos. Pídele al manager o gerente que la deshaga, o cancélala con código.';
             }
         }
 
@@ -68,7 +69,7 @@ class SaleRevertService
             $order = $this->orderFor($sale);
 
             (new SaleIncidentService)->createAndApprove(
-                $sale->items->pluck('id')->all(), 'cancelacion', 'Venta deshecha: ' . $reason, $user, $user, 'pin'
+                $sale->items->pluck('id')->all(), 'cancelacion', 'Venta deshecha: '.$reason, $user, $user, 'pin'
             );
 
             $sale->refresh()->update([
@@ -158,13 +159,31 @@ class SaleRevertService
      */
     protected function revertLoyalty(Sale $sale): void
     {
-        $customer = $sale->customer;
+        // Con candado: otra tablet podría estar cobrándole al mismo cliente.
+        $customer = Customer::whereKey($sale->customer_id)->lockForUpdate()->first();
 
+        if (! $customer) {
+            return;
+        }
+
+        // Un premio viejo que se cobró en esta venta vuelve a quedar por
+        // cobrar. Uno por uno (no update masivo) para que la tarjeta de
+        // Wallet se entere del cambio.
         CustomerLoyaltyRedemption::where('redeemed_sale_id', $sale->id)
-            ->where('sale_id', '!=', $sale->id)
-            ->update(['status' => 'pending', 'redeemed_at' => null, 'redeemed_sale_id' => null, 'discount_applied' => null]);
+            // NULL != X no es verdadero en SQL: un premio sin venta de origen
+            // (dado a mano) también debe volver a quedar por cobrar.
+            ->where(fn ($q) => $q->whereNull('sale_id')->orWhere('sale_id', '!=', $sale->id))
+            ->get()
+            ->each->update(['status' => 'pending', 'redeemed_at' => null, 'redeemed_sale_id' => null, 'discount_applied' => null]);
 
         $earned = CustomerLoyaltyRedemption::with('loyaltyLevel')->where('sale_id', $sale->id)->first();
+
+        // El premio que ganó esta venta ya se cobró en OTRA venta: el cliente
+        // ya lo disfrutó. No se le quita la visita ni el premio (regresarle
+        // el nivel le dejaría ganar ese mismo premio dos veces).
+        if ($earned && $earned->status === 'redeemed' && $earned->redeemed_sale_id && $earned->redeemed_sale_id !== $sale->id) {
+            return;
+        }
 
         if ($customer->current_visits > 0) {
             $customer->update(['current_visits' => $customer->current_visits - 1]);

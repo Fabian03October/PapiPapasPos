@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\LoyaltyChangedException;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
@@ -21,6 +22,7 @@ use App\Services\PromotionService;
 use App\Services\SaleRevertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SaleController extends Controller
@@ -155,7 +157,8 @@ class SaleController extends Controller
             'items.*.modifier_ids.*' => 'exists:modifiers,id',
             'items.*.qty' => 'required|integer|min:1',
             'items.*.notes' => 'nullable|string|max:255',
-            'customer_id' => 'nullable|exists:customers,id',
+            // Un cliente dado de baja no junta sellos (su tarjeta está inactiva).
+            'customer_id' => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
             ...ManualDiscountService::rules('items.*.discount'),
             ...ManualDiscountService::rules('sale_discount'),
         ];
@@ -369,82 +372,109 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
-            $sale = Sale::create([
-                'folio' => 'TMP',
-                'user_id' => auth()->id(),
-                'cash_session_id' => $cashSession->id,
-                'customer_id' => $request->customer_id,
-                'status' => 'pagada',
-                'subtotal' => $subtotal,
-                'discount' => $discount,
-                'manual_discount' => $manualDiscount,
-                'discount_breakdown' => $breakdown ?: null,
-                'total' => $total,
-                'payment_method' => $request->payment_method,
-                // Efectivo: con cuánto pagó (nunca menos que el total; si no
-                // llegó el dato o es menor, se cobró exacto).
-                'amount_received' => $request->payment_method === 'efectivo'
-                    ? max((float) $total, (float) ($request->amount_received ?? 0))
-                    : null,
-            ]);
-
-            $sale->update(['folio' => str_pad($sale->id, 4, '0', STR_PAD_LEFT)]);
-
-            foreach ($itemsData as $data) {
-                $saleItem = SaleItem::create([
-                    'sale_id' => $sale->id,
-                    'product_id' => $data['product_id'],
-                    'variant_id' => $data['variant_id'],
-                    'qty' => $data['qty'],
-                    'unit_price' => $data['unit_price'],
-                    'line_total' => $data['line_total'],
-                    'notes' => $data['notes'] ?? null,
-                    'manual_discount' => $data['manual_discount_amount'] ?? 0,
-                    'manual_discount_type' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['type'] : null,
-                    'manual_discount_value' => ($data['manual_discount_amount'] ?? 0) > 0 ? ($data['manual_discount']['value'] ?? null) : null,
-                    'manual_discount_reason' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['reason'] : null,
-                ]);
-
-                foreach ($data['modifiers'] as $modifier) {
-                    SaleItemModifier::create([
-                        'sale_item_id' => $saleItem->id,
-                        'modifier_id' => $modifier->id,
-                        'price_delta' => $modifier->price_delta,
-                    ]);
-                }
-            }
-
-            foreach ($ingredientConsumption as $ingredientId => $consumedQty) {
-                $ingredient = Ingredient::find($ingredientId);
-
-                InventoryMovement::create([
-                    'ingredient_id' => $ingredient->id,
-                    'type' => 'venta',
-                    'qty' => -$consumedQty,
-                    'unit_cost' => $ingredient->cost_per_unit,
-                    'reference_type' => 'sale',
-                    'reference_id' => $sale->id,
+        try {
+            $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
+                $sale = Sale::create([
+                    'folio' => 'TMP',
                     'user_id' => auth()->id(),
+                    'cash_session_id' => $cashSession->id,
+                    'customer_id' => $request->customer_id,
+                    'status' => 'pagada',
+                    'subtotal' => $subtotal,
+                    'discount' => $discount,
+                    'manual_discount' => $manualDiscount,
+                    'discount_breakdown' => $breakdown ?: null,
+                    'total' => $total,
+                    'payment_method' => $request->payment_method,
+                    // Efectivo: con cuánto pagó (nunca menos que el total; si no
+                    // llegó el dato o es menor, se cobró exacto).
+                    'amount_received' => $request->payment_method === 'efectivo'
+                        ? max((float) $total, (float) ($request->amount_received ?? 0))
+                        : null,
                 ]);
 
-                $ingredient->decrement('stock_qty', $consumedQty);
-            }
+                $sale->update(['folio' => str_pad($sale->id, 4, '0', STR_PAD_LEFT)]);
 
-            if ($customer && $loyaltyPreview) {
-                // Avanza visitas/nivel siempre - el canje (si esta visita
-                // ganó uno nuevo) queda pendiente o inmediato según
-                // $redeemNow. Si el premio que se canjeó era uno viejo
-                // pendiente (no de esta visita), se resuelve aparte abajo.
-                $loyaltyService->applyVisit($customer, $sale, $loyaltyPreview, $redeemNow);
+                foreach ($itemsData as $data) {
+                    $saleItem = SaleItem::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $data['product_id'],
+                        'variant_id' => $data['variant_id'],
+                        'qty' => $data['qty'],
+                        'unit_price' => $data['unit_price'],
+                        'line_total' => $data['line_total'],
+                        'notes' => $data['notes'] ?? null,
+                        'manual_discount' => $data['manual_discount_amount'] ?? 0,
+                        'manual_discount_type' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['type'] : null,
+                        'manual_discount_value' => ($data['manual_discount_amount'] ?? 0) > 0 ? ($data['manual_discount']['value'] ?? null) : null,
+                        'manual_discount_reason' => ($data['manual_discount_amount'] ?? 0) > 0 ? $data['manual_discount']['reason'] : null,
+                    ]);
 
-                if ($pendingRedemption && $redeemNow) {
-                    $loyaltyService->redeemPending($pendingRedemption, $sale, $reward['discount_amount']);
+                    foreach ($data['modifiers'] as $modifier) {
+                        SaleItemModifier::create([
+                            'sale_item_id' => $saleItem->id,
+                            'modifier_id' => $modifier->id,
+                            'price_delta' => $modifier->price_delta,
+                        ]);
+                    }
                 }
-            }
 
-            return $sale;
-        });
+                foreach ($ingredientConsumption as $ingredientId => $consumedQty) {
+                    $ingredient = Ingredient::find($ingredientId);
+
+                    InventoryMovement::create([
+                        'ingredient_id' => $ingredient->id,
+                        'type' => 'venta',
+                        'qty' => -$consumedQty,
+                        'unit_cost' => $ingredient->cost_per_unit,
+                        'reference_type' => 'sale',
+                        'reference_id' => $sale->id,
+                        'user_id' => auth()->id(),
+                    ]);
+
+                    $ingredient->decrement('stock_qty', $consumedQty);
+                }
+
+                if ($customer && $loyaltyPreview) {
+                    // Candado sobre el cliente: si otra tablet le cobró en este
+                    // mismo momento, el sello y el premio se calcularon con datos
+                    // viejos (se perdería un sello o se daría el premio dos
+                    // veces). Se cancela esta venta para que se vuelva a cobrar.
+                    $locked = Customer::whereKey($customer->id)->lockForUpdate()->first();
+
+                    if (! $locked || (int) $locked->current_visits !== (int) $customer->current_visits
+                        || (int) $locked->current_level !== (int) $customer->current_level) {
+                        throw new LoyaltyChangedException('El cliente acaba de registrar otra visita. Vuelve a tocar Cobrar.');
+                    }
+
+                    if ($pendingRedemption && $redeemNow) {
+                        $stillPending = CustomerLoyaltyRedemption::whereKey($pendingRedemption->id)
+                            ->where('status', 'pending')->lockForUpdate()->exists();
+
+                        if (! $stillPending) {
+                            throw new LoyaltyChangedException('Ese premio ya se cobró en otra venta. Vuelve a tocar Cobrar.');
+                        }
+                    }
+
+                    $customer = $locked;
+
+                    // Avanza visitas/nivel siempre - el canje (si esta visita
+                    // ganó uno nuevo) queda pendiente o inmediato según
+                    // $redeemNow. Si el premio que se canjeó era uno viejo
+                    // pendiente (no de esta visita), se resuelve aparte abajo.
+                    $loyaltyService->applyVisit($customer, $sale, $loyaltyPreview, $redeemNow);
+
+                    if ($pendingRedemption && $redeemNow) {
+                        $loyaltyService->redeemPending($pendingRedemption, $sale, $reward['discount_amount']);
+                    }
+                }
+
+                return $sale;
+            });
+        } catch (LoyaltyChangedException $e) {
+            // Nada se guardó (la transacción se deshizo completa).
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 409);
+        }
 
         // La orden venía de "Deshacer" (para corregirla): la original queda
         // como "Corregida → #nueva" y la comanda sale marcada CORRECCIÓN.

@@ -1,15 +1,16 @@
 <?php
 
+use App\Http\Controllers\AppleWalletController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CajaController;
-use App\Http\Controllers\VentaController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\SaleController;
+use App\Http\Controllers\CustomerRegistrationController;
 use App\Http\Controllers\ForgotPinController;
+use App\Http\Controllers\PrintStationController;
+use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleIncidentController;
 use App\Http\Controllers\TicketController;
-use App\Http\Controllers\PrintStationController;
-use App\Http\Controllers\CustomerRegistrationController;
+use App\Http\Controllers\VentaController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect()->route('login.pin');
@@ -27,8 +28,19 @@ Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])-
 
 Route::get('/registro', [CustomerRegistrationController::class, 'showForm'])->name('registro.form');
 Route::post('/registro', [CustomerRegistrationController::class, 'store'])->name('registro.store')->middleware('throttle:registro');
-Route::get('/registro/confirmacion/{qrCode}', [CustomerRegistrationController::class, 'confirmation'])->name('registro.confirmacion');
+// Apple Wallet: la descarga usa el mismo enlace secreto (UUID) que la
+// confirmación de registro; las rutas v1/ son el "Wallet Web Service" que
+// llama el iPhone para registrarse y bajar el pase actualizado.
+Route::prefix('wallet/apple')->middleware('throttle:60,1')->group(function () {
+    Route::get('/{qrCode}.pkpass', [AppleWalletController::class, 'download'])->name('wallet.apple.download');
+    Route::post('/v1/devices/{device}/registrations/{passType}/{serial}', [AppleWalletController::class, 'register']);
+    Route::delete('/v1/devices/{device}/registrations/{passType}/{serial}', [AppleWalletController::class, 'unregister']);
+    Route::get('/v1/devices/{device}/registrations/{passType}', [AppleWalletController::class, 'serials']);
+    Route::get('/v1/passes/{passType}/{serial}', [AppleWalletController::class, 'latest']);
+    Route::post('/v1/log', [AppleWalletController::class, 'log']);
+});
 
+Route::get('/registro/confirmacion/{qrCode}', [CustomerRegistrationController::class, 'confirmation'])->name('registro.confirmacion');
 
 Route::middleware('auth')->group(function () {
     Route::get('/caja/abrir', [CajaController::class, 'abrir'])->name('caja.abrir');

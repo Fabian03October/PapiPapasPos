@@ -2,12 +2,11 @@
 
 namespace App\Providers;
 
-use App\Jobs\SyncGoogleWalletObjectJob;
 use App\Mail\Transport\BrevoApiTransport;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Observers\CustomerObserver;
-use App\Services\GoogleWalletService;
+use App\Services\Wallet\WalletNotifier;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -35,8 +34,8 @@ class AppServiceProvider extends ServiceProvider
         // Ganar, cobrar o deshacer un premio cambia lo que dice la tarjeta
         // de Wallet ("Premio por cobrar"), aunque las visitas no cambien.
         $syncWallet = function (CustomerLoyaltyRedemption $redemption): void {
-            if ($redemption->customer && app(GoogleWalletService::class)->isEnabled()) {
-                SyncGoogleWalletObjectJob::dispatch($redemption->customer);
+            if ($redemption->customer) {
+                app(WalletNotifier::class)->customerChanged($redemption->customer);
             }
         };
         CustomerLoyaltyRedemption::saved($syncWallet);
