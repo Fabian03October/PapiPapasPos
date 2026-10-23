@@ -1,0 +1,86 @@
+/*
+ * Service worker de "Mi tarjeta" (la app web del cliente).
+ *
+ * Se registra con scope '/mi-tarjeta/': SOLO controla esas páginas. Las
+ * pantallas del POS, el panel y la impresora nunca pasan por aquí.
+ *
+ * - Páginas y datos de la tarjeta: primero internet (siempre lo más nuevo);
+ *   sin internet, la última copia guardada (el QR va dentro del HTML).
+ * - Estilos e íconos: de la copia guardada (cambian de nombre al cambiar).
+ */
+const CACHE = 'mi-tarjeta-v1';
+
+self.addEventListener('install', () => self.skipWaiting());
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys()
+            .then((keys) => Promise.all(keys
+                .filter((key) => key.startsWith('mi-tarjeta-') && key !== CACHE)
+                .map((key) => caches.delete(key))))
+            .then(() => self.clients.claim())
+    );
+});
+
+// La página pide guardar de una vez lo que necesita para abrir sin internet
+// (la primera visita ocurre antes de que este worker la controle).
+self.addEventListener('message', (event) => {
+    const urls = (event.data && event.data.guardar) || [];
+    event.waitUntil(
+        caches.open(CACHE).then((cache) => Promise.all(urls.map((url) =>
+            fetch(url, { credentials: 'same-origin' })
+                .then((response) => response.ok && cache.put(stripQuery(url), response))
+                .catch(() => {})
+        )))
+    );
+});
+
+self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    const url = new URL(request.url);
+
+    if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+
+    const isCard = url.pathname.startsWith('/mi-tarjeta/');
+    const isAsset = url.pathname.startsWith('/build/') || url.pathname.startsWith('/pwa/');
+
+    if (isAsset) {
+        event.respondWith(
+            caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+                if (response.ok) {
+                    const copy = response.clone();
+                    caches.open(CACHE).then((cache) => cache.put(request, copy));
+                }
+                return response;
+            }))
+        );
+        return;
+    }
+
+    if (!isCard) return;
+
+    event.respondWith(
+        fetch(request)
+            .then((response) => {
+                if (response.ok) {
+                    const copy = response.clone();
+                    caches.open(CACHE).then((cache) => cache.put(stripQuery(request.url), copy));
+                }
+                return response;
+            })
+            .catch(() => caches.match(stripQuery(request.url))
+                .then((cached) => cached || new Response(
+                    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                    + '<body style="background:#0a0a0a;color:#fff;font-family:system-ui;padding:32px;text-align:center">'
+                    + '<h2>Sin conexión</h2><p>Abre tu tarjeta una vez con internet para poder usarla sin conexión.</p></body>',
+                    { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+                )))
+    );
+});
+
+// "?app=1" o "?nuevo=1" no cambian la tarjeta: se guarda una sola copia.
+function stripQuery(url) {
+    const u = new URL(url, self.location.origin);
+    u.search = '';
+    return u.toString();
+}

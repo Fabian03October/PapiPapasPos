@@ -22,7 +22,7 @@ class CustomerRegistrationTest extends TestCase
         $this->assertNotNull($customer);
         $this->assertNotEmpty($customer->qr_code);
         $this->assertSame('Juan Pérez', $customer->name);
-        $response->assertRedirect(route('registro.confirmacion', $customer->qr_code));
+        $response->assertRedirect(route('mi-tarjeta', ['qrCode' => $customer->qr_code, 'nuevo' => 1]));
     }
 
     public function test_telefono_repetido_no_duplica_ni_muestra_la_tarjeta_del_otro(): void
@@ -57,9 +57,11 @@ class CustomerRegistrationTest extends TestCase
     {
         $customer = Customer::create(['name' => 'María', 'phone' => '5511112222']);
 
-        $this->get(route('registro.confirmacion', $customer->qr_code))
+        // El enlace viejo lleva a "Mi tarjeta", que muestra su nombre y QR.
+        $this->followingRedirects()->get(route('registro.confirmacion', $customer->qr_code))
             ->assertOk()
-            ->assertSee('María');
+            ->assertSee('María')
+            ->assertSee('data:image/svg+xml;base64,', false);
     }
 
     public function test_rate_limiting_bloquea_intentos_excesivos(): void

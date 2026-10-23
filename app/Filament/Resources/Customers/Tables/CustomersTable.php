@@ -77,7 +77,7 @@ class CustomersTable
                     ->modalHeading(fn (Customer $record) => "Tarjeta de {$record->name}")
                     ->modalContent(fn (Customer $record) => view('filament.wallet-card-qr', [
                         'customer' => $record,
-                        'url' => route('registro.confirmacion', $record->ensureQrCode()),
+                        'url' => route('mi-tarjeta', $record->ensureQrCode()),
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AppleWalletController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CajaController;
+use App\Http\Controllers\CustomerPortalController;
 use App\Http\Controllers\CustomerRegistrationController;
 use App\Http\Controllers\ForgotPinController;
 use App\Http\Controllers\PrintStationController;
@@ -28,6 +29,13 @@ Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])-
 
 Route::get('/registro', [CustomerRegistrationController::class, 'showForm'])->name('registro.form');
 Route::post('/registro', [CustomerRegistrationController::class, 'store'])->name('registro.store')->middleware('throttle:registro');
+// "Mi tarjeta" del cliente (app web instalable, funciona sin internet).
+Route::prefix('mi-tarjeta/{qrCode}')->middleware('throttle:60,1')->group(function () {
+    Route::get('/', [CustomerPortalController::class, 'show'])->name('mi-tarjeta');
+    Route::get('/datos', [CustomerPortalController::class, 'data'])->name('mi-tarjeta.datos');
+    Route::get('/manifest.webmanifest', [CustomerPortalController::class, 'manifest'])->name('mi-tarjeta.manifest');
+});
+
 // Apple Wallet: la descarga usa el mismo enlace secreto (UUID) que la
 // confirmación de registro; las rutas v1/ son el "Wallet Web Service" que
 // llama el iPhone para registrarse y bajar el pase actualizado.

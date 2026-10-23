@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Services\GoogleWalletService;
 use Illuminate\Http\Request;
 
 class CustomerRegistrationController extends Controller
@@ -38,16 +37,15 @@ class CustomerRegistrationController extends Controller
 
         $customer = Customer::create(['name' => $validated['name'], 'phone' => $phone, 'birthdate' => $validated['birthdate'] ?? null]);
 
-        return redirect()->route('registro.confirmacion', $customer->qr_code);
+        // Directo a su tarjeta (con la bienvenida y cómo instalarla).
+        return redirect()->route('mi-tarjeta', ['qrCode' => $customer->qr_code, 'nuevo' => 1]);
     }
 
-    public function confirmation(string $qrCode, GoogleWalletService $wallet)
+    /** Enlace viejo (antes de "Mi tarjeta"): algunos clientes lo tienen guardado. */
+    public function confirmation(string $qrCode)
     {
         $customer = Customer::where('qr_code', $qrCode)->firstOrFail();
 
-        return view('registro.confirmacion', [
-            'customer' => $customer,
-            'walletSaveLink' => $wallet->generateSaveLink($customer),
-        ]);
+        return redirect()->route('mi-tarjeta', $customer->qr_code, 301);
     }
 }
