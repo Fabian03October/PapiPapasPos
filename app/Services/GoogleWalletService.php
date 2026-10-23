@@ -276,14 +276,26 @@ class GoogleWalletService
             return ['success' => false, 'quota_exceeded' => false, 'error' => 'No se pudo autenticar con Google'];
         }
 
-        $payload = [
-            'message' => [
-                'header' => $header,
-                'body' => $body,
-                'id' => (string) Str::uuid(),
-                'messageType' => $notify ? 'TEXT_AND_NOTIFY' : 'TEXT',
-            ],
+        $message = [
+            'header' => $header,
+            'body' => $body,
+            'id' => (string) Str::uuid(),
+            'messageType' => $notify ? 'TEXT_AND_NOTIFY' : 'TEXT',
         ];
+
+        // Se quita solo de la tarjeta a los N días (en el panel, "Mensajes
+        // Wallet" conserva el historial completo). 0 = se queda para siempre.
+        $startsAt = now();
+        $endsAt = null;
+        if (($days = (int) config('services.google_wallet.message_days', 7)) > 0) {
+            $endsAt = $startsAt->copy()->addDays($days);
+            $message['displayInterval'] = [
+                'start' => ['date' => $startsAt->copy()->utc()->format('Y-m-d\\TH:i:s\\Z')],
+                'end' => ['date' => $endsAt->copy()->utc()->format('Y-m-d\\TH:i:s\\Z')],
+            ];
+        }
+
+        $payload = ['message' => $message];
 
         try {
             $response = Http::withToken($token)->timeout(20)->post(self::BASE_URL.$path, $payload);
@@ -311,7 +323,7 @@ class GoogleWalletService
             return ['success' => false, 'quota_exceeded' => $quotaExceeded, 'error' => $error];
         }
 
-        return ['success' => true, 'quota_exceeded' => false, 'error' => null];
+        return ['success' => true, 'quota_exceeded' => false, 'error' => null, 'starts_at' => $startsAt, 'ends_at' => $endsAt];
     }
 
     protected function classId(): string

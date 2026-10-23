@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Jobs\DeactivateGoogleWalletObjectJob;
+use App\Jobs\SendWalletMessageJob;
 use App\Jobs\SyncGoogleWalletObjectJob;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Models\LoyaltyLevel;
+use App\Models\Role;
+use App\Models\User;
+use App\Models\WalletMessage;
 use App\Services\GoogleWalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -159,6 +163,42 @@ class GoogleWalletSyncTest extends TestCase
         $customer->update(['current_visits' => 2]);
 
         Queue::assertNothingPushed();
+    }
+
+    private function mensaje(Customer $customer): WalletMessage
+    {
+        $user = User::create(['name' => 'Gerente', 'email' => 'g@test.local', 'password' => 'x', 'pin' => '9999',
+            'role_id' => Role::firstOrCreate(['name' => 'manager'])->id, 'is_active' => true]);
+
+        return WalletMessage::create(['title' => '2x1 hoy', 'body' => 'Solo hoy', 'audience' => 'customer',
+            'customer_id' => $customer->id, 'notify' => true, 'sent_by_user_id' => $user->id, 'status' => 'queued']);
+    }
+
+    public function test_el_mensaje_se_quita_de_la_tarjeta_a_los_7_dias_pero_queda_en_el_historial(): void
+    {
+        $this->freezeTime();
+        Http::fake(['walletobjects.googleapis.com/*' => Http::response([], 200)]);
+        $message = $this->mensaje(Customer::create(['name' => 'Ana', 'phone' => '5511110020']));
+
+        (new SendWalletMessageJob($message))->handle($this->wallet());
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/addMessage')
+            && $request['message']['displayInterval']['end']['date'] === now()->addDays(7)->utc()->format('Y-m-d\TH:i:s\Z'));
+        $message->refresh();
+        $this->assertSame('sent', $message->status);
+        $this->assertSame(now()->addDays(7)->format('Y-m-d H:i:s'), $message->ends_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_con_0_dias_el_mensaje_se_queda_para_siempre(): void
+    {
+        config(['services.google_wallet.message_days' => 0]);
+        Http::fake(['walletobjects.googleapis.com/*' => Http::response([], 200)]);
+        $message = $this->mensaje(Customer::create(['name' => 'Ana', 'phone' => '5511110021']));
+
+        (new SendWalletMessageJob($message))->handle($this->wallet());
+
+        Http::assertSent(fn ($request) => ! isset($request['message']['displayInterval']));
+        $this->assertNull($message->fresh()->ends_at);
     }
 
     public function test_mensaje_a_cliente_sin_tarjeta_dice_por_que_fallo(): void

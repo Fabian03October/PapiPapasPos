@@ -14,9 +14,7 @@ class SendWalletMessageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public WalletMessage $message)
-    {
-    }
+    public function __construct(public WalletMessage $message) {}
 
     public function handle(GoogleWalletService $wallet): void
     {
@@ -31,6 +29,9 @@ class SendWalletMessageJob implements ShouldQueue
         $this->message->update([
             'status' => $result['success'] ? 'sent' : 'failed',
             'error' => $result['error'],
+            // Historial: desde y hasta cuándo se vio en las tarjetas.
+            'starts_at' => $result['starts_at'] ?? $this->message->starts_at,
+            'ends_at' => $result['ends_at'] ?? $this->message->ends_at,
         ]);
     }
 

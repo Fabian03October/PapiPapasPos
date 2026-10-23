@@ -48,6 +48,8 @@ return [
         'merchant_lng' => env('GOOGLE_WALLET_MERCHANT_LNG'),
         'daily_broadcast_limit' => env('GOOGLE_WALLET_DAILY_BROADCAST_LIMIT', 1),
         'notify_on_visit_update' => env('GOOGLE_WALLET_NOTIFY_ON_VISIT_UPDATE', false),
+        // Días que un mensaje se ve en la tarjeta (0 = para siempre).
+        'message_days' => (int) env('GOOGLE_WALLET_MESSAGE_DAYS', 7),
     ],
 
     // Apple Wallet (.pkpass). Apagado mientras no estén los certificados:
