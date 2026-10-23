@@ -119,6 +119,20 @@ class CustomerPortalTest extends TestCase
             ->assertRedirect(route('mi-tarjeta', $customer->qr_code));
     }
 
+    public function test_enlace_de_whatsapp_con_su_tarjeta_ya_escrita(): void
+    {
+        $customer = Customer::create(['name' => 'Ana López', 'phone' => '5530000008']);
+
+        $url = $customer->whatsappCardUrl();
+
+        $this->assertStringStartsWith('https://wa.me/525530000008?text=', $url);
+        $text = rawurldecode(substr($url, strpos($url, '=') + 1));
+        $this->assertStringContainsString('¡Hola Ana!', $text);
+        $this->assertStringContainsString(route('mi-tarjeta', $customer->qr_code), $text);
+
+        $this->assertNull(Customer::create(['name' => 'Sin tel', 'phone' => '123'])->whatsappCardUrl());
+    }
+
     public function test_el_modo_sin_internet_solo_controla_mi_tarjeta(): void
     {
         $sw = file_get_contents(public_path('mi-tarjeta-sw.js'));

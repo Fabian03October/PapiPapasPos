@@ -46,6 +46,34 @@ class Customer extends Model
         return $this->qr_code;
     }
 
+    /** Enlace a "Mi tarjeta" (la app web del cliente). */
+    public function cardUrl(): string
+    {
+        return route('mi-tarjeta', $this->ensureQrCode());
+    }
+
+    /**
+     * WhatsApp con el mensaje y el enlace de su tarjeta ya escritos. Teléfono
+     * de 10 dígitos = México (+52). Sin teléfono válido: null.
+     */
+    public function whatsappCardUrl(): ?string
+    {
+        $phone = preg_replace('/\D/', '', (string) $this->phone);
+
+        if (strlen($phone) === 10) {
+            $phone = '52'.$phone;
+        } elseif (strlen($phone) < 11) {
+            return null;
+        }
+
+        $first = trim(strtok((string) $this->name, ' ') ?: '');
+        $text = "¡Hola {$first}! Tu tarjeta de sellos de Papi's Papas ya vive en tu celular 🍟\n\n"
+            ."Ábrela aquí: {$this->cardUrl()}\n\n"
+            .'Ahí ves tus sellos, tus premios y nuestras promos. Guárdala en tu pantalla de inicio: funciona aunque no tengas internet.';
+
+        return 'https://wa.me/'.$phone.'?text='.rawurlencode($text);
+    }
+
     public function appleWalletPass()
     {
         return $this->hasOne(AppleWalletPass::class);

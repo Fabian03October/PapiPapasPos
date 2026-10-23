@@ -69,18 +69,27 @@ class CustomersTable
                 // encargado: la tarjeta del cliente terminaba en la cuenta de
                 // Google del encargado. Ahora se muestra un QR para que el
                 // CLIENTE lo escanee con su teléfono.
+                // Siempre visible: "Mi tarjeta" no depende de Google Wallet.
                 Action::make('wallet_link')
-                    ->label('Tarjeta Wallet')
+                    ->label('Tarjeta del cliente')
                     ->icon(Heroicon::OutlinedWallet)
                     ->color('gray')
-                    ->visible(fn () => app(GoogleWalletService::class)->isEnabled())
                     ->modalHeading(fn (Customer $record) => "Tarjeta de {$record->name}")
                     ->modalContent(fn (Customer $record) => view('filament.wallet-card-qr', [
                         'customer' => $record,
-                        'url' => route('mi-tarjeta', $record->ensureQrCode()),
+                        'url' => $record->cardUrl(),
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
+                // Abre WhatsApp con el chat del cliente y el mensaje con su
+                // enlace ya escrito: solo falta tocar enviar.
+                Action::make('whatsapp_card')
+                    ->label('Enviar por WhatsApp')
+                    ->icon(Heroicon::OutlinedPaperAirplane)
+                    ->color('success')
+                    ->visible(fn (Customer $record) => $record->whatsappCardUrl() !== null)
+                    ->url(fn (Customer $record) => $record->whatsappCardUrl())
+                    ->openUrlInNewTab(),
                 Action::make('send_message')
                     ->label('Mandar mensaje')
                     ->icon(Heroicon::OutlinedChatBubbleLeftRight)
