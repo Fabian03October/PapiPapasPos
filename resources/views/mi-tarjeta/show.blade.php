@@ -89,11 +89,14 @@
     @endif
 
     @if (count($card['promotions']))
-        <section class="mt-4 rounded-3xl bg-[var(--panel)] p-5">
+        <section id="promociones" class="mt-4 rounded-3xl bg-[var(--panel)] p-5"
+            data-url="{{ url('/mi-tarjeta/'.$customer->qr_code.'/promociones') }}" data-cliente="{{ $customer->qr_code }}">
             <h2 class="text-base font-semibold">Promociones</h2>
             <ul class="mt-3 flex flex-col gap-3">
                 @foreach ($card['promotions'] as $promo)
-                    <li class="rounded-xl bg-[var(--panel-2)] px-4 py-3">
+                    <li class="relative rounded-xl bg-[var(--panel-2)] py-3 pl-4 pr-10" data-promo="{{ $promo['id'] }}">
+                        <button type="button" class="btn-ocultar absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full text-lg text-[var(--muted)]"
+                            aria-label="Quitar esta promoción">✕</button>
                         <p class="font-semibold text-[var(--accent)]">{{ $promo['title'] }}</p>
                         <p class="mt-0.5 text-sm text-[var(--fg)]">{{ $promo['body'] }}</p>
                         <p class="mt-1 text-xs text-[var(--muted)]">{{ $promo['date'] }}</p>
@@ -201,6 +204,35 @@
         aviso = null;
         document.getElementById('btn-instalar').hidden = true;
     });
+
+    // Quitar promociones (✕): se ocultan al instante; sin internet quedan
+    // pendientes en el celular y se mandan cuando vuelva la conexión.
+    const promos = document.getElementById('promociones');
+    if (promos) {
+        const clave = 'mi-tarjeta-ocultas-' + promos.dataset.cliente;
+        const leer = () => { try { return JSON.parse(localStorage.getItem(clave) || '[]'); } catch (e) { return []; } };
+        const escribir = (ids) => { try { localStorage.setItem(clave, JSON.stringify(ids)); } catch (e) {} };
+        const quitarDeLista = (id) => {
+            promos.querySelector(`[data-promo="${id}"]`)?.remove();
+            if (!promos.querySelector('[data-promo]')) promos.hidden = true;
+        };
+        const mandar = (id) => fetch(`${promos.dataset.url}/${id}/ocultar`, { method: 'POST', headers: { 'Accept': 'application/json' } })
+            .then((r) => { if (r.ok || r.status === 404) escribir(leer().filter((x) => x !== id)); })
+            .catch(() => {});
+
+        // Las que quitó sin internet (la copia guardada aún las trae): ocultar y reintentar.
+        leer().forEach((id) => { quitarDeLista(id); if (navigator.onLine) mandar(id); });
+        window.addEventListener('online', () => leer().forEach(mandar));
+
+        promos.addEventListener('click', (event) => {
+            const boton = event.target.closest('.btn-ocultar');
+            if (!boton) return;
+            const id = Number(boton.closest('[data-promo]').dataset.promo);
+            escribir([...new Set([...leer(), id])]);
+            quitarDeLista(id);
+            mandar(id);
+        });
+    }
 
     // Avisos (Web Push).
     const avisos = document.getElementById('avisos');

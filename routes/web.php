@@ -36,6 +36,7 @@ Route::prefix('mi-tarjeta/{qrCode}')->middleware('throttle:60,1')->group(functio
     Route::get('/manifest.webmanifest', [CustomerPortalController::class, 'manifest'])->name('mi-tarjeta.manifest');
     Route::post('/avisos', [CustomerPortalController::class, 'subscribe'])->name('mi-tarjeta.avisos');
     Route::delete('/avisos', [CustomerPortalController::class, 'unsubscribe']);
+    Route::post('/promociones/{message}/ocultar', [CustomerPortalController::class, 'hideMessage'])->name('mi-tarjeta.ocultar');
 });
 
 // Apple Wallet: la descarga usa el mismo enlace secreto (UUID) que la

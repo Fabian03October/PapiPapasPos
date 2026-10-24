@@ -37,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'wallet/apple/*',
             // Avisos de "Mi tarjeta": la autenticación es el enlace secreto del cliente.
             'mi-tarjeta/*/avisos',
+            'mi-tarjeta/*/promociones/*/ocultar',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -142,4 +142,25 @@ class CustomerPortalTest extends TestCase
         $this->assertStringContainsString('if (!isCard) return;', $sw);
         $this->assertStringContainsString("scope: '/mi-tarjeta/'", file_get_contents(resource_path('views/mi-tarjeta/show.blade.php')));
     }
+
+    public function test_el_cliente_quita_una_promocion_solo_de_su_tarjeta(): void
+    {
+        $ana = Customer::create(['name' => 'Ana', 'phone' => '5530000020']);
+        $luis = Customer::create(['name' => 'Luis', 'phone' => '5530000021']);
+        $promo = $this->mensaje(['title' => '2x1 hoy', 'ends_at' => now()->addDays(3)]);
+        $soloLuis = $this->mensaje(['title' => 'Solo Luis', 'audience' => 'customer', 'customer_id' => $luis->id, 'ends_at' => now()->addDay()]);
+
+        $this->get("/mi-tarjeta/{$ana->qr_code}")->assertSee('2x1 hoy')->assertSee('Quitar esta promoción');
+
+        $this->postJson("/mi-tarjeta/{$ana->qr_code}/promociones/{$promo->id}/ocultar")->assertOk();
+        $this->postJson("/mi-tarjeta/{$ana->qr_code}/promociones/{$promo->id}/ocultar")->assertOk(); // repetir no truena
+
+        $this->get("/mi-tarjeta/{$ana->qr_code}")->assertDontSee('2x1 hoy');
+        $this->get("/mi-tarjeta/{$luis->qr_code}")->assertSee('2x1 hoy');          // los demás la siguen viendo
+        $this->assertNotNull($promo->fresh());                                     // el historial del panel no se toca
+
+        // Ana no puede tocar un mensaje que no le llegó.
+        $this->postJson("/mi-tarjeta/{$ana->qr_code}/promociones/{$soloLuis->id}/ocultar")->assertNotFound();
+        $this->get("/mi-tarjeta/{$luis->qr_code}")->assertSee('Solo Luis');
+    }
 }

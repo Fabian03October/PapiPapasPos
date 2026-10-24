@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\PushSubscription;
+use App\Models\WalletMessage;
 use App\Services\Portal\CardDesign;
 use App\Services\Portal\CustomerPortal;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * "Mi tarjeta": la página del cliente (instalable como app, funciona sin
@@ -107,6 +109,25 @@ class CustomerPortalController extends Controller
         PushSubscription::where('customer_id', $customer->id)
             ->where('endpoint_hash', PushSubscription::hashEndpoint($endpoint))
             ->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * El cliente quita una promoción de SU tarjeta (✕). Solo se puede ocultar
+     * un mensaje que de verdad le llegó (a todos o a él).
+     */
+    public function hideMessage(string $qrCode, WalletMessage $message)
+    {
+        $customer = $this->customer($qrCode);
+
+        abort_unless($message->audience === 'all' || (int) $message->customer_id === $customer->id, 404);
+
+        DB::table('customer_hidden_messages')->insertOrIgnore([
+            'customer_id' => $customer->id,
+            'wallet_message_id' => $message->id,
+            'created_at' => now(),
+        ]);
 
         return response()->json(['ok' => true]);
     }

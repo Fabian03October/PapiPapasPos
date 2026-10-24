@@ -68,10 +68,13 @@ class CustomerPortal
                 ->orWhere(fn ($q) => $q->where('audience', 'customer')->where('customer_id', $customer->id)))
             ->where(fn ($q) => $q->where('ends_at', '>', now())
                 ->orWhere(fn ($q) => $q->whereNull('ends_at')->where('created_at', '>', now()->subDays(self::PROMO_DAYS_WITHOUT_END))))
+            // Las que el cliente quitó de su tarjeta (✕).
+            ->whereNotIn('id', fn ($q) => $q->select('wallet_message_id')->from('customer_hidden_messages')->where('customer_id', $customer->id))
             ->latest()
             ->limit(5)
-            ->get(['title', 'body', 'created_at'])
+            ->get(['id', 'title', 'body', 'created_at'])
             ->map(fn (WalletMessage $m) => [
+                'id' => $m->id,
                 'title' => $m->title,
                 'body' => $m->body,
                 'date' => $m->created_at->copy()->locale('es')->translatedFormat('j \d\e F'),
