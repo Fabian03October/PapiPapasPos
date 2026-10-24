@@ -49,6 +49,7 @@ class CustomerPortal
             'stamps' => $stamps,
             'promotions' => $this->promotions($customer),
             'google_wallet_url' => $card['active'] ? $this->google->generateSaveLink($customer) : null,
+            'design' => CardDesign::current(),
             'generated_at' => now()->toIso8601String(),
         ];
     }

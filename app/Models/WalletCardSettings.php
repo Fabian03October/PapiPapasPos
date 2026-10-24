@@ -16,6 +16,16 @@ class WalletCardSettings extends Model
         'hero_image_path',
         'hex_background_color',
         'contact_info',
+        // Diseño de "Mi tarjeta" (ver App\Services\Portal\CardDesign).
+        'card_bg_color',
+        'card_accent_color',
+        'card_logo_path',
+        'card_title',
+        'stamp_emoji',
+        'stamp_image_path',
+        'discount_icon',
+        'gift_icon',
+        'welcome_message',
     ];
 
     /**

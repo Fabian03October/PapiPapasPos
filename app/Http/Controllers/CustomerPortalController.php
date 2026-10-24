@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\PushSubscription;
+use App\Services\Portal\CardDesign;
 use App\Services\Portal\CustomerPortal;
 use App\Services\WebPushService;
 use Illuminate\Http\Request;
@@ -21,11 +22,13 @@ class CustomerPortalController extends Controller
     public function show(string $qrCode)
     {
         $customer = $this->customer($qrCode);
+        $card = $this->portal->snapshot($customer);
 
         return response()
             ->view('mi-tarjeta.show', [
                 'customer' => $customer,
-                'card' => $this->portal->snapshot($customer),
+                'card' => $card,
+                'design' => $card['design'],
                 'qrSvg' => $customer->loyaltyQrBase64(320),
                 'pushKey' => app(WebPushService::class)->publicKey(),
             ])
@@ -58,8 +61,8 @@ class CustomerPortalController extends Controller
             'scope' => $home,
             'display' => 'standalone',
             'orientation' => 'portrait',
-            'background_color' => '#0a0a0a',
-            'theme_color' => '#0a0a0a',
+            'background_color' => CardDesign::current()['bg'],
+            'theme_color' => CardDesign::current()['bg'],
             'lang' => 'es-MX',
             'icons' => [
                 ['src' => '/pwa/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png'],

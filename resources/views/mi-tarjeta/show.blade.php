@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="theme-color" content="#0a0a0a">
+    <meta name="theme-color" content="{{ $design['bg'] }}">
     <title>Mi tarjeta · Papi's Papas</title>
     <link rel="manifest" href="{{ route('mi-tarjeta.manifest', $customer->qr_code) }}">
     <link rel="icon" href="/pwa/icon-192.png" type="image/png">
@@ -17,17 +17,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     @vite('resources/css/app.css')
 </head>
-<body class="min-h-dvh bg-[#0a0a0a] text-white antialiased">
+<body class="min-h-dvh bg-[var(--bg)] text-[var(--fg)] antialiased" style="{{ \App\Services\Portal\CardDesign::cssVars($design) }}">
 <main class="mx-auto w-full max-w-md px-4 pb-10" style="padding-top: max(12px, env(safe-area-inset-top));">
 
     <header class="flex justify-center pt-2 pb-4">
-        <img src="/pwa/logo-header.png" alt="Papi's Papas" width="232" height="120" class="h-24 w-auto">
+        <img src="{{ $design['logo_url'] }}" alt="Papi's Papas" class="h-24 w-auto max-w-[80%] object-contain">
     </header>
 
     @if (request()->boolean('nuevo'))
-        <section class="mb-4 rounded-2xl bg-[#f5b32f] px-5 py-4 text-[#0a0a0a]">
+        <section class="mb-4 rounded-2xl bg-[var(--accent)] px-5 py-4 text-[var(--on-accent)]">
             <p class="text-lg font-bold">¡Bienvenido, {{ $card['name'] }}!</p>
-            <p class="text-sm">Ya eres parte de Papi's Papas. Guarda esta tarjeta en tu celular (abajo te decimos cómo) y muéstrala en cada visita.</p>
+            <p class="text-sm">{{ $design['welcome_message'] ?? "Ya eres parte de Papi's Papas. Guarda esta tarjeta en tu celular (abajo te decimos cómo) y muéstrala en cada visita." }}</p>
         </section>
     @endif
 
@@ -39,60 +39,64 @@
 
     {{-- QR: lo que escanea la caja. Va dentro del HTML para que abra sin internet. --}}
     <section class="rounded-3xl bg-white p-5 text-center text-[#0a0a0a]">
-        <p class="text-xs font-semibold uppercase tracking-widest text-neutral-500">Tarjeta de sellos</p>
+        <p class="text-xs font-semibold uppercase tracking-widest text-neutral-500">{{ $design['title'] }}</p>
         <p class="mt-1 text-xl font-bold">{{ $card['name'] }}</p>
         <img src="data:image/svg+xml;base64,{{ $qrSvg }}" alt="Tu código QR" width="240" height="240" class="mx-auto my-4 h-60 w-60">
         <p class="text-sm text-neutral-600">Muestra este código en caja en cada visita</p>
     </section>
 
     {{-- Sellos --}}
-    <section class="mt-4 rounded-3xl bg-[#18181b] p-5">
+    <section class="mt-4 rounded-3xl bg-[var(--panel)] p-5">
         <div class="flex items-baseline justify-between">
             <h2 class="text-base font-semibold">Tus sellos</h2>
-            <p class="text-sm text-neutral-400"><span class="text-xl font-bold text-[#f5b32f]">{{ $card['visits'] }}</span> de {{ $card['goal'] }} · nivel {{ $card['level'] }}</p>
+            <p class="text-sm text-[var(--muted)]"><span class="text-xl font-bold text-[var(--accent)]">{{ $card['visits'] }}</span> de {{ $card['goal'] }} · nivel {{ $card['level'] }}</p>
         </div>
         <ol class="mt-4 grid grid-cols-4 gap-3" aria-label="Sellos: {{ $card['visits_label'] }}">
             @foreach ($card['stamps'] as $stamp)
                 <li class="flex flex-col items-center gap-1">
                     <span @class([
                         'flex h-14 w-14 items-center justify-center rounded-full text-2xl',
-                        'bg-[#f5b32f]' => $stamp['filled'],
-                        'border-2 border-dashed border-neutral-600' => ! $stamp['filled'],
+                        'bg-[var(--accent)]' => $stamp['filled'],
+                        'border-2 border-dashed border-[var(--line)]' => ! $stamp['filled'],
                     ])>
                         @if ($stamp['filled'])
-                            🍟
+                            @if ($design['stamp_image_url'])
+                                <img src="{{ $design['stamp_image_url'] }}" alt="" class="h-9 w-9 object-contain">
+                            @else
+                                {{ $design['stamp_emoji'] }}
+                            @endif
                         @elseif ($stamp['reward'] === 'discount')
-                            <span class="text-sm font-bold text-[#f5b32f]">%</span>
+                            <span class="text-sm font-bold text-[var(--accent)]">{{ $design['discount_icon'] }}</span>
                         @elseif ($stamp['reward'] === 'gift')
-                            🎁
+                            {{ $design['gift_icon'] }}
                         @endif
                     </span>
-                    <span class="text-[11px] text-neutral-500">{{ $stamp['number'] }}</span>
+                    <span class="text-[11px] text-[var(--muted)]">{{ $stamp['number'] }}</span>
                 </li>
             @endforeach
         </ol>
-        <p class="mt-4 rounded-xl bg-white/5 px-4 py-3 text-sm text-neutral-200">
-            <span class="text-neutral-400">Próximo premio:</span> {{ $card['next_reward'] }}
+        <p class="mt-4 rounded-xl bg-[var(--panel-2)] px-4 py-3 text-sm text-[var(--fg)]">
+            <span class="text-[var(--muted)]">Próximo premio:</span> {{ $card['next_reward'] }}
         </p>
     </section>
 
     @if ($card['pending_reward'])
-        <section class="mt-4 rounded-3xl bg-[#f5b32f] p-5 text-[#0a0a0a]">
+        <section class="mt-4 rounded-3xl bg-[var(--accent)] p-5 text-[var(--on-accent)]">
             <p class="text-xs font-semibold uppercase tracking-widest">Premio por cobrar</p>
-            <p class="mt-1 text-lg font-bold">🎁 {{ $card['pending_reward'] }}</p>
+            <p class="mt-1 text-lg font-bold">{{ $design['gift_icon'] }} {{ $card['pending_reward'] }}</p>
             <p class="mt-1 text-sm">Pídelo en caja en tu próxima visita.</p>
         </section>
     @endif
 
     @if (count($card['promotions']))
-        <section class="mt-4 rounded-3xl bg-[#18181b] p-5">
+        <section class="mt-4 rounded-3xl bg-[var(--panel)] p-5">
             <h2 class="text-base font-semibold">Promociones</h2>
             <ul class="mt-3 flex flex-col gap-3">
                 @foreach ($card['promotions'] as $promo)
-                    <li class="rounded-xl bg-white/5 px-4 py-3">
-                        <p class="font-semibold text-[#f5b32f]">{{ $promo['title'] }}</p>
-                        <p class="mt-0.5 text-sm text-neutral-200">{{ $promo['body'] }}</p>
-                        <p class="mt-1 text-xs text-neutral-500">{{ $promo['date'] }}</p>
+                    <li class="rounded-xl bg-[var(--panel-2)] px-4 py-3">
+                        <p class="font-semibold text-[var(--accent)]">{{ $promo['title'] }}</p>
+                        <p class="mt-0.5 text-sm text-[var(--fg)]">{{ $promo['body'] }}</p>
+                        <p class="mt-1 text-xs text-[var(--muted)]">{{ $promo['date'] }}</p>
                     </li>
                 @endforeach
             </ul>
@@ -101,31 +105,31 @@
 
     {{-- Avisos (Web Push): el estado lo decide el script según el celular. --}}
     @if ($pushKey && $card['active'])
-        <section id="avisos" hidden class="mt-4 rounded-3xl bg-[#18181b] p-5"
+        <section id="avisos" hidden class="mt-4 rounded-3xl bg-[var(--panel)] p-5"
             data-key="{{ $pushKey }}" data-url="{{ route('mi-tarjeta.avisos', $customer->qr_code) }}">
             <div id="avisos-activar" hidden>
                 <p class="text-base font-semibold">🔔 Recibe avisos</p>
-                <p class="mt-1 text-sm text-neutral-300">Te avisamos cuando ganes un premio, un día antes de que se venza y cuando haya promociones.</p>
-                <button id="btn-avisos" type="button" class="mt-3 h-12 w-full rounded-2xl bg-[#f5b32f] font-semibold text-[#0a0a0a]">Activar avisos</button>
+                <p class="mt-1 text-sm text-[var(--fg)]">Te avisamos cuando ganes un premio, un día antes de que se venza y cuando haya promociones.</p>
+                <button id="btn-avisos" type="button" class="mt-3 h-12 w-full rounded-2xl bg-[var(--accent)] font-semibold text-[var(--on-accent)]">Activar avisos</button>
             </div>
             <div id="avisos-activos" hidden class="flex items-center justify-between gap-3">
-                <p class="text-sm"><span class="font-semibold">🔔 Avisos activados</span><br><span class="text-neutral-400">Te avisaremos de tus premios y promos.</span></p>
-                <button id="btn-avisos-quitar" type="button" class="shrink-0 text-xs text-neutral-400 underline">Desactivar</button>
+                <p class="text-sm"><span class="font-semibold">🔔 Avisos activados</span><br><span class="text-[var(--muted)]">Te avisaremos de tus premios y promos.</span></p>
+                <button id="btn-avisos-quitar" type="button" class="shrink-0 text-xs text-[var(--muted)] underline">Desactivar</button>
             </div>
-            <p id="avisos-instalar" hidden class="text-sm text-neutral-300">🔔 Para recibir avisos en tu iPhone, primero guarda la tarjeta en tu pantalla de inicio (pasos de abajo) y ábrela desde el ícono.</p>
-            <p id="avisos-bloqueados" hidden class="text-sm text-neutral-300">🔕 Los avisos están bloqueados. Si los quieres, actívalos en los ajustes de notificaciones de tu celular.</p>
+            <p id="avisos-instalar" hidden class="text-sm text-[var(--fg)]">🔔 Para recibir avisos en tu iPhone, primero guarda la tarjeta en tu pantalla de inicio (pasos de abajo) y ábrela desde el ícono.</p>
+            <p id="avisos-bloqueados" hidden class="text-sm text-[var(--fg)]">🔕 Los avisos están bloqueados. Si los quieres, actívalos en los ajustes de notificaciones de tu celular.</p>
         </section>
     @endif
 
     {{-- Guardar la tarjeta: cada botón aparece solo donde aplica (ver script). --}}
     <section id="guardar" class="mt-4 flex flex-col gap-3">
         <button id="btn-instalar" type="button" hidden
-            class="h-12 rounded-2xl bg-[#f5b32f] font-semibold text-[#0a0a0a]">
+            class="h-12 rounded-2xl bg-[var(--accent)] font-semibold text-[var(--on-accent)]">
             Instalar mi tarjeta en el celular
         </button>
 
-        <div id="ios-instrucciones" hidden class="rounded-3xl bg-[#18181b] p-5 text-sm text-neutral-200">
-            <p class="font-semibold text-white">Guárdala en tu iPhone</p>
+        <div id="ios-instrucciones" hidden class="rounded-3xl bg-[var(--panel)] p-5 text-sm text-[var(--fg)]">
+            <p class="font-semibold text-[var(--fg)]">Guárdala en tu iPhone</p>
             <ol class="mt-2 list-decimal space-y-1 pl-5">
                 <li>Toca el botón <strong>Compartir</strong> <span aria-hidden="true">(el cuadro con la flecha ↑)</span> de Safari.</li>
                 <li>Elige <strong>Agregar a pantalla de inicio</strong>.</li>
@@ -135,13 +139,20 @@
 
         @if ($card['google_wallet_url'])
             <a id="btn-google-wallet" hidden href="{{ $card['google_wallet_url'] }}"
-                class="flex h-12 items-center justify-center rounded-2xl border border-white/20 font-semibold text-white">
+                class="flex h-12 items-center justify-center rounded-2xl border border-[var(--line)] font-semibold text-[var(--fg)]">
                 Agregar a Google Wallet
             </a>
         @endif
     </section>
 
-    <p id="estado" class="mt-6 text-center text-xs text-neutral-500" data-generado="{{ $card['generated_at'] }}">
+    @if ($design['contact_info'])
+        <section class="mt-4 rounded-3xl bg-[var(--panel)] p-5 text-sm">
+            <h2 class="text-base font-semibold">Visítanos</h2>
+            <p class="mt-2 whitespace-pre-line text-[var(--fg)]">{{ $design['contact_info'] }}</p>
+        </section>
+    @endif
+
+    <p id="estado" class=""mt-6 text-center text-xs text-[var(--muted)]" data-generado="{{ $card['generated_at'] }}">
         Actualizado hace un momento
     </p>
 </main>
