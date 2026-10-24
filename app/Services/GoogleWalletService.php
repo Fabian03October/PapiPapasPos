@@ -306,6 +306,13 @@ class GoogleWalletService
             return ['success' => false, 'quota_exceeded' => false, 'error' => $e->getMessage()];
         }
 
+        // El cliente no tiene su tarjeta en Google Wallet: no es una falla, el
+        // mensaje igual le llega por "Mi tarjeta".
+        if ($response->status() === 404 && str_contains($path, '/loyaltyObject/')) {
+            return ['success' => false, 'skipped' => true, 'quota_exceeded' => false,
+                'error' => 'Este cliente todavía no ha guardado su tarjeta en Google Wallet.'];
+        }
+
         if ($response->failed()) {
             // Google no documenta el nombre exacto del campo de error para la cuota excedida;
             // se detecta de forma amplia por status 429 o por el texto de la respuesta.
@@ -317,11 +324,7 @@ class GoogleWalletService
                 'body' => $response->body(),
             ]);
 
-            $error = $response->status() === 404 && str_contains($path, '/loyaltyObject/')
-                ? 'Este cliente todavía no ha guardado su tarjeta en Google Wallet.'
-                : $response->body();
-
-            return ['success' => false, 'quota_exceeded' => $quotaExceeded, 'error' => $error];
+            return ['success' => false, 'quota_exceeded' => $quotaExceeded, 'error' => $response->body()];
         }
 
         return ['success' => true, 'quota_exceeded' => false, 'error' => null, 'starts_at' => $startsAt, 'ends_at' => $endsAt];

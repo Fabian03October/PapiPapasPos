@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\DeactivateGoogleWalletObjectJob;
 use App\Jobs\SendWalletMessageJob;
+use App\Jobs\SendWebPushJob;
 use App\Jobs\SyncGoogleWalletObjectJob;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
@@ -201,15 +202,23 @@ class GoogleWalletSyncTest extends TestCase
         $this->assertNull($message->fresh()->ends_at);
     }
 
-    public function test_mensaje_a_cliente_sin_tarjeta_dice_por_que_fallo(): void
+    public function test_cliente_sin_tarjeta_de_google_no_es_falla_le_llega_por_mi_tarjeta(): void
     {
         Http::fake(['walletobjects.googleapis.com/*' => Http::response('no existe', 404)]);
+        config(['services.webpush.public_key' => 'BPublica', 'services.webpush.private_key' => 'privada']);
         $customer = Customer::create(['name' => 'Ana', 'phone' => '5511110011']);
 
         $result = $this->wallet()->sendMessageToObject($customer, 'Hola', 'Prueba', false);
+        $this->assertTrue($result['skipped']);
 
-        $this->assertFalse($result['success']);
-        $this->assertSame('Este cliente todavía no ha guardado su tarjeta en Google Wallet.', $result['error']);
+        // En el historial queda Enviado, sale en sus promociones y suena en su celular.
+        $message = $this->mensaje($customer);
+        (new SendWalletMessageJob($message))->handle($this->wallet());
+
+        $this->assertSame('sent', $message->fresh()->status);
+        $this->assertNull($message->fresh()->error);
+        $this->get(route('mi-tarjeta', $customer->qr_code))->assertSee('2x1 hoy');
+        Queue::assertPushed(SendWebPushJob::class, fn ($job) => $job->customerId === $customer->id);
     }
 
     public function test_el_encargado_ve_un_qr_para_el_cliente_y_no_el_enlace_de_guardado(): void
