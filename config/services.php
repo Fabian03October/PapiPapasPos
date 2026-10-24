@@ -46,7 +46,6 @@ return [
         'hex_background_color' => env('GOOGLE_WALLET_COLOR', '#2563eb'),
         'merchant_lat' => env('GOOGLE_WALLET_MERCHANT_LAT'),
         'merchant_lng' => env('GOOGLE_WALLET_MERCHANT_LNG'),
-        'daily_broadcast_limit' => env('GOOGLE_WALLET_DAILY_BROADCAST_LIMIT', 1),
         'notify_on_visit_update' => env('GOOGLE_WALLET_NOTIFY_ON_VISIT_UPDATE', false),
         // Días que un mensaje se ve en la tarjeta (0 = para siempre).
         'message_days' => (int) env('GOOGLE_WALLET_MESSAGE_DAYS', 7),
@@ -62,6 +61,11 @@ return [
         'reward_earned' => env('WEBPUSH_AVISO_PREMIO_GANADO', true),
         'reward_expiring' => env('WEBPUSH_AVISO_PREMIO_VENCE', true),
         'birthday' => env('WEBPUSH_AVISO_CUMPLEANOS', true),
+        // Mensajes "a todos" con aviso que se pueden mandar por día desde el
+        // panel (0 = sin límite). Los avisos de Mi tarjeta no tienen límite de
+        // Google/Apple; esto es para no cansar a los clientes. A un solo
+        // cliente no hay límite.
+        'daily_broadcast_limit' => (int) env('AVISOS_A_TODOS_POR_DIA', 3),
     ],
 
     // Apple Wallet (.pkpass). Apagado mientras no estén los certificados:

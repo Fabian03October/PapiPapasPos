@@ -111,7 +111,7 @@ class WalletMessagesTest extends TestCase
 
     public function test_respeta_el_tope_diario_de_difusiones_con_notificacion(): void
     {
-        config(['services.google_wallet.daily_broadcast_limit' => 1]);
+        config(['services.webpush.daily_broadcast_limit' => 1]);
 
         $this->makeMessage(['audience' => 'all', 'notify' => true]);
 
@@ -122,5 +122,20 @@ class WalletMessagesTest extends TestCase
         $this->makeMessage(['audience' => 'all', 'notify' => false]);
 
         $this->assertSame(1, WalletMessage::dailyBroadcastCount());
+    }
+
+    public function test_el_limite_de_mensajes_a_todos_lo_pone_el_negocio(): void
+    {
+        config(['services.webpush.daily_broadcast_limit' => 3]);
+        $this->makeMessage(['audience' => 'all', 'notify' => true]);
+        $this->makeMessage(['audience' => 'all', 'notify' => true]);
+        $this->assertFalse(WalletMessage::dailyBroadcastLimitReached());
+
+        $this->makeMessage(['audience' => 'all', 'notify' => true]);
+        $this->assertTrue(WalletMessage::dailyBroadcastLimitReached());
+
+        // 0 = sin límite.
+        config(['services.webpush.daily_broadcast_limit' => 0]);
+        $this->assertFalse(WalletMessage::dailyBroadcastLimitReached());
     }
 }

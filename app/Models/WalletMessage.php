@@ -46,6 +46,8 @@ class WalletMessage extends Model
 
     public static function dailyBroadcastLimitReached(): bool
     {
-        return static::dailyBroadcastCount() >= (int) config('services.google_wallet.daily_broadcast_limit', 1);
+        $limit = (int) config('services.webpush.daily_broadcast_limit', 3);
+
+        return $limit > 0 && static::dailyBroadcastCount() >= $limit;
     }
 }

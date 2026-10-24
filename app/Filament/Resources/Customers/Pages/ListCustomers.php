@@ -43,7 +43,9 @@ class ListCustomers extends ListRecords
                         ->hint(fn (?string $state) => strlen($state ?? '').'/400'),
                     Toggle::make('notify')
                         ->label('Enviar notificación push')
-                        ->helperText('Máximo 3 notificaciones por tarjeta cada 24h — resérvalo para avisos importantes.')
+                        ->helperText(fn () => (($limit = (int) config('services.webpush.daily_broadcast_limit', 3)) > 0
+                            ? "Hasta {$limit} mensajes a todos con aviso por día. "
+                            : '').'En Google Wallet, después de 3 avisos al día los demás llegan en silencio.')
                         ->default(false),
                 ])
                 ->requiresConfirmation()
@@ -53,8 +55,8 @@ class ListCustomers extends ListRecords
 
                     if ($notify && WalletMessage::dailyBroadcastLimitReached()) {
                         Notification::make()
-                            ->title('Ya se alcanzó el máximo de difusiones con notificación de hoy')
-                            ->body('Puedes mandarlo sin notificación (se agrega en silencio a la tarjeta), o intenta mañana.')
+                            ->title('Ya se mandaron los mensajes con aviso de hoy')
+                            ->body('Para no cansar a los clientes hay un máximo al día (variable AVISOS_A_TODOS_POR_DIA). Puedes mandarlo sin aviso, o intenta mañana.')
                             ->danger()
                             ->send();
 
