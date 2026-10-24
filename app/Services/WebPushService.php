@@ -111,11 +111,14 @@ class WebPushService
 
     protected function client(): WebPush
     {
+        // Con el logger de Laravel, los avisos de la librería (ej. "instala
+        // GMP o BCMath") se anotan en vez de lanzarse como error: sin esto,
+        // Laravel los convertía en excepción y el envío fallaba.
         $webPush = new WebPush(['VAPID' => [
             'subject' => (string) config('services.webpush.subject'),
             'publicKey' => (string) config('services.webpush.public_key'),
             'privateKey' => (string) config('services.webpush.private_key'),
-        ]]);
+        ]], logger: Log::channel(config('logging.default')));
         $webPush->setReuseVAPIDHeaders(true);
 
         return $webPush;

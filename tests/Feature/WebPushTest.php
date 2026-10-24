@@ -18,6 +18,7 @@ use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Minishlink\WebPush\MessageSentReport;
+use Minishlink\WebPush\VAPID;
 use Minishlink\WebPush\WebPush;
 use Mockery;
 use Tests\TestCase;
@@ -156,5 +157,17 @@ class WebPushTest extends TestCase
         $this->assertSame('sent', $message->fresh()->status);
         $this->assertNotNull($message->fresh()->ends_at);
         Queue::assertPushed(SendWebPushJob::class, fn ($job) => $job->customerId === null && $job->title === '2x1 hoy');
+    }
+
+    public function test_la_conexion_de_avisos_se_arma_con_llaves_reales_sin_tronar(): void
+    {
+        $keys = VAPID::createVapidKeys();
+        config(['services.webpush.public_key' => $keys['publicKey'], 'services.webpush.private_key' => $keys['privateKey']]);
+
+        // Avisos de la librería (ej. "instala GMP o BCMath" en el servidor)
+        // van al log, no se lanzan como error.
+        $client = (fn () => $this->client())->call(app(WebPushService::class));
+
+        $this->assertInstanceOf(WebPush::class, $client);
     }
 }
