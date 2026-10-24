@@ -29,7 +29,13 @@ class WebPushService
     /** @return int cuántos celulares lo recibieron */
     public function sendToCustomer(Customer $customer, string $title, string $body, ?string $tag = null): int
     {
-        return $this->send($customer->pushSubscriptions()->get(), $title, $body, $tag);
+        $subscriptions = $customer->pushSubscriptions()->get();
+
+        if ($subscriptions->isEmpty()) {
+            Log::error("Web Push: el cliente #{$customer->id} no tiene avisos activados en ningún celular; no se mandó \"{$title}\".");
+        }
+
+        return $this->send($subscriptions, $title, $body, $tag);
     }
 
     /** A todos los celulares con avisos activos (clientes activos), en tandas. */
@@ -90,7 +96,13 @@ class WebPushService
                 // Desinstaló la tarjeta o quitó el permiso: ya no se le manda.
                 $subscription?->delete();
             } else {
-                Log::warning('Web Push: no se pudo mandar el aviso', ['reason' => $report->getReason()]);
+                // Como error (Railway solo muestra errores): llaves distintas
+                // entre la página y el worker dan 401/403 aquí.
+                Log::error('Web Push: el servicio de avisos rechazó el aviso', [
+                    'status' => $report->getResponse()?->getStatusCode(),
+                    'reason' => $report->getReason(),
+                    'servicio' => parse_url($report->getEndpoint(), PHP_URL_HOST),
+                ]);
             }
         }
 

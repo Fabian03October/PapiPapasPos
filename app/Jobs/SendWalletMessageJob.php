@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class SendWalletMessageJob implements ShouldQueue
 {
@@ -40,6 +41,10 @@ class SendWalletMessageJob implements ShouldQueue
         ]);
 
         // Con notificación: también suena en los celulares con "Mi tarjeta".
+        if ($this->message->notify && ! app(WebPushService::class)->isEnabled()) {
+            Log::error('Web Push: este servicio no tiene las llaves WEBPUSH_VAPID_* (ponlas también en el worker); el mensaje no sonó en Mi tarjeta.');
+        }
+
         if ($this->message->notify && app(WebPushService::class)->isEnabled()) {
             SendWebPushJob::dispatch(
                 $this->message->audience === 'all' ? null : $this->message->customer_id,
