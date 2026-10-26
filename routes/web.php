@@ -11,7 +11,13 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleIncidentController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\VentaController;
+use App\Http\Middleware\WorkerWatchdog;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::get('/', function () {
     return redirect()->route('login.pin');
@@ -30,14 +36,26 @@ Route::post('/login/restablecer-pin', [ForgotPinController::class, 'resetPin'])-
 Route::get('/registro', [CustomerRegistrationController::class, 'showForm'])->name('registro.form');
 Route::post('/registro', [CustomerRegistrationController::class, 'store'])->name('registro.store')->middleware('throttle:registro');
 // "Mi tarjeta" del cliente (app web instalable, funciona sin internet).
-Route::prefix('mi-tarjeta/{qrCode}')->middleware('throttle:60,1')->group(function () {
-    Route::get('/', [CustomerPortalController::class, 'show'])->name('mi-tarjeta');
-    Route::get('/datos', [CustomerPortalController::class, 'data'])->name('mi-tarjeta.datos');
-    Route::get('/manifest.webmanifest', [CustomerPortalController::class, 'manifest'])->name('mi-tarjeta.manifest');
-    Route::post('/avisos', [CustomerPortalController::class, 'subscribe'])->name('mi-tarjeta.avisos');
-    Route::delete('/avisos', [CustomerPortalController::class, 'unsubscribe']);
-    Route::post('/promociones/{message}/ocultar', [CustomerPortalController::class, 'hideMessage'])->name('mi-tarjeta.ocultar');
-});
+// Sin sesión ni cookies: el cliente no inicia sesión (su enlace es la llave).
+// Antes cada visita creaba una fila en "sessions"; con miles de clientes
+// abriendo su tarjeta tras una promo, era la carga más pesada.
+Route::prefix('mi-tarjeta/{qrCode}')
+    ->middleware('throttle:mi-tarjeta')
+    ->withoutMiddleware([
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        ValidateCsrfToken::class,
+        AddQueuedCookiesToResponse::class,
+        EncryptCookies::class,
+    ])
+    ->group(function () {
+        Route::get('/', [CustomerPortalController::class, 'show'])->name('mi-tarjeta');
+        Route::get('/datos', [CustomerPortalController::class, 'data'])->name('mi-tarjeta.datos');
+        Route::get('/manifest.webmanifest', [CustomerPortalController::class, 'manifest'])->name('mi-tarjeta.manifest');
+        Route::post('/avisos', [CustomerPortalController::class, 'subscribe'])->name('mi-tarjeta.avisos');
+        Route::delete('/avisos', [CustomerPortalController::class, 'unsubscribe']);
+        Route::post('/promociones/{message}/ocultar', [CustomerPortalController::class, 'hideMessage'])->name('mi-tarjeta.ocultar');
+    });
 
 // Apple Wallet: la descarga usa el mismo enlace secreto (UUID) que la
 // confirmación de registro; las rutas v1/ son el "Wallet Web Service" que
@@ -53,7 +71,9 @@ Route::prefix('wallet/apple')->middleware('throttle:60,1')->group(function () {
 
 Route::get('/registro/confirmacion/{qrCode}', [CustomerRegistrationController::class, 'confirmation'])->name('registro.confirmacion');
 
-Route::middleware('auth')->group(function () {
+// El vigilante del worker revisa (cada 10 min, mientras se usa el POS) que
+// la cola y el programador sigan vivos; si no, manda un correo.
+Route::middleware(['auth', WorkerWatchdog::class])->group(function () {
     Route::get('/caja/abrir', [CajaController::class, 'abrir'])->name('caja.abrir');
     Route::post('/caja/abrir', [CajaController::class, 'abrirStore'])->name('caja.abrir.store');
 

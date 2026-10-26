@@ -21,7 +21,10 @@
 <main class="mx-auto w-full max-w-md px-4 pb-10" style="padding-top: max(12px, env(safe-area-inset-top));">
 
     <header class="flex justify-center pt-2 pb-4">
-        <img src="{{ $design['logo_url'] }}" alt="Papi's Papas" class="h-24 w-auto max-w-[80%] object-contain">
+        <img src="{{ $design['logo_url'] }}" alt="Papi's Papas" @class([
+            'h-24 w-auto max-w-[80%] object-contain',
+            'rounded-2xl bg-[#0a0a0a] px-3 py-2' => $design['logo_badge'],
+        ])>
     </header>
 
     @if (request()->boolean('nuevo'))
@@ -41,8 +44,10 @@
     <section class="rounded-3xl bg-white p-5 text-center text-[#0a0a0a]">
         <p class="text-xs font-semibold uppercase tracking-widest text-neutral-500">{{ $design['title'] }}</p>
         <p class="mt-1 text-xl font-bold">{{ $card['name'] }}</p>
-        <img src="data:image/svg+xml;base64,{{ $qrSvg }}" alt="Tu código QR" width="240" height="240" class="mx-auto my-4 h-60 w-60">
-        <p class="text-sm text-neutral-600">Muestra este código en caja en cada visita</p>
+        <button id="btn-qr-grande" type="button" class="mx-auto my-4 block" aria-label="Agrandar el código QR">
+            <img src="data:image/svg+xml;base64,{{ $qrSvg }}" alt="Tu código QR" width="240" height="240" class="h-60 w-60">
+        </button>
+        <p class="text-sm text-neutral-600">Muestra este código en caja en cada visita · <span class="font-medium text-neutral-800">tócalo para agrandarlo</span></p>
     </section>
 
     {{-- Sellos --}}
@@ -94,8 +99,8 @@
             <h2 class="text-base font-semibold">Promociones</h2>
             <ul class="mt-3 flex flex-col gap-3">
                 @foreach ($card['promotions'] as $promo)
-                    <li class="relative rounded-xl bg-[var(--panel-2)] py-3 pl-4 pr-10" data-promo="{{ $promo['id'] }}">
-                        <button type="button" class="btn-ocultar absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full text-lg text-[var(--muted)]"
+                    <li class="relative rounded-xl bg-[var(--panel-2)] py-3 pl-4 pr-12" data-promo="{{ $promo['id'] }}">
+                        <button type="button" class="btn-ocultar absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-lg text-[var(--muted)]"
                             aria-label="Quitar esta promoción">✕</button>
                         <p class="font-semibold text-[var(--accent)]">{{ $promo['title'] }}</p>
                         <p class="mt-0.5 text-sm text-[var(--fg)]">{{ $promo['body'] }}</p>
@@ -155,6 +160,15 @@
         </section>
     @endif
 
+    {{-- QR a pantalla completa: blanco y grande para que el lector de caja lo lea fácil. --}}
+    <div id="qr-grande" hidden role="dialog" aria-label="Código QR en grande"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-white p-6 text-center text-[#111]">
+        <p class="text-2xl font-bold">{{ $card['name'] }}</p>
+        <img src="data:image/svg+xml;base64,{{ $qrSvg }}" alt="Tu código QR" class="aspect-square w-full max-w-[85vmin]">
+        <p class="text-sm text-neutral-600">Sube el brillo de tu pantalla si no lo lee</p>
+        <button id="btn-qr-cerrar" type="button" class="mt-2 h-12 w-full max-w-xs rounded-2xl bg-[#111] font-semibold text-white">Cerrar</button>
+    </div>
+
     <p id="estado" class=""mt-6 text-center text-xs text-[var(--muted)]" data-generado="{{ $card['generated_at'] }}">
         Actualizado hace un momento
     </p>
@@ -204,6 +218,18 @@
         aviso = null;
         document.getElementById('btn-instalar').hidden = true;
     });
+
+    // QR a pantalla completa (con la pantalla encendida mientras está abierto).
+    const qrGrande = document.getElementById('qr-grande');
+    let wakeLock = null;
+    document.getElementById('btn-qr-grande').addEventListener('click', async () => {
+        qrGrande.hidden = false;
+        try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+    });
+    const cerrarQr = () => { qrGrande.hidden = true; wakeLock?.release?.().catch(() => {}); wakeLock = null; };
+    document.getElementById('btn-qr-cerrar').addEventListener('click', cerrarQr);
+    qrGrande.addEventListener('click', (e) => { if (e.target === qrGrande) cerrarQr(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !qrGrande.hidden) cerrarQr(); });
 
     // Quitar promociones (✕): se ocultan al instante; sin internet quedan
     // pendientes en el celular y se mandan cuando vuelva la conexión.

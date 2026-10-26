@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\Portal\CardDesign;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class WalletCardSettings extends Model
@@ -35,6 +37,12 @@ class WalletCardSettings extends Model
      * llamada crearía una fila nueva en vez de reusar la guardada. Por eso
      * se toma "la primera que exista", sin asumir cuál id tiene.
      */
+    protected static function booted(): void
+    {
+        // El diseño de "Mi tarjeta" vive en caché (CardDesign::current).
+        static::saved(fn () => Cache::forget(CardDesign::CACHE_KEY));
+    }
+
     public static function current(): self
     {
         return static::first() ?? static::create([

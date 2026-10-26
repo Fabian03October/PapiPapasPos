@@ -51,6 +51,11 @@ return [
         'message_days' => (int) env('GOOGLE_WALLET_MESSAGE_DAYS', 7),
     ],
 
+    // Correo al que llegan las alertas del sistema (ej. worker caído).
+    'alertas' => [
+        'email' => env('ALERTAS_EMAIL', env('BACKUP_NOTIFY_EMAIL')),
+    ],
+
     // Avisos de "Mi tarjeta" (Web Push). Gratis, también en iPhone (iOS 16.4+
     // con la tarjeta en la pantalla de inicio). Llaves: php artisan webpush:llaves
     'webpush' => [

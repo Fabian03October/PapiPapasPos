@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\WorkerWatchdog;
 use App\Jobs\SendWebPushJob;
 use App\Mail\Transport\BrevoApiTransport;
 use App\Models\Customer;
@@ -12,7 +13,9 @@ use App\Services\WebPushService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,6 +35,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Customer::observe(CustomerObserver::class);
+
+        // "Señal de vida" del worker para el vigilante (WorkerWatchdog): a lo
+        // más una escritura por minuto, mientras la cola esté trabajando.
+        Queue::looping(function (): void {
+            static $last = 0;
+            if (time() - $last >= 60) {
+                $last = time();
+                Cache::put(WorkerWatchdog::HEARTBEAT_KEY, time(), now()->addDay());
+            }
+        });
 
         // Ganar, cobrar o deshacer un premio cambia lo que dice la tarjeta
         // de Wallet ("Premio por cobrar"), aunque las visitas no cambien.
@@ -60,6 +73,15 @@ class AppServiceProvider extends ServiceProvider
         // Límites de intentos del PIN (son 4 dígitos: 10,000 combinaciones),
         // con el mensaje en español que muestran las pantallas.
         $tooMany = fn (string $message) => fn () => response()->json(['success' => false, 'message' => $message], 429);
+
+        // "Mi tarjeta": por CLIENTE, no por IP. Las compañías celulares hacen
+        // que muchos clientes compartan IP; con límite por IP, tras una promo
+        // varios recibían "demasiadas solicitudes". Más un tope alto por IP
+        // contra abusos.
+        RateLimiter::for('mi-tarjeta', fn (Request $request) => [
+            Limit::perMinute(60)->by('tarjeta:'.$request->route('qrCode')),
+            Limit::perMinute(1000)->by('tarjeta-ip:'.$request->ip()),
+        ]);
 
         RateLimiter::for('login-pin', fn (Request $request) => Limit::perMinute(10)->by($request->ip())
             ->response($tooMany('Demasiados intentos. Espera un minuto e inténtalo de nuevo.')));

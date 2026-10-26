@@ -10,7 +10,7 @@
     <div style="max-width: 300px; margin: 0 auto; border-radius: 2rem; border: 8px solid #27272a; overflow: hidden; background: {{ $d['bg'] }}; color: {{ $d['fg'] }}; font-family: system-ui, -apple-system, sans-serif;">
         <div style="padding: 14px 12px 18px; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; justify-content: center;">
-                <img src="{{ $d['logo_url'] }}" alt="Logo" style="height: 56px; max-width: 80%; object-fit: contain;">
+                <img src="{{ $d['logo_url'] }}" alt="Logo" style="height: 56px; max-width: 80%; object-fit: contain;{{ ($d['logo_badge'] ?? false) ? ' background:#0a0a0a; border-radius: 12px; padding: 4px 8px;' : '' }}">
             </div>
 
             <div style="background: {{ $d['accent'] }}; color: {{ $d['on_accent'] }}; border-radius: 14px; padding: 10px 12px; font-size: 11px;">

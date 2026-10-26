@@ -16,5 +16,6 @@ Artisan::command('inspire', function () {
 Schedule::command('backup:run --only-db')->daily()->at('03:00');
 
 // Avisos de "Mi tarjeta" que dependen del día: premio que vence mañana y
-// cumpleaños. A mediodía (nunca de noche).
-Schedule::command('fidelidad:avisos-diarios')->dailyAt('12:00')->timezone('America/Mexico_City');
+// cumpleaños. Cada hora de 11 a 20 h (nunca de noche); cada aviso sale una
+// sola vez, y si el worker estuvo caído se pone al corriente.
+Schedule::command('fidelidad:avisos-diarios')->hourly()->between('11:00', '20:00')->timezone('America/Mexico_City');

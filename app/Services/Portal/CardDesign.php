@@ -3,6 +3,7 @@
 namespace App\Services\Portal;
 
 use App\Models\WalletCardSettings;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -26,9 +27,18 @@ class CardDesign
      *     panel_2: string, line: string, title: string, stamp_emoji: string, stamp_image_url: ?string,
      *     logo_url: string, discount_icon: string, gift_icon: string, welcome_message: ?string, contact_info: ?string}
      */
+    /** Subir la versión si cambian las llaves del arreglo (un caché viejo no las tendría). */
+    public const CACHE_KEY = 'mi-tarjeta:diseno:v2';
+
     public static function current(?WalletCardSettings $settings = null): array
     {
-        $s = $settings ?? WalletCardSettings::current();
+        // En caché: se lee en cada visita a "Mi tarjeta" y casi nunca cambia.
+        // Se borra al guardar el diseño (WalletCardSettings::booted).
+        if (! $settings) {
+            return Cache::rememberForever(self::CACHE_KEY, fn () => self::current(WalletCardSettings::current()));
+        }
+
+        $s = $settings;
 
         return self::build([
             'bg' => $s->card_bg_color,
@@ -65,6 +75,9 @@ class CardDesign
             'stamp_emoji' => filled($v['stamp_emoji'] ?? null) ? $v['stamp_emoji'] : self::DEFAULTS['stamp_emoji'],
             'stamp_image_url' => self::publicUrl($v['stamp_image_path'] ?? null),
             'logo_url' => self::publicUrl($v['logo_path'] ?? null) ?? '/pwa/logo-header.png',
+            // El logo de siempre trae fondo negro: sobre fondos claros va en
+            // una placa negra (si no, se ve como un rectángulo pegado).
+            'logo_badge' => ! self::publicUrl($v['logo_path'] ?? null) && ! $dark,
             'discount_icon' => filled($v['discount_icon'] ?? null) ? $v['discount_icon'] : self::DEFAULTS['discount_icon'],
             'gift_icon' => filled($v['gift_icon'] ?? null) ? $v['gift_icon'] : self::DEFAULTS['gift_icon'],
             'welcome_message' => filled($v['welcome_message'] ?? null) ? $v['welcome_message'] : null,

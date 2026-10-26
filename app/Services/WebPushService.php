@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\PushSubscription;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\LazyCollection;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
@@ -38,18 +39,25 @@ class WebPushService
         return $this->send($subscriptions, $title, $body, $tag);
     }
 
-    /** A todos los celulares con avisos activos (clientes activos), en tandas. */
-    public function sendToAll(string $title, string $body, ?string $tag = null): int
+    /**
+     * IDs de los celulares con avisos activos (clientes activos), en tandas
+     * de $size: cada tanda se manda en su propio job (ver SendWebPushJob).
+     *
+     * @return LazyCollection<int, array<int, int>>
+     */
+    public function subscriptionBatches(int $size = 200): LazyCollection
     {
-        $sent = 0;
+        return PushSubscription::whereHas('customer', fn ($q) => $q->where('is_active', true))
+            ->lazyById($size)
+            ->pluck('id')
+            ->chunk($size)
+            ->map(fn ($ids) => $ids->values()->all());
+    }
 
-        PushSubscription::with('customer:id,qr_code,is_active')
-            ->whereHas('customer', fn ($q) => $q->where('is_active', true))
-            ->chunkById(200, function (Collection $subscriptions) use (&$sent, $title, $body, $tag) {
-                $sent += $this->send($subscriptions, $title, $body, $tag);
-            });
-
-        return $sent;
+    /** @param  array<int, int>  $ids */
+    public function sendToSubscriptions(array $ids, string $title, string $body, ?string $tag = null): int
+    {
+        return $this->send(PushSubscription::whereIn('id', $ids)->get(), $title, $body, $tag);
     }
 
     /**

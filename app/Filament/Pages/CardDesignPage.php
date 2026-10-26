@@ -132,7 +132,10 @@ class CardDesignPage extends Page
             'contact_info' => $get('contact_info'),
         ]);
 
-        $design['logo_url'] = $this->fileUrl($get('card_logo_path')) ?? $design['logo_url'];
+        if ($logo = $this->fileUrl($get('card_logo_path'))) {
+            $design['logo_url'] = $logo;
+            $design['logo_badge'] = false;
+        }
         $design['stamp_image_url'] = $this->fileUrl($get('stamp_image_path'));
 
         return $design;

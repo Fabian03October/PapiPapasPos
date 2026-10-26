@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -44,6 +45,22 @@ class Customer extends Model
         }
 
         return $this->qr_code;
+    }
+
+    /**
+     * Nuevo código para el cliente (si reenvió su enlace o perdió el
+     * celular): el enlace y el QR viejos dejan de servir en caja y en "Mi
+     * tarjeta". Se desconectan los celulares con avisos activos y su pase de
+     * Apple Wallet (pudieron ser de quien recibió el enlace). Sellos, nivel y
+     * premios no cambian.
+     */
+    public function regenerateCardCode(): void
+    {
+        DB::transaction(function () {
+            $this->forceFill(['qr_code' => (string) Str::uuid()])->saveQuietly();
+            $this->pushSubscriptions()->delete();
+            $this->appleWalletPass()->delete();
+        });
     }
 
     /** Enlace a "Mi tarjeta" (la app web del cliente). */

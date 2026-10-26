@@ -84,6 +84,25 @@ class CustomersTable
                     ->modalCancelActionLabel('Cerrar'),
                 // Abre WhatsApp con el chat del cliente y el mensaje con su
                 // enlace ya escrito: solo falta tocar enviar.
+                // Si el cliente reenvió su enlace (o perdió el celular): nuevo
+                // código; el enlace y QR viejos dejan de servir.
+                Action::make('regenerate_card')
+                    ->label('Cambiar enlace')
+                    ->icon(Heroicon::OutlinedArrowPath)
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (Customer $record) => "¿Cambiar el enlace de {$record->name}?")
+                    ->modalDescription('Úsalo si el cliente compartió su enlace o perdió su celular. Su enlace y su QR actuales dejan de funcionar (también en caja) y se desactivan sus avisos. Sus sellos y premios NO cambian. Después mándale su enlace nuevo por WhatsApp.')
+                    ->modalSubmitActionLabel('Sí, cambiar enlace')
+                    ->action(function (Customer $record): void {
+                        $record->regenerateCardCode();
+
+                        Notification::make()
+                            ->title('Enlace cambiado')
+                            ->body('Mándale su enlace nuevo con "Enviar por WhatsApp".')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('whatsapp_card')
                     ->label('Enviar por WhatsApp')
                     ->icon(Heroicon::OutlinedPaperAirplane)
