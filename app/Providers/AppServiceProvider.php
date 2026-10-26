@@ -10,6 +10,7 @@ use App\Models\CustomerLoyaltyRedemption;
 use App\Observers\CustomerObserver;
 use App\Services\Wallet\WalletNotifier;
 use App\Services\WebPushService;
+use Filament\Forms\Components\FileUpload;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -34,6 +35,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Idioma: con APP_LOCALE=es_MX se busca es_MX, luego "es" y al final
+        // el de respaldo (en). Filament trae su traducción como "es" (no
+        // es_MX), así que sin esto el panel salía en inglés ("Search", "Per
+        // page", "Drag & Drop..."). El respaldo en inglés se conserva porque
+        // los mensajes base de Laravel solo vienen en inglés.
+        $this->app['translator']->determineLocalesUsing(function (array $locales): array {
+            $chain = [];
+            foreach ($locales as $locale) {
+                $chain[] = $locale;
+                if (str_contains($locale, '_')) {
+                    $chain[] = strstr($locale, '_', true);
+                }
+            }
+
+            return $chain;
+        });
+
+        // El texto del campo para subir archivos viene fijo en inglés dentro
+        // del componente ("Drag & Drop your files or Browse").
+        FileUpload::configureUsing(fn (FileUpload $upload) => $upload
+            ->placeholder('Arrastra tu archivo aquí o <span class="filepond--label-action">búscalo</span>'));
+
         Customer::observe(CustomerObserver::class);
 
         // "Señal de vida" del worker para el vigilante (WorkerWatchdog): a lo

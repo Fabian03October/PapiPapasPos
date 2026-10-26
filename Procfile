@@ -1,2 +1,2 @@
-web: bash deploy.sh && php artisan serve --host=0.0.0.0 --port=$PORT
+web: bash deploy.sh && docker-php-entrypoint --config /app/Caddyfile --adapter caddyfile
 worker: bash worker.sh

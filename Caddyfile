@@ -1,0 +1,37 @@
+# Servidor web de producción (FrankenPHP, ya incluido en la imagen que arma
+# Railpack). Reemplaza a "php artisan serve", que es el servidor de pruebas
+# de Laravel: atiende pocas visitas a la vez y si una se traba las demás
+# esperan (la caja y "Mi tarjeta" comparten este servidor).
+#
+# Es la misma configuración que genera Railpack (/Caddyfile), pero con el log
+# en WARN: la suya viene en DEBUG y llenaría los logs de Railway con cada
+# visita. Modo clásico (php_server): cada visita arranca PHP desde cero, igual
+# que antes; no cambia el comportamiento de la app.
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+		output stderr
+		level WARN
+	}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+:{$PORT:80} {
+	root * /app/public
+
+	encode zstd br gzip
+
+	file_server {
+		hide .git
+		hide .env*
+	}
+
+	php_server
+}

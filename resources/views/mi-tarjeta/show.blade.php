@@ -34,6 +34,10 @@
         </section>
     @endif
 
+    @if (request()->boolean('nuevo'))
+        @include('mi-tarjeta._guardar', ['clase' => 'mb-4'])
+    @endif
+
     @unless ($card['active'])
         <section class="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 px-5 py-4 text-sm text-red-200">
             Esta tarjeta está inactiva. Si crees que es un error, pregunta en caja.
@@ -81,7 +85,11 @@
             @endforeach
         </ol>
         <p class="mt-4 rounded-xl bg-[var(--panel-2)] px-4 py-3 text-sm text-[var(--fg)]">
-            <span class="text-[var(--muted)]">Próximo premio:</span> {{ $card['next_reward'] }}
+            @if ($card['visits'] === 0)
+                Tu primera visita te da tu primer sello {{ $design['stamp_emoji'] }}. <span class="text-[var(--muted)]">Muestra tu código en caja.</span>
+            @else
+                <span class="text-[var(--muted)]">Próximo premio:</span> {{ $card['next_reward'] }}
+            @endif
         </p>
     </section>
 
@@ -124,34 +132,14 @@
                 <p class="text-sm"><span class="font-semibold">🔔 Avisos activados</span><br><span class="text-[var(--muted)]">Te avisaremos de tus premios y promos.</span></p>
                 <button id="btn-avisos-quitar" type="button" class="shrink-0 text-xs text-[var(--muted)] underline">Desactivar</button>
             </div>
-            <p id="avisos-instalar" hidden class="text-sm text-[var(--fg)]">🔔 Para recibir avisos en tu iPhone, primero guarda la tarjeta en tu pantalla de inicio (pasos de abajo) y ábrela desde el ícono.</p>
+            <p id="avisos-instalar" hidden class="text-sm text-[var(--fg)]">🔔 Para recibir avisos en tu iPhone, primero guarda la tarjeta en tu pantalla de inicio (te decimos cómo en esta página) y ábrela desde el ícono.</p>
             <p id="avisos-bloqueados" hidden class="text-sm text-[var(--fg)]">🔕 Los avisos están bloqueados. Si los quieres, actívalos en los ajustes de notificaciones de tu celular.</p>
         </section>
     @endif
 
-    {{-- Guardar la tarjeta: cada botón aparece solo donde aplica (ver script). --}}
-    <section id="guardar" class="mt-4 flex flex-col gap-3">
-        <button id="btn-instalar" type="button" hidden
-            class="h-12 rounded-2xl bg-[var(--accent)] font-semibold text-[var(--on-accent)]">
-            Instalar mi tarjeta en el celular
-        </button>
-
-        <div id="ios-instrucciones" hidden class="rounded-3xl bg-[var(--panel)] p-5 text-sm text-[var(--fg)]">
-            <p class="font-semibold text-[var(--fg)]">Guárdala en tu iPhone</p>
-            <ol class="mt-2 list-decimal space-y-1 pl-5">
-                <li>Toca el botón <strong>Compartir</strong> <span aria-hidden="true">(el cuadro con la flecha ↑)</span> de Safari.</li>
-                <li>Elige <strong>Agregar a pantalla de inicio</strong>.</li>
-                <li>Toca <strong>Agregar</strong>. Te queda el ícono de Papi's Papas, y abre aunque no tengas internet.</li>
-            </ol>
-        </div>
-
-        @if ($card['google_wallet_url'])
-            <a id="btn-google-wallet" hidden href="{{ $card['google_wallet_url'] }}"
-                class="flex h-12 items-center justify-center rounded-2xl border border-[var(--line)] font-semibold text-[var(--fg)]">
-                Agregar a Google Wallet
-            </a>
-        @endif
-    </section>
+    @unless (request()->boolean('nuevo'))
+        @include('mi-tarjeta._guardar')
+    @endunless
 
     @if ($design['contact_info'])
         <section class="mt-4 rounded-3xl bg-[var(--panel)] p-5 text-sm">

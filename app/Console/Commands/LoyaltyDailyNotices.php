@@ -54,11 +54,9 @@ class LoyaltyDailyNotices extends Command
             // Quien nació el 29 de febrero, en años no bisiestos: el 28.
             $leapBaby = now()->month === 2 && now()->day === 28 && ! now()->isLeapYear();
 
+            // birth_md ("03-14") tiene índice: no revisa a todos los clientes.
             Customer::where('is_active', true)
-                ->whereNotNull('birthdate')
-                ->whereMonth('birthdate', now()->month)
-                ->where(fn ($q) => $q->whereDay('birthdate', now()->day)
-                    ->when($leapBaby, fn ($q) => $q->orWhereDay('birthdate', 29)))
+                ->whereIn('birth_md', $leapBaby ? [now()->format('m-d'), '02-29'] : [now()->format('m-d')])
                 ->has('pushSubscriptions')
                 ->each(function (Customer $customer) use (&$sent) {
                     if (! Cache::add("aviso-cumple:{$customer->id}:".now()->year, true, now()->addDays(2))) {
