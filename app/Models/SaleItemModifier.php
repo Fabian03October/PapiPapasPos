@@ -9,8 +9,23 @@ class SaleItemModifier extends Model
     protected $fillable = [
         'sale_item_id',
         'modifier_id',
+        'qty',
         'price_delta',
     ];
+
+    protected function casts(): array
+    {
+        return ['qty' => 'integer'];
+    }
+
+    /** "Queso" o "Queso ×2" (lo que dicen comanda, ticket y panel). */
+    public function label(): string
+    {
+        $name = (string) $this->modifier?->name;
+        $qty = max(1, (int) $this->qty);
+
+        return $qty > 1 ? "{$name} ×{$qty}" : $name;
+    }
 
     public function saleItem()
     {

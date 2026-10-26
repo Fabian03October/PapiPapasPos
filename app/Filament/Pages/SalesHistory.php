@@ -119,7 +119,7 @@ class SalesHistory extends Page implements HasTable
                     ->badge()
                     ->formatStateUsing(function (Sale $record) {
                         if ($record->revert_type === 'corregida') {
-                            return 'Corregida → #' . ($record->replacedBy?->folio ?? '?');
+                            return 'Corregida → #'.($record->replacedBy?->folio ?? '?');
                         }
 
                         if ($record->revert_type === 'deshecha') {
@@ -151,7 +151,7 @@ class SalesHistory extends Page implements HasTable
                     ->label('Descuento')
                     ->money('MXN')
                     ->color(fn (Sale $record) => $record->manual_discount > 0 ? 'success' : null)
-                    ->description(fn (Sale $record) => $record->manual_discount > 0 ? 'Manual: $' . number_format($record->manual_discount, 2) : null)
+                    ->description(fn (Sale $record) => $record->manual_discount > 0 ? 'Manual: $'.number_format($record->manual_discount, 2) : null)
                     ->sortable(),
                 TextColumn::make('total')->label('Total')->money('MXN')->sortable(),
             ])
@@ -166,7 +166,7 @@ class SalesHistory extends Page implements HasTable
                 Action::make('ver')
                     ->label('Ver productos')
                     ->icon(Heroicon::OutlinedEye)
-                    ->modalHeading(fn (Sale $record) => 'Venta #' . $record->folio)
+                    ->modalHeading(fn (Sale $record) => 'Venta #'.$record->folio)
                     ->schema(fn (Sale $record) => [
                         RepeatableEntry::make('items')
                             ->label('')
@@ -174,20 +174,20 @@ class SalesHistory extends Page implements HasTable
                                 $record->loadMissing(['items.product', 'items.variant', 'items.modifiers.modifier'])
                                     ->items
                                     ->map(function ($item) {
-                                        $description = $item->qty . 'x ' . ($item->product->name ?? 'Producto eliminado');
+                                        $description = $item->qty.'x '.($item->product->name ?? 'Producto eliminado');
 
                                         if ($item->variant) {
-                                            $description .= ' (' . $item->variant->name . ')';
+                                            $description .= ' ('.$item->variant->name.')';
                                         }
 
                                         foreach ($item->orderedModifiers() as $saleItemModifier) {
                                             if ($saleItemModifier->modifier) {
-                                                $description .= "\n+ " . $saleItemModifier->modifier->name;
+                                                $description .= "\n+ ".$saleItemModifier->label();
                                             }
                                         }
 
                                         if ($label = $item->manualDiscountLabel()) {
-                                            $description .= "\n" . $label . ': -$' . number_format($item->manual_discount, 2);
+                                            $description .= "\n".$label.': -$'.number_format($item->manual_discount, 2);
                                         }
 
                                         if ($item->cancelled_at) {
@@ -212,7 +212,7 @@ class SalesHistory extends Page implements HasTable
                             ->label('Descuentos')
                             ->state(
                                 collect($record->discount_breakdown ?: [['product' => null, 'label' => 'Descuento', 'amount' => $record->discount]])
-                                    ->map(fn (array $line) => ($line['product'] ? $line['product'] . ': ' : '') . $line['label'] . ' -$' . number_format($line['amount'], 2))
+                                    ->map(fn (array $line) => ($line['product'] ? $line['product'].': ' : '').$line['label'].' -$'.number_format($line['amount'], 2))
                                     ->all()
                             )
                             ->listWithLineBreaks()

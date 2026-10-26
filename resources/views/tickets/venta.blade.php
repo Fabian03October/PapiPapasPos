@@ -39,19 +39,14 @@
             @continue($item->cancelled_at)
             <tr>
                 <td>{{ $item->qty }}x {{ $item->product->name }}{{ $item->variant ? ' (' . $item->variant->name . ')' : '' }}</td>
-                <td class="right">${{ number_format($item->line_total, 2) }}</td>
+                <td class="right">${{ number_format($item->baseAmount(), 2) }}</td>
             </tr>
-            @foreach ($item->orderedModifiers() as $saleItemModifier)
-                @if ($saleItemModifier->modifier)
-                    <tr>
-                        <td class="mod">+ {{ $saleItemModifier->modifier->name }}</td>
-                        <td class="right mod">
-                            @if ($saleItemModifier->price_delta > 0)
-                                ${{ number_format($saleItemModifier->price_delta * $item->qty, 2) }}
-                            @endif
-                        </td>
-                    </tr>
-                @endif
+            {{-- Solo lo que se cobra: las opciones gratis y las notas van en la comanda. --}}
+            @foreach ($item->chargedModifiers() as $charged)
+                <tr>
+                    <td class="mod">+ {{ $charged['label'] }}</td>
+                    <td class="right mod">${{ number_format($charged['amount'], 2) }}</td>
+                </tr>
             @endforeach
             @if ($item->manualDiscountLabel())
                 <tr>

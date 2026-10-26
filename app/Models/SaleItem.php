@@ -88,6 +88,31 @@ class SaleItem extends Model
         return mb_strtolower(trim((string) $name)) === 'queso';
     }
 
+    /**
+     * Lo que se cobra de las opciones de este producto (para el ticket del
+     * cliente): solo las que cuestan, con su importe total (precio × veces
+     * pedidas × cantidad del producto). Las gratis (presentación, aderezos,
+     * salsas) van solo en la comanda.
+     *
+     * @return Collection<int, array{label: string, amount: float}>
+     */
+    public function chargedModifiers(): Collection
+    {
+        return $this->orderedModifiers()
+            ->filter(fn (SaleItemModifier $m) => (float) $m->price_delta > 0)
+            ->map(fn (SaleItemModifier $m) => [
+                'label' => $m->label(),
+                'amount' => round((float) $m->price_delta * max(1, (int) $m->qty) * $this->qty, 2),
+            ])
+            ->values();
+    }
+
+    /** El producto sin sus opciones de pago (para que el ticket sume bien). */
+    public function baseAmount(): float
+    {
+        return round((float) $this->line_total - $this->chargedModifiers()->sum('amount'), 2);
+    }
+
     protected function casts(): array
     {
         return [

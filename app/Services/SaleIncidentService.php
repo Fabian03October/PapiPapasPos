@@ -193,7 +193,7 @@ class SaleIncidentService
         foreach ($item->modifiers as $saleItemModifier) {
             $modifierRecipe = ModifierRecipeItem::where('modifier_id', $saleItemModifier->modifier_id)->get();
             foreach ($modifierRecipe as $r) {
-                $consumption[$r->ingredient_id] = ($consumption[$r->ingredient_id] ?? 0) + $r->qty * $item->qty;
+                $consumption[$r->ingredient_id] = ($consumption[$r->ingredient_id] ?? 0) + $r->qty * $item->qty * max(1, (int) $saleItemModifier->qty);
             }
         }
 

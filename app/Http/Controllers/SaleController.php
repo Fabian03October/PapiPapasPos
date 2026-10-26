@@ -65,20 +65,30 @@ class SaleController extends Controller
             }
 
             $modifiers = [];
+            // Opciones repetidas ("Queso ×2"): el carrito manda el id una vez
+            // por cada vez que se pidió. id => veces.
+            $modifierCounts = array_count_values(array_map('intval', $item['modifier_ids'] ?? []));
             if (! empty($item['modifier_ids'])) {
-                $modifierIds = array_unique(array_map('intval', $item['modifier_ids']));
+                $modifierIds = array_keys($modifierCounts);
                 $allowedGroupIds = $product->modifierGroups()
                     ->when($soloDisponibles, fn ($q) => $q->where('modifier_groups.is_active', true))
                     ->pluck('modifier_groups.id')
                     ->all();
 
-                $modifiers = Modifier::whereIn('id', $modifierIds)
+                $modifiers = Modifier::with('group')->whereIn('id', $modifierIds)
                     ->whereIn('modifier_group_id', $allowedGroupIds)
                     ->when($soloDisponibles, fn ($q) => $q->where('is_active', true))
                     ->get();
 
                 if ($modifiers->count() !== count($modifierIds)) {
                     $noDisponible('Un extra');
+                }
+
+                // La presentación (grupo obligatorio) es una sola: no se repite.
+                foreach ($modifiers as $modifier) {
+                    if ($modifierCounts[$modifier->id] > 1 && $modifier->group?->is_required) {
+                        throw ValidationException::withMessages(['items' => "{$modifier->group->name} de \"{$product->name}\" no se puede repetir."]);
+                    }
                 }
             }
 
@@ -102,8 +112,10 @@ class SaleController extends Controller
                 }
             }
 
+            // Las repeticiones no cuentan para el tope del grupo (arriba se
+            // cuentan opciones distintas), pero sí se cobran cada una.
             foreach ($modifiers as $modifier) {
-                $unitPrice += (float) $modifier->price_delta;
+                $unitPrice += (float) $modifier->price_delta * $modifierCounts[$modifier->id];
             }
 
             $lineTotal = $unitPrice * $qty;
@@ -117,6 +129,7 @@ class SaleController extends Controller
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,
                 'modifiers' => $modifiers,
+                'modifier_counts' => $modifierCounts,
                 'notes' => isset($item['notes']) && trim($item['notes']) !== '' ? trim($item['notes']) : null,
                 'manual_discount' => $item['discount'] ?? null,
             ];
@@ -138,8 +151,9 @@ class SaleController extends Controller
             foreach ($modifiers as $modifier) {
                 $modifierRecipe = ModifierRecipeItem::where('modifier_id', $modifier->id)->get();
                 foreach ($modifierRecipe as $recipeItem) {
+                    // Queso ×2 en 3 papas = 6 porciones de queso.
                     $ingredientConsumption[$recipeItem->ingredient_id] =
-                        ($ingredientConsumption[$recipeItem->ingredient_id] ?? 0) + ($recipeItem->qty * $qty);
+                        ($ingredientConsumption[$recipeItem->ingredient_id] ?? 0) + ($recipeItem->qty * $qty * $modifierCounts[$modifier->id]);
                 }
             }
         }
@@ -414,6 +428,7 @@ class SaleController extends Controller
                         SaleItemModifier::create([
                             'sale_item_id' => $saleItem->id,
                             'modifier_id' => $modifier->id,
+                            'qty' => $data['modifier_counts'][$modifier->id] ?? 1,
                             'price_delta' => $modifier->price_delta,
                         ]);
                     }

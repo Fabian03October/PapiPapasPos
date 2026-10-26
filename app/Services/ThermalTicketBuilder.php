@@ -52,16 +52,14 @@ class ThermalTicketBuilder
                 continue;
             }
 
+            // Ticket del cliente: solo lo que se cobra. El producto (con su
+            // variante) y abajo las opciones de pago; las gratis (presentación,
+            // aderezos, salsas) y las notas van solo en la comanda.
             $name = $item->qty.'x '.$item->product->name.($item->variant ? ' ('.$item->variant->name.')' : '');
-            $this->row($name, $this->money($item->line_total));
+            $this->row($name, $this->money($item->baseAmount()));
 
-            foreach ($item->orderedModifiers() as $saleItemModifier) {
-                if ($saleItemModifier->modifier) {
-                    $this->row(
-                        ' + '.$saleItemModifier->modifier->name,
-                        $saleItemModifier->price_delta > 0 ? $this->money($saleItemModifier->price_delta * $item->qty) : ''
-                    );
-                }
+            foreach ($item->chargedModifiers() as $charged) {
+                $this->row(' + '.$charged['label'], $this->money($charged['amount']));
             }
 
             if ($label = $item->manualDiscountLabel()) {
@@ -145,7 +143,7 @@ class ThermalTicketBuilder
             // negrita y subrayado para que cocina no se los salte.
             foreach ($item->orderedModifiers() as $saleItemModifier) {
                 $isExtra = $saleItemModifier->isExtra();
-                $this->text('  + '.($isExtra ? 'EXTRA ' : '').$saleItemModifier->modifier->name, bold: $isExtra, underline: $isExtra);
+                $this->text('  + '.($isExtra ? 'EXTRA ' : '').$saleItemModifier->label(), bold: $isExtra, underline: $isExtra);
             }
 
             if ($item->notes) {

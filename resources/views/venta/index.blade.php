@@ -717,6 +717,10 @@
         let currentProduct = null;
         let selectedVariant = null;
         let selectedModifiers = {};
+        // Veces que se pidió cada opción ("Queso ×2"). Solo en grupos que no
+        // son obligatorios: la Presentación es una sola. Las repeticiones no
+        // cuentan para el tope del grupo (el tope es de opciones distintas).
+        let modCounts = {};
         let editingCartId = null; // si se está editando un renglón del carrito
 
         // Mínimo y máximo por grupo. Obligatorio = al menos 1 (o su mínimo):
@@ -777,7 +781,9 @@
                     editingCartId = editItem ? editItem.cartId : null;
                     selectedVariant = editItem ? editItem.variantId : null;
                     selectedModifiers = {};
+                    modCounts = {};
                     if (editItem) {
+                        editItem.modifierIds.forEach(id => { modCounts[id] = (modCounts[id] || 0) + 1; });
                         data.modifier_groups.forEach(group => {
                             selectedModifiers[group.id] = group.modifiers
                                 .filter(mod => editItem.modifierIds.includes(mod.id))
@@ -850,9 +856,24 @@
                     : (isSingle ? 'opcional · elige 1' : (max === Infinity ? 'opcional · varios' : `opcional · hasta ${max}`));
                 const missing = group.id === missingGroupId;
 
+                const repeatable = !group.is_required;
                 const optionsHtml = group.modifiers.map(mod => {
                     const isSelected = selectedModifiers[group.id].includes(mod.id);
-                    const priceLabel = mod.price_delta > 0 ? `+${formatMoney(mod.price_delta)}` : '';
+                    const count = modCounts[mod.id] || 1;
+                    const priceLabel = mod.price_delta > 0 ? `+${formatMoney(mod.price_delta * (isSelected ? count : 1))}` : '';
+
+                    // Elegida y repetible: − Queso ×2 + (tocar el nombre la quita).
+                    if (isSelected && repeatable) {
+                        return `
+                            <span class="inline-flex items-center rounded-full bg-primary-600 text-white border border-primary-600 text-sm">
+                                <button type="button" data-mod-id="${mod.id}" class="mod-minus w-9 h-9 rounded-full text-lg leading-none" aria-label="Uno menos de ${escapeHtml(mod.name)}">−</button>
+                                <button type="button" data-group-id="${group.id}" data-mod-id="${mod.id}" data-single="${isSingle}" class="mod-btn px-1 py-2 font-medium">
+                                    ${escapeHtml(mod.name)}${count > 1 ? ` ×${count}` : ''} ${priceLabel}
+                                </button>
+                                <button type="button" data-mod-id="${mod.id}" class="mod-plus w-9 h-9 rounded-full text-lg leading-none" aria-label="Uno más de ${escapeHtml(mod.name)}">+</button>
+                            </span>
+                        `;
+                    }
 
                     return `
                         <button type="button" data-group-id="${group.id}" data-mod-id="${mod.id}" data-single="${isSingle}"
@@ -878,8 +899,10 @@
                     const current = selectedModifiers[groupId];
 
                     if (btn.dataset.single === 'true') {
+                        current.forEach(id => { delete modCounts[id]; });
                         selectedModifiers[groupId] = current.includes(modId) && !group.is_required ? [] : [modId];
                     } else if (current.includes(modId)) {
+                        delete modCounts[modId];
                         selectedModifiers[groupId] = current.filter(id => id !== modId);
                     } else if (current.length >= groupMax(group)) {
                         Toast.show(`Máximo ${groupMax(group)} en ${group.name}.`, 'error');
@@ -892,6 +915,25 @@
                     renderModal();
                 });
             });
+
+            // − y + de una opción repetida. En 1, el − la quita.
+            modalGroups.querySelectorAll('.mod-plus').forEach(btn => btn.addEventListener('click', () => {
+                const modId = Number(btn.dataset.modId);
+                modCounts[modId] = (modCounts[modId] || 1) + 1;
+                renderModal();
+            }));
+            modalGroups.querySelectorAll('.mod-minus').forEach(btn => btn.addEventListener('click', () => {
+                const modId = Number(btn.dataset.modId);
+                if ((modCounts[modId] || 1) > 1) {
+                    modCounts[modId] -= 1;
+                } else {
+                    delete modCounts[modId];
+                    Object.keys(selectedModifiers).forEach(gid => {
+                        selectedModifiers[gid] = selectedModifiers[gid].filter(id => id !== modId);
+                    });
+                }
+                renderModal();
+            }));
 
             updateModalTotal();
         }
@@ -907,7 +949,7 @@
             currentProduct.modifier_groups.forEach(group => {
                 (selectedModifiers[group.id] || []).forEach(modId => {
                     const mod = group.modifiers.find(m => m.id === modId);
-                    if (mod) total += mod.price_delta;
+                    if (mod) total += mod.price_delta * (modCounts[modId] || 1);
                 });
             });
 
@@ -936,8 +978,11 @@
             currentProduct.modifier_groups.forEach(group => {
                 group.modifiers.forEach(mod => {
                     if ((selectedModifiers[group.id] || []).includes(mod.id)) {
-                        modifierIds.push(mod.id);
-                        modifierNames.push(mod.name);
+                        // Repetida: el id va una vez por cada vez pedida (así lo
+                        // cuenta el servidor); el nombre una vez, "Queso ×2".
+                        const count = group.is_required ? 1 : (modCounts[mod.id] || 1);
+                        for (let i = 0; i < count; i++) modifierIds.push(mod.id);
+                        modifierNames.push(count > 1 ? `${mod.name} ×${count}` : mod.name);
                     }
                 });
             });

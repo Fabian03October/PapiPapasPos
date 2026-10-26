@@ -111,7 +111,7 @@
                                                         <span class="font-medium">{{ $item->qty }}x</span> {{ $item->product->name }}
                                                         @if ($item->modifiers->isNotEmpty())
                                                             <span class="text-xs text-neutral-400 dark:text-neutral-500">
-                                                                ({{ $item->modifiers->pluck('modifier.name')->filter()->join(', ') }})
+                                                                ({{ $item->modifiers->filter(fn ($m) => $m->modifier)->map(fn ($m) => $m->label())->join(', ') }})
                                                             </span>
                                                         @endif
                                                     </p>

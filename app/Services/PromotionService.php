@@ -12,7 +12,7 @@ class PromotionService
      * el descuento total a aplicar (sumando todas las que apliquen).
      *
      * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total', 'modifiers']
-     * @return array  ['discount' => float, 'applied' => array de nombres de promociones aplicadas, 'details' => [['name', 'amount']]]
+     * @return array ['discount' => float, 'applied' => array de nombres de promociones aplicadas, 'details' => [['name', 'amount']]]
      */
     public function evaluate(array $itemsData): array
     {
@@ -133,14 +133,16 @@ class PromotionService
                     continue;
                 }
 
-                $price = (float) $modifier->price_delta;
+                // "Extra queso ×2" con promo: aplica a cada una.
+                $price = (float) $modifier->price_delta * ($item['modifier_counts'][$modifier->id] ?? 1);
 
                 if ($promo->type === 'free') {
                     $discount += $price * $item['qty'];
                 } elseif ($promo->discount_mode === 'percent') {
                     $discount += $price * $item['qty'] * ((float) $promo->percent_value / 100);
-                } else { // fixed_price: el extra pasa a costar $combo_price fijo
-                    $discount += max(0, $price - (float) $promo->combo_price) * $item['qty'];
+                } else { // fixed_price: el extra pasa a costar $combo_price fijo (cada uno)
+                    $veces = $item['modifier_counts'][$modifier->id] ?? 1;
+                    $discount += max(0, $price - (float) $promo->combo_price * $veces) * $item['qty'];
                 }
             }
         }

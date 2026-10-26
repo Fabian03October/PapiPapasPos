@@ -115,8 +115,10 @@ class SaleRevertService
                     'name' => $item->product->name ?? 'Producto',
                     'variantId' => $item->variant_id,
                     'variantName' => $item->variant?->name,
-                    'modifierIds' => $modifiers->pluck('modifier_id')->values()->all(),
-                    'modifierNames' => $modifiers->map(fn ($m) => $m->modifier->name)->values()->all(),
+                    // Repetidos: el id va una vez por cada vez pedida (como lo
+                    // manda el carrito); el nombre una sola vez, "Queso ×2".
+                    'modifierIds' => $modifiers->flatMap(fn ($m) => array_fill(0, max(1, (int) $m->qty), $m->modifier_id))->values()->all(),
+                    'modifierNames' => $modifiers->map(fn ($m) => $m->label())->values()->all(),
                     'notes' => (string) $item->notes,
                     'qty' => (int) $item->qty,
                     'unitPrice' => (float) $item->unit_price,

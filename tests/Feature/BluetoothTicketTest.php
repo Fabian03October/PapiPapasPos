@@ -71,8 +71,9 @@ class BluetoothTicketTest extends TestCase
         $this->assertStringEndsWith('$188.00', $total);
 
         // El nombre largo se parte y el precio queda en el último renglón.
+        // Solo lo que se cobra: el producto ($178) y su extra aparte ($30) = $208.
         $this->assertContains('2x Salchipapas con queso', $texts);
-        $this->assertContains('y tocino extra grandes   $208.00', $texts);
+        $this->assertContains('y tocino extra grandes   $178.00', $texts);
         $this->assertContains(' + Queso                  $30.00', $texts);
 
         $this->assertContains('Desc. $20.00 (Cliente', $texts);
@@ -82,7 +83,7 @@ class BluetoothTicketTest extends TestCase
 
     public function test_quita_caracteres_que_la_impresora_no_entiende_pero_deja_acentos(): void
     {
-        BusinessSettings::current()->update(['name' => "Papi’s Papas 🍟", 'thank_you_message' => '¡Gracias por tu compra, vuelve pronto! ñ']);
+        BusinessSettings::current()->update(['name' => 'Papi’s Papas 🍟', 'thank_you_message' => '¡Gracias por tu compra, vuelve pronto! ñ']);
 
         $texts = array_column((new ThermalTicketBuilder)->forSale($this->sale()), 'text');
 
