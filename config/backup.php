@@ -215,7 +215,9 @@ return [
         'notifiable' => \Spatie\Backup\Notifications\Notifiable::class,
 
         'mail' => [
-            'to' => env('BACKUP_NOTIFY_EMAIL', 'your@example.com'),
+            // Vacío ("BACKUP_NOTIFY_EMAIL=") también cuenta como no puesto: si no,
+            // el paquete truena al arrancar (" is not a valid email address").
+            'to' => env('BACKUP_NOTIFY_EMAIL') ?: 'your@example.com',
 
             'from' => [
                 'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
