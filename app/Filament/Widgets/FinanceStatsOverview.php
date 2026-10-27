@@ -28,7 +28,7 @@ class FinanceStatsOverview extends BaseWidget
                 ->description('Caja '.$money($f['caja']['gastos']).' · Generales '.$money($f['general']['gastos']))
                 ->color('danger'),
             Stat::make('Ganancia', $money($f['ganancia']))
-                ->description('Ventas '.$money($f['ventas']).' − gastos')
+                ->description('Ventas menos gastos') // las ventas ya están arriba
                 ->color($f['ganancia'] >= 0 ? 'success' : 'danger'),
         ];
     }
