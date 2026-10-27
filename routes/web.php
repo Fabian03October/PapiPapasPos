@@ -93,6 +93,7 @@ Route::middleware(['auth', WorkerWatchdog::class])->group(function () {
     Route::post('/venta/cobrar', [SaleController::class, 'store'])->name('venta.cobrar');
 
     Route::post('/venta/promociones/preview', [SaleController::class, 'preview'])->name('venta.promotions.preview');
+    Route::post('/venta/pase', [SaleController::class, 'checkDayPass'])->middleware('throttle:30,1')->name('venta.pase');
 
     Route::get('/venta/cliente', [VentaController::class, 'clientePage'])->name('venta.cliente');
     Route::get('/venta/cliente/seleccionar/{customer}', [VentaController::class, 'selectCustomer'])->name('venta.customers.select');

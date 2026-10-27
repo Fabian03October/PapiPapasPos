@@ -355,6 +355,26 @@ class SaleController extends Controller
     }
 
     /**
+     * El cajero escribe el código (aunque el carrito esté vacío: la persona
+     * puede llegar solo con su pase). Dice qué da para mostrarlo en el carrito.
+     */
+    public function checkDayPass(Request $request)
+    {
+        $request->validate(['day_pass_code' => 'required|string|max:20']);
+        $pass = $this->findDayPass($request);
+
+        return response()->json([
+            'code' => $pass->code,
+            'display_code' => $pass->displayCode(),
+            'label' => $pass->benefitLabel(),
+            'note' => $pass->note,
+            'benefit_type' => $pass->benefit_type,
+            'value' => $pass->value !== null ? (float) $pass->value : null,
+            'product_id' => $pass->product_id,
+        ]);
+    }
+
+    /**
      * Lo que descuenta el pase. Producto gratis: 1 pieza (si no está en el
      * carrito se agrega sola, como el regalo de fidelidad). %: sobre lo que
      * queda después de promociones. $: nunca más que la cuenta.

@@ -78,6 +78,21 @@
                 </a>
             </div>
 
+            {{-- Pase del día: siempre a la vista (la persona puede llegar solo con su código). --}}
+            <button type="button" id="cart-pass-btn" class="w-full h-10 mb-3 rounded-lg border border-dashed border-primary-300 dark:border-primary-500/40 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10">
+                🎟 Pase del día
+            </button>
+            <div id="cart-pass-chip" class="hidden mb-3">
+                <div class="flex items-center justify-between gap-2 bg-primary-50 dark:bg-primary-500/10 rounded-lg px-3 py-2">
+                    <span id="cart-pass-text" class="text-xs text-primary-700 dark:text-primary-300 min-w-0"></span>
+                    <button type="button" id="cart-pass-remove" class="text-primary-400 dark:text-primary-500 shrink-0" title="Quitar pase">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
             <div class="flex-1 overflow-y-auto min-h-0" id="cart-items-container">
                 <div class="h-full flex items-center justify-center text-center" id="cart-empty">
                     <p class="text-sm text-neutral-400 dark:text-neutral-600">Toca un producto<br>para agregarlo</p>
@@ -182,16 +197,6 @@
             </div>
         </div>
 
-        {{-- Pase del día: el cajero escribe el código del papel. --}}
-        <div id="day-pass-form" class="hidden mb-4">
-            <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Código del pase</p>
-            <div class="flex gap-2">
-                <input type="text" id="day-pass-input" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH"
-                       class="flex-1 min-w-0 h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-base font-mono uppercase tracking-widest">
-                <button type="button" id="day-pass-apply" class="h-11 px-4 rounded-lg bg-primary-600 text-white text-sm font-medium">Aplicar</button>
-            </div>
-            <p id="day-pass-error" class="hidden text-xs text-red-600 dark:text-red-400 mt-1"></p>
-        </div>
         <div id="day-pass-applied" class="hidden mb-4">
             <div class="flex items-center justify-between gap-2 bg-primary-50 dark:bg-primary-500/10 rounded-lg px-3 py-2">
                 <span id="day-pass-applied-text" class="text-sm text-primary-700 dark:text-primary-300 min-w-0"></span>
@@ -248,6 +253,27 @@
         </div>
 
         <p id="pay-saving" class="hidden text-center text-sm text-neutral-500 dark:text-neutral-400 mt-2">Guardando la venta…</p>
+    </x-modal>
+
+    <!-- Pase del día: el cajero escribe el código del papel -->
+    <x-modal id="day-pass-modal" max-width="sm">
+        <x-slot:header>
+            <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">🎟 Pase del día</p>
+            <button id="day-pass-close" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </x-slot:header>
+
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Escribe el código que trae en su papel.</p>
+        <input type="text" id="day-pass-input" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH"
+               class="w-full h-14 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-2xl text-center font-mono uppercase tracking-widest">
+        <p id="day-pass-error" class="hidden text-sm text-red-600 dark:text-red-400 mt-2"></p>
+
+        <x-slot:footer>
+            <button type="button" id="day-pass-apply" class="w-full h-12 rounded-lg bg-primary-600 text-white text-sm font-medium">Aplicar pase</button>
+        </x-slot:footer>
     </x-modal>
 
     <!-- Venta registrada + Deshacer (la orden regresa al carrito para corregirla) -->
@@ -425,6 +451,28 @@
         // Mismo cálculo que ManualDiscountService (el servidor es quien manda
         // al cobrar; esto es solo para que el carrito muestre el total real).
         let saleDiscount = null; // { type, value, reason } a toda la venta
+        // Pase del día aplicado (no se junta con premios de la tarjeta):
+        // { code, display_code, label, note, benefit_type, value, product_id }
+        let dayPass = null;
+
+        /** Lo que descuenta el pase en el carrito (el servidor da el número exacto al cobrar). */
+        function passDiscount(base) {
+            if (!dayPass || base <= 0) return 0;
+            if (dayPass.benefit_type === 'product') {
+                const line = cart.find(item => item.productId === dayPass.product_id);
+                return line ? Math.min(line.unitPrice, base) : 0;
+            }
+            return discountAmount({ type: dayPass.benefit_type, value: dayPass.value }, base);
+        }
+
+        function renderCartPass() {
+            document.getElementById('cart-pass-btn').classList.toggle('hidden', !!dayPass);
+            document.getElementById('cart-pass-chip').classList.toggle('hidden', !dayPass);
+            if (dayPass) {
+                document.getElementById('cart-pass-text').textContent =
+                    '🎟 ' + dayPass.display_code + ' · ' + dayPass.label + (dayPass.note ? ' · ' + dayPass.note : '');
+            }
+        }
 
         function discountAmount(discount, base) {
             if (!discount || base <= 0) return 0;
@@ -444,7 +492,8 @@
 
         function cartTotals() {
             const itemsNet = cart.reduce((sum, item) => sum + item.lineTotal - discountAmount(item.discount, item.lineTotal), 0);
-            return itemsNet - discountAmount(saleDiscount, itemsNet);
+            const afterPass = itemsNet - passDiscount(itemsNet);
+            return afterPass - discountAmount(saleDiscount, afterPass);
         }
 
         function renderSaleDiscount() {
@@ -523,6 +572,7 @@
             if (cart.length === 0) saleDiscount = null;
             cartTotalEl.textContent = formatMoney(cartTotals());
             renderSaleDiscount();
+            renderCartPass();
 
             document.querySelectorAll('.cart-discount-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -1057,7 +1107,6 @@
         // Si la orden regresó de "Deshacer" para corregirla: la venta original.
         let correctsSaleId = null;
         let rewardAnswer = null; // null = sin responder, true/false = ya contestó
-        let dayPassCode = null;  // pase del día aplicado (no se junta con premios de la tarjeta)
 
         const rewardPrompt = document.getElementById('reward-prompt');
         const rewardPromptText = document.getElementById('reward-prompt-text');
@@ -1078,7 +1127,7 @@
                 sale_discount: saleDiscount,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: redeemReward,
-                day_pass_code: dayPassCode,
+                day_pass_code: dayPass ? dayPass.code : null,
             };
         }
 
@@ -1128,8 +1177,9 @@
                 // Pase que no existe, ya se usó o venció: se avisa ahí mismo y
                 // se recalcula sin él.
                 if (!ok && data.errors && data.errors.day_pass_code) {
-                    dayPassCode = null;
-                    showDayPassError(data.errors.day_pass_code[0]);
+                    dayPass = null;
+                    renderCart();
+                    Toast.show(data.errors.day_pass_code[0], 'error');
                     loadPaymentPreview(redeemReward);
                     return;
                 }
@@ -1249,24 +1299,48 @@
         }
 
         // --- PASE DEL DÍA ---
-        const dayPassForm = document.getElementById('day-pass-form');
+        // Se puede poner desde el carrito (aunque esté vacío: la persona puede
+        // llegar solo con su código) o desde el cobro.
+        const dayPassModal = document.getElementById('day-pass-modal');
         const dayPassInput = document.getElementById('day-pass-input');
         const dayPassError = document.getElementById('day-pass-error');
+        const paymentOpen = () => !paymentModal.classList.contains('hidden');
 
-        function showDayPassError(message) {
-            dayPassForm.classList.remove('hidden');
-            dayPassError.textContent = message;
-            dayPassError.classList.remove('hidden');
+        function openDayPassModal() {
+            dayPassInput.value = '';
+            dayPassError.classList.add('hidden');
+            dayPassModal.classList.remove('hidden');
+            dayPassModal.classList.add('flex');
+            setTimeout(() => dayPassInput.focus(), 50);
         }
 
-        function renderDayPass(pass) {
-            const applied = document.getElementById('day-pass-applied');
-            applied.classList.toggle('hidden', !pass);
-            document.getElementById('day-pass-btn').classList.toggle('hidden', !!pass);
-            if (pass) {
-                dayPassForm.classList.add('hidden');
-                document.getElementById('day-pass-applied-text').textContent =
-                    '🎟 Pase ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
+        function closeDayPassModal() {
+            dayPassModal.classList.add('hidden');
+            dayPassModal.classList.remove('flex');
+        }
+
+        /** Revisa el código en el servidor (existe, no se ha usado, no ha vencido). */
+        function checkDayPass(code) {
+            return fetch('{{ route("venta.pase") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+                body: JSON.stringify({ day_pass_code: code }),
+            }).then(res => res.json().then(data => ({ status: res.status, data })));
+        }
+
+        function setDayPass(pass) {
+            dayPass = pass;
+            renderCart();
+            // Producto gratis que no está en el carrito: se agrega (si pide
+            // presentación, se abre su ventana para elegirla). En el cobro lo
+            // agrega el servidor solo.
+            if (pass && pass.benefit_type === 'product' && !paymentOpen()
+                && !cart.some(item => item.productId === pass.product_id)) {
+                openModal(pass.product_id);
+            }
+            if (paymentOpen()) {
+                rewardAnswer = null; // el pase no se junta con premios de la tarjeta
+                loadPaymentPreview(false);
             }
         }
 
@@ -1274,25 +1348,41 @@
             const code = dayPassInput.value.replace(/[\s-]+/g, '').toUpperCase();
             if (code.length === 0) return;
             dayPassError.classList.add('hidden');
-            dayPassCode = code;
-            // El pase no se junta con premios de la tarjeta.
-            rewardAnswer = null;
-            loadPaymentPreview(false);
+
+            checkDayPass(code).then(({ status, data }) => {
+                if (status === 200) {
+                    closeDayPassModal();
+                    setDayPass(data);
+                    Toast.show('Pase aplicado: ' + data.label);
+                    return;
+                }
+                dayPassError.textContent = status === 429
+                    ? 'Demasiados intentos. Espera un minuto.'
+                    : ((data.errors && data.errors.day_pass_code && data.errors.day_pass_code[0]) || data.message || 'No se pudo revisar el pase.');
+                dayPassError.classList.remove('hidden');
+            }).catch(() => {
+                dayPassError.textContent = 'No se pudo revisar el pase por la conexión.';
+                dayPassError.classList.remove('hidden');
+            });
         }
 
-        document.getElementById('day-pass-btn').addEventListener('click', () => {
-            dayPassForm.classList.toggle('hidden');
-            dayPassError.classList.add('hidden');
-            dayPassInput.value = '';
-            if (!dayPassForm.classList.contains('hidden')) dayPassInput.focus();
-        });
+        /** El recuadro del pase dentro del cobro. */
+        function renderDayPass(pass) {
+            document.getElementById('day-pass-applied').classList.toggle('hidden', !pass);
+            document.getElementById('day-pass-btn').classList.toggle('hidden', !!pass);
+            if (pass) {
+                document.getElementById('day-pass-applied-text').textContent =
+                    '🎟 Pase ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
+            }
+        }
+
+        document.getElementById('cart-pass-btn').addEventListener('click', openDayPassModal);
+        document.getElementById('day-pass-btn').addEventListener('click', openDayPassModal);
+        document.getElementById('day-pass-close').addEventListener('click', closeDayPassModal);
         document.getElementById('day-pass-apply').addEventListener('click', applyDayPass);
         dayPassInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyDayPass(); });
-        document.getElementById('day-pass-remove').addEventListener('click', () => {
-            dayPassCode = null;
-            rewardAnswer = null;
-            loadPaymentPreview(false);
-        });
+        document.getElementById('cart-pass-remove').addEventListener('click', () => setDayPass(null));
+        document.getElementById('day-pass-remove').addEventListener('click', () => setDayPass(null));
 
         rewardAnswerYesBtn.addEventListener('click', () => {
             rewardAnswer = true;
@@ -1309,7 +1399,6 @@
 
             rewardAnswer = null;
             rewardPrompt.classList.add('hidden');
-            dayPassForm.classList.add('hidden');
             previewReady = false;
             payMode = 'buttons';
             renderPayButtons();
@@ -1413,7 +1502,7 @@
                 payment_method: method,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: rewardAnswer === true,
-                day_pass_code: dayPassCode,
+                day_pass_code: dayPass ? dayPass.code : null,
                 corrects_sale_id: correctsSaleId,
                 amount_received: method === 'efectivo' ? received : null,
             };
@@ -1437,7 +1526,7 @@
 
                     cart = [];
                     saleDiscount = null;
-                    dayPassCode = null;
+                    dayPass = null;
                     correctsSaleId = null;
                     renderCart();
                     paymentModal.classList.add('hidden');
@@ -1548,8 +1637,18 @@
             }));
             autoGiftCartId = null;
             saleDiscount = order.sale_discount || null;
-            dayPassCode = order.day_pass_code || null;
+            dayPass = null;
             correctsSaleId = order.sale_id;
+
+            // La venta deshecha liberó su pase: vuelve al carrito con la orden.
+            if (order.day_pass_code) {
+                checkDayPass(order.day_pass_code).then(({ status, data }) => {
+                    if (status === 200) {
+                        dayPass = data;
+                        renderCart();
+                    }
+                });
+            }
 
             if (order.customer) {
                 selectedCustomer = { id: order.customer.id, name: order.customer.name };

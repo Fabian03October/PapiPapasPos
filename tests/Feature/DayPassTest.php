@@ -123,6 +123,18 @@ class DayPassTest extends TestCase
         $this->assertSame('pending', CustomerLoyaltyRedemption::where('customer_id', $chuy->id)->value('status'));
     }
 
+    public function test_el_cajero_revisa_el_codigo_aunque_el_carrito_este_vacio(): void
+    {
+        $pase = $this->pase(['benefit_type' => 'product', 'product_id' => $this->refresco->id, 'value' => null, 'note' => 'Vecino']);
+
+        $this->actingAs($this->manager)->postJson('/venta/pase', ['day_pass_code' => strtolower($pase->code)])
+            ->assertOk()
+            ->assertJson(['code' => $pase->code, 'label' => 'Refresco gratis', 'note' => 'Vecino', 'benefit_type' => 'product', 'product_id' => $this->refresco->id]);
+
+        $this->actingAs($this->manager)->postJson('/venta/pase', ['day_pass_code' => 'ZZZZZZZZ'])->assertStatus(422);
+        $this->assertNull($pase->fresh()->used_at); // revisarlo no lo gasta
+    }
+
     public function test_deshacer_la_venta_libera_el_pase(): void
     {
         $pase = $this->pase();
