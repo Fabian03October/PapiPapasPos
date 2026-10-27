@@ -99,6 +99,7 @@ class CustomersTable
                     ->color('gray')
                     ->visible(fn () => auth()->user()?->esManager() ?? false)
                     ->modalHeading(fn (Customer $record) => "Sellos y nivel de {$record->name}")
+                    ->modalSubmitActionLabel('Guardar ajuste')
                     ->modalDescription(fn (Customer $record) => "Hoy tiene: nivel {$record->current_level}, {$record->current_visits} sello(s), {$record->cards_completed} tarjeta(s) llena(s) en su nivel. El cambio queda en la bitácora.")
                     ->fillForm(fn (Customer $record) => [
                         'level' => $record->current_level,

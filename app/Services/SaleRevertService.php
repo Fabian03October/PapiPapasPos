@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
+use App\Models\DayPass;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -64,7 +65,7 @@ class SaleRevertService
     {
         return DB::transaction(function () use ($sale, $user, $reason) {
             $sale = Sale::whereKey($sale->id)->lockForUpdate()->first();
-            $sale->load(['items.product', 'items.variant', 'items.modifiers.modifier.group', 'customer']);
+            $sale->load(['items.product', 'items.variant', 'items.modifiers.modifier.group', 'customer', 'dayPass']);
 
             $order = $this->orderFor($sale);
 
@@ -82,6 +83,12 @@ class SaleRevertService
 
             if ($sale->customer) {
                 $this->revertLoyalty($sale);
+            }
+
+            // El pase del día se libera: la orden regresa con él para volver a cobrarla.
+            if ($sale->day_pass_id) {
+                DayPass::whereKey($sale->day_pass_id)->where('used_sale_id', $sale->id)
+                    ->update(['used_at' => null, 'used_sale_id' => null]);
             }
 
             return $order;
@@ -107,6 +114,7 @@ class SaleRevertService
             'folio' => $sale->folio,
             'customer' => $sale->customer ? ['id' => $sale->customer->id, 'name' => $sale->customer->name] : null,
             'sale_discount' => $saleDiscount ? $this->discountFromLabel($saleDiscount) : null,
+            'day_pass_code' => $sale->dayPass?->code,
             'items' => $sale->items->map(function ($item) {
                 $modifiers = $item->orderedModifiers();
 

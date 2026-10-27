@@ -6,6 +6,7 @@ use App\Exceptions\LoyaltyChangedException;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
+use App\Models\DayPass;
 use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Modifier;
@@ -173,6 +174,7 @@ class SaleController extends Controller
             'items.*.notes' => 'nullable|string|max:255',
             // Un cliente dado de baja no junta sellos (su tarjeta está inactiva).
             'customer_id' => ['nullable', Rule::exists('customers', 'id')->where('is_active', true)],
+            'day_pass_code' => 'nullable|string|max:20',
             ...ManualDiscountService::rules('items.*.discount'),
             ...ManualDiscountService::rules('sale_discount'),
         ];
@@ -184,7 +186,7 @@ class SaleController extends Controller
      *
      * @return array{0: array, 1: float, 2: float, 3: array} [$itemsData, $discount, $manualDiscount, $breakdown]
      */
-    protected function applyManualDiscounts(Request $request, array $itemsData, float $subtotal, float $autoDiscount, array $promoResult, ?array $loyaltyReward): array
+    protected function applyManualDiscounts(Request $request, array $itemsData, float $subtotal, float $autoDiscount, array $promoResult, ?array $loyaltyReward, ?array $dayPass = null): array
     {
         $breakdown = [];
 
@@ -198,6 +200,15 @@ class SaleController extends Controller
                 'label' => $loyaltyReward['description'] ?? 'Premio de fidelidad',
                 'product' => null,
                 'amount' => round($loyaltyReward['discount_amount'], 2),
+            ];
+        }
+
+        if ($dayPass && $dayPass['discount_amount'] > 0) {
+            $breakdown[] = [
+                'kind' => 'pase',
+                'label' => "Pase del día {$dayPass['code']}: {$dayPass['label']}",
+                'product' => null,
+                'amount' => $dayPass['discount_amount'],
             ];
         }
 
@@ -221,7 +232,8 @@ class SaleController extends Controller
         $promoResult = (new PromotionService)->evaluate($itemsData);
         $discount = min($promoResult['discount'], $subtotal);
 
-        $redeemNow = $request->boolean('redeem_reward');
+        $pass = $this->findDayPass($request);
+        $redeemNow = $request->boolean('redeem_reward') && ! $pass;
         $reward = null;
         $autoAddedGift = null;
         $visitNote = null;
@@ -237,6 +249,12 @@ class SaleController extends Controller
                 $visitNote = "{$customer->name} ya recibió su sello de hoy: esta compra no suma visita.";
             }
 
+            // El pase no se junta con premios de la tarjeta: el premio queda para otra visita.
+            if ($pass && $reward) {
+                $visitNote = trim($visitNote.' Con pase del día no se cobra el premio de la tarjeta: queda pendiente.');
+                $reward = null;
+            }
+
             if ($redeemNow && $reward && $reward['type'] === 'gift' && ! $reward['free_product_in_cart']) {
                 [$subtotal, $itemsData, , $reward, $autoAddedGift] = $this->applyGiftAutoAdd($reward, $subtotal, $itemsData, []);
             }
@@ -246,13 +264,20 @@ class SaleController extends Controller
             }
         }
 
+        $passInfo = null;
+        if ($pass) {
+            [$subtotal, $itemsData, , $passInfo] = $this->applyDayPass($pass, $subtotal, $discount, $itemsData, []);
+            $discount = min($discount + $passInfo['discount_amount'], $subtotal);
+        }
+
         [, $discount, $manualDiscount, $breakdown] = $this->applyManualDiscounts(
-            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null
+            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null, $passInfo
         );
 
         $total = $subtotal - $discount;
 
         return response()->json([
+            'day_pass' => $passInfo,
             'subtotal' => round($subtotal, 2),
             'discount' => round($discount, 2),
             'manual_discount' => $manualDiscount,
@@ -303,6 +328,81 @@ class SaleController extends Controller
     }
 
     /**
+     * El pase del día que escribió el cajero (null si no puso ninguno). Si
+     * no existe, ya se usó o venció, se rechaza con el motivo.
+     */
+    protected function findDayPass(Request $request): ?DayPass
+    {
+        if (! $request->filled('day_pass_code')) {
+            return null;
+        }
+
+        $pass = DayPass::with('product')->where('code', DayPass::normalize($request->day_pass_code))->first();
+
+        $error = match (true) {
+            ! $pass => 'Ese código de pase no existe. Revisa que esté bien escrito.',
+            $pass->used_at !== null => 'Ese pase ya se usó'.($pass->usedSale ? " (venta #{$pass->usedSale->folio})" : '').'.',
+            $pass->isExpired() => 'Ese pase venció el '.$pass->expires_on->locale('es')->translatedFormat('j \d\e F').'.',
+            $pass->benefit_type === 'product' && ! $pass->product => 'El producto de ese pase ya no existe.',
+            default => null,
+        };
+
+        if ($error) {
+            throw ValidationException::withMessages(['day_pass_code' => $error]);
+        }
+
+        return $pass;
+    }
+
+    /**
+     * Lo que descuenta el pase. Producto gratis: 1 pieza (si no está en el
+     * carrito se agrega sola, como el regalo de fidelidad). %: sobre lo que
+     * queda después de promociones. $: nunca más que la cuenta.
+     *
+     * @return array{0: float, 1: array, 2: array, 3: array} [$subtotal, $itemsData, $ingredientConsumption, $passInfo]
+     */
+    protected function applyDayPass(DayPass $pass, float $subtotal, float $discount, array $itemsData, array $ingredientConsumption): array
+    {
+        $base = max(0, $subtotal - $discount);
+        $amount = 0.0;
+        $autoAdded = null;
+
+        if ($pass->benefit_type === 'product') {
+            $inCart = collect($itemsData)->first(fn ($item) => (int) $item['product_id'] === (int) $pass->product_id);
+
+            if ($inCart) {
+                $amount = (float) $inCart['unit_price'];
+            } else {
+                [$extraSubtotal, $extraItems, $extraConsumption] = $this->buildItemsData([
+                    ['product_id' => $pass->product_id, 'variant_id' => null, 'modifier_ids' => [], 'qty' => 1],
+                ], soloDisponibles: false);
+
+                foreach ($extraConsumption as $ingredientId => $qty) {
+                    $ingredientConsumption[$ingredientId] = ($ingredientConsumption[$ingredientId] ?? 0) + $qty;
+                }
+
+                $subtotal += $extraSubtotal;
+                $itemsData = [...$itemsData, ...$extraItems];
+                $amount = $extraSubtotal;
+                $autoAdded = ['product_id' => $pass->product_id, 'name' => $pass->product->name, 'unit_price' => $extraSubtotal];
+            }
+        } elseif ($pass->benefit_type === 'percent') {
+            $amount = $base * min(100, (float) $pass->value) / 100;
+        } else {
+            $amount = min((float) $pass->value, $base);
+        }
+
+        return [$subtotal, $itemsData, $ingredientConsumption, [
+            'id' => $pass->id,
+            'code' => $pass->displayCode(),
+            'label' => $pass->benefitLabel(),
+            'note' => $pass->note,
+            'discount_amount' => round($amount, 2),
+            'auto_added' => $autoAdded,
+        ]];
+    }
+
+    /**
      * Decide qué premio de fidelidad ofrecerle al cajero para esta venta:
      * prioriza uno que se gane justo en esta visita; si no hay, ofrece el
      * pendiente más viejo del cliente (de una visita anterior que no se
@@ -349,7 +449,8 @@ class SaleController extends Controller
         $discount = min($promoResult['discount'], $subtotal);
 
         $customer = $request->customer_id ? Customer::findOrFail($request->customer_id) : null;
-        $redeemNow = $request->boolean('redeem_reward');
+        $pass = $this->findDayPass($request);
+        $redeemNow = $request->boolean('redeem_reward') && ! $pass; // el pase no se junta con premios
         $loyaltyService = new LoyaltyService;
         $reward = null;
         $pendingRedemption = null;
@@ -361,6 +462,10 @@ class SaleController extends Controller
             // cliente - el servidor es quien decide qué premio aplica.
             $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
             [$reward, $pendingRedemption] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
+
+            if ($pass) {
+                [$reward, $pendingRedemption] = [null, null];
+            }
 
             if ($redeemNow && $reward && $reward['type'] === 'gift' && ! $reward['free_product_in_cart']) {
                 [$subtotal, $itemsData, $ingredientConsumption, $reward] =
@@ -376,8 +481,14 @@ class SaleController extends Controller
             }
         }
 
+        $passInfo = null;
+        if ($pass) {
+            [$subtotal, $itemsData, $ingredientConsumption, $passInfo] = $this->applyDayPass($pass, $subtotal, $discount, $itemsData, $ingredientConsumption);
+            $discount = min($discount + $passInfo['discount_amount'], $subtotal);
+        }
+
         [$itemsData, $discount, $manualDiscount, $breakdown] = $this->applyManualDiscounts(
-            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null
+            $request, $itemsData, $subtotal, $discount, $promoResult, $redeemNow ? $reward : null, $passInfo
         );
 
         $total = $subtotal - $discount;
@@ -394,12 +505,18 @@ class SaleController extends Controller
         }
 
         try {
-            $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow) {
+            $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow, $pass) {
+                // Un solo uso: con candado, por si otra tablet lo está cobrando ahorita.
+                if ($pass && ! DayPass::whereKey($pass->id)->whereNull('used_at')->lockForUpdate()->exists()) {
+                    throw new LoyaltyChangedException('Ese pase se acaba de usar en otra venta.');
+                }
+
                 $sale = Sale::create([
                     'folio' => 'TMP',
                     'user_id' => auth()->id(),
                     'cash_session_id' => $cashSession->id,
                     'customer_id' => $request->customer_id,
+                    'day_pass_id' => $pass?->id,
                     'status' => 'pagada',
                     'subtotal' => $subtotal,
                     'discount' => $discount,
@@ -415,6 +532,7 @@ class SaleController extends Controller
                 ]);
 
                 $sale->update(['folio' => str_pad($sale->id, 4, '0', STR_PAD_LEFT)]);
+                $pass?->update(['used_at' => now(), 'used_sale_id' => $sale->id]);
 
                 foreach ($itemsData as $data) {
                     $saleItem = SaleItem::create([

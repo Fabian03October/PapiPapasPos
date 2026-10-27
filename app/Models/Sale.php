@@ -28,6 +28,7 @@ class Sale extends Model
         'user_id',
         'cash_session_id',
         'customer_id',
+        'day_pass_id',
         'status',
         'revert_type',
         'reverted_at',
@@ -62,6 +63,11 @@ class Sale extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function dayPass()
+    {
+        return $this->belongsTo(DayPass::class);
     }
 
     /** La venta que esta corrige (cuando se usó "Corregir"). */

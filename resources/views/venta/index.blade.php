@@ -172,9 +172,31 @@
                 <span>Total</span>
                 <span id="payment-total">$0.00</span>
             </div>
-            <button id="payment-sale-discount-btn" type="button" class="mt-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                🏷 Descuento o cortesía a toda la venta
-            </button>
+            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <button id="payment-sale-discount-btn" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                    🏷 Descuento o cortesía a toda la venta
+                </button>
+                <button id="day-pass-btn" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                    🎟 Pase
+                </button>
+            </div>
+        </div>
+
+        {{-- Pase del día: el cajero escribe el código del papel. --}}
+        <div id="day-pass-form" class="hidden mb-4">
+            <p class="text-sm font-medium mb-2 text-neutral-900 dark:text-neutral-100">Código del pase</p>
+            <div class="flex gap-2">
+                <input type="text" id="day-pass-input" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH"
+                       class="flex-1 min-w-0 h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-base font-mono uppercase tracking-widest">
+                <button type="button" id="day-pass-apply" class="h-11 px-4 rounded-lg bg-primary-600 text-white text-sm font-medium">Aplicar</button>
+            </div>
+            <p id="day-pass-error" class="hidden text-xs text-red-600 dark:text-red-400 mt-1"></p>
+        </div>
+        <div id="day-pass-applied" class="hidden mb-4">
+            <div class="flex items-center justify-between gap-2 bg-primary-50 dark:bg-primary-500/10 rounded-lg px-3 py-2">
+                <span id="day-pass-applied-text" class="text-sm text-primary-700 dark:text-primary-300 min-w-0"></span>
+                <button type="button" id="day-pass-remove" class="text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:underline whitespace-nowrap">Quitar</button>
+            </div>
         </div>
 
         <!-- Pregunta de canje de premio: solo aparece si hay uno disponible -->
@@ -1035,6 +1057,7 @@
         // Si la orden regresó de "Deshacer" para corregirla: la venta original.
         let correctsSaleId = null;
         let rewardAnswer = null; // null = sin responder, true/false = ya contestó
+        let dayPassCode = null;  // pase del día aplicado (no se junta con premios de la tarjeta)
 
         const rewardPrompt = document.getElementById('reward-prompt');
         const rewardPromptText = document.getElementById('reward-prompt-text');
@@ -1055,6 +1078,7 @@
                 sale_discount: saleDiscount,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: redeemReward,
+                day_pass_code: dayPassCode,
             };
         }
 
@@ -1101,6 +1125,15 @@
                 // El servidor rechazó el carrito (ej. un producto o extra que
                 // se desactivó mientras estaba en el carrito): se avisa y se
                 // cierra el cobro en vez de mostrar un total vacío.
+                // Pase que no existe, ya se usó o venció: se avisa ahí mismo y
+                // se recalcula sin él.
+                if (!ok && data.errors && data.errors.day_pass_code) {
+                    dayPassCode = null;
+                    showDayPassError(data.errors.day_pass_code[0]);
+                    loadPaymentPreview(redeemReward);
+                    return;
+                }
+
                 if (!ok) {
                     Toast.show(data.message || 'No se pudo calcular el total. Revisa el carrito.', 'error');
                     paymentModal.classList.add('hidden');
@@ -1142,6 +1175,27 @@
                     });
                     renderCart();
                 }
+
+                // Lo mismo con el producto gratis del pase del día.
+                const pass = data.day_pass;
+                if (pass && pass.auto_added) {
+                    autoGiftCartId = cartItemIdCounter++;
+                    cart.push({
+                        cartId: autoGiftCartId,
+                        productId: pass.auto_added.product_id,
+                        name: pass.auto_added.name,
+                        variantId: null,
+                        variantName: null,
+                        modifierIds: [],
+                        modifierNames: ['🎟 Pase del día, gratis'],
+                        notes: '',
+                        qty: 1,
+                        unitPrice: 0,
+                        lineTotal: 0,
+                    });
+                    renderCart();
+                }
+                renderDayPass(pass);
 
                 const giftRow = document.getElementById('payment-gift-row');
                 if (redeemReward && data.loyalty && data.loyalty.type === 'gift') {
@@ -1194,6 +1248,52 @@
             });
         }
 
+        // --- PASE DEL DÍA ---
+        const dayPassForm = document.getElementById('day-pass-form');
+        const dayPassInput = document.getElementById('day-pass-input');
+        const dayPassError = document.getElementById('day-pass-error');
+
+        function showDayPassError(message) {
+            dayPassForm.classList.remove('hidden');
+            dayPassError.textContent = message;
+            dayPassError.classList.remove('hidden');
+        }
+
+        function renderDayPass(pass) {
+            const applied = document.getElementById('day-pass-applied');
+            applied.classList.toggle('hidden', !pass);
+            document.getElementById('day-pass-btn').classList.toggle('hidden', !!pass);
+            if (pass) {
+                dayPassForm.classList.add('hidden');
+                document.getElementById('day-pass-applied-text').textContent =
+                    '🎟 Pase ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
+            }
+        }
+
+        function applyDayPass() {
+            const code = dayPassInput.value.replace(/[\s-]+/g, '').toUpperCase();
+            if (code.length === 0) return;
+            dayPassError.classList.add('hidden');
+            dayPassCode = code;
+            // El pase no se junta con premios de la tarjeta.
+            rewardAnswer = null;
+            loadPaymentPreview(false);
+        }
+
+        document.getElementById('day-pass-btn').addEventListener('click', () => {
+            dayPassForm.classList.toggle('hidden');
+            dayPassError.classList.add('hidden');
+            dayPassInput.value = '';
+            if (!dayPassForm.classList.contains('hidden')) dayPassInput.focus();
+        });
+        document.getElementById('day-pass-apply').addEventListener('click', applyDayPass);
+        dayPassInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyDayPass(); });
+        document.getElementById('day-pass-remove').addEventListener('click', () => {
+            dayPassCode = null;
+            rewardAnswer = null;
+            loadPaymentPreview(false);
+        });
+
         rewardAnswerYesBtn.addEventListener('click', () => {
             rewardAnswer = true;
             loadPaymentPreview(true);
@@ -1209,6 +1309,7 @@
 
             rewardAnswer = null;
             rewardPrompt.classList.add('hidden');
+            dayPassForm.classList.add('hidden');
             previewReady = false;
             payMode = 'buttons';
             renderPayButtons();
@@ -1312,6 +1413,7 @@
                 payment_method: method,
                 customer_id: selectedCustomer ? selectedCustomer.id : null,
                 redeem_reward: rewardAnswer === true,
+                day_pass_code: dayPassCode,
                 corrects_sale_id: correctsSaleId,
                 amount_received: method === 'efectivo' ? received : null,
             };
@@ -1335,6 +1437,7 @@
 
                     cart = [];
                     saleDiscount = null;
+                    dayPassCode = null;
                     correctsSaleId = null;
                     renderCart();
                     paymentModal.classList.add('hidden');
@@ -1445,6 +1548,7 @@
             }));
             autoGiftCartId = null;
             saleDiscount = order.sale_discount || null;
+            dayPassCode = order.day_pass_code || null;
             correctsSaleId = order.sale_id;
 
             if (order.customer) {
