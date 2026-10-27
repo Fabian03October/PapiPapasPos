@@ -124,7 +124,8 @@ class LoyaltyIntegrityTest extends TestCase
         $earned = CustomerLoyaltyRedemption::where('sale_id', $first->id)->firstOrFail();
         $this->assertSame('pending', $earned->status);
 
-        // 5ª visita: lo cobra.
+        // 5ª visita, al día siguiente (un sello al día): lo cobra.
+        $this->travel(1)->days();
         $this->cobrar($customer, ['redeem_reward' => true])->assertOk();
         $this->assertSame('redeemed', $earned->fresh()->status);
         $this->assertSame(5, $customer->fresh()->current_visits);
@@ -161,5 +162,75 @@ class LoyaltyIntegrityTest extends TestCase
 
         $this->expectException(UniqueConstraintViolationException::class);
         Customer::create(['name' => 'Otra', 'phone' => '5510000006']);
+    }
+
+    public function test_un_sello_al_dia_la_segunda_compra_no_suma(): void
+    {
+        $customer = Customer::create(['name' => 'Chuy', 'phone' => '5510000010', 'current_level' => 1, 'current_visits' => 1]);
+
+        $this->cobrar($customer)->assertOk();
+        $this->assertSame(2, $customer->fresh()->current_visits);
+
+        // Vuelve el mismo día: el cajero ve el aviso y no suma.
+        $this->actingAs($this->cajero)->postJson('/venta/promociones/preview', [
+            'items' => [['product_id' => $this->papas->id, 'qty' => 1]], 'customer_id' => $customer->id,
+        ])->assertJsonPath('visit_note', 'Chuy ya recibió su sello de hoy: esta compra no suma visita.');
+        $this->cobrar($customer)->assertOk();
+        $this->assertSame(2, $customer->fresh()->current_visits);
+        $this->assertFalse(Sale::latest('id')->first()->counted_visit);
+
+        // Al día siguiente sí.
+        $this->travel(1)->days();
+        $this->cobrar($customer)->assertOk();
+        $this->assertSame(3, $customer->fresh()->current_visits);
+    }
+
+    public function test_en_la_segunda_compra_del_dia_si_puede_cobrar_un_premio_pendiente(): void
+    {
+        $customer = Customer::create(['name' => 'Ana', 'phone' => '5510000011', 'current_level' => 1, 'current_visits' => 5]);
+        $this->cobrar($customer)->assertOk(); // su sello de hoy
+        $pending = CustomerLoyaltyRedemption::create(['customer_id' => $customer->id, 'loyalty_level_id' => $this->level->id,
+            'type' => 'discount', 'status' => 'pending', 'earned_at' => now()->subDay(), 'expires_at' => now()->addDays(6)]);
+
+        $this->cobrar($customer, ['redeem_reward' => true])->assertOk()->assertJsonPath('loyalty.source', 'pending');
+
+        $this->assertSame('redeemed', $pending->fresh()->status);
+        $this->assertSame(6, $customer->fresh()->current_visits); // no sumó otra
+    }
+
+    public function test_si_se_deshace_la_primera_del_dia_la_siguiente_si_cuenta(): void
+    {
+        $customer = Customer::create(['name' => 'Ana', 'phone' => '5510000012', 'current_level' => 1, 'current_visits' => 1]);
+        $this->cobrar($customer)->assertOk();
+        app(SaleRevertService::class)->revert(Sale::latest('id')->first(), $this->cajero, 'Error de captura');
+        $this->assertSame(1, $customer->fresh()->current_visits);
+
+        $this->cobrar($customer)->assertOk();
+        $this->assertSame(2, $customer->fresh()->current_visits);
+    }
+
+    public function test_deshacer_la_segunda_compra_del_dia_no_le_quita_su_sello(): void
+    {
+        $customer = Customer::create(['name' => 'Ana', 'phone' => '5510000013', 'current_level' => 1, 'current_visits' => 1]);
+        $this->cobrar($customer)->assertOk(); // 2
+        $this->cobrar($customer)->assertOk(); // no suma
+
+        app(SaleRevertService::class)->revert(Sale::latest('id')->first(), $this->cajero, 'Error de captura');
+
+        $this->assertSame(2, $customer->fresh()->current_visits);
+    }
+
+    public function test_si_otra_tablet_le_dio_su_sello_de_hoy_en_ese_momento_no_se_duplica(): void
+    {
+        $customer = Customer::create(['name' => 'Ana', 'phone' => '5510000014', 'current_level' => 1, 'current_visits' => 1]);
+        $session = CashSession::open();
+
+        $this->otraTabletAlMismoTiempo(fn () => DB::table('sales')->insert([
+            'folio' => 'X1', 'user_id' => $this->cajero->id, 'cash_session_id' => $session->id, 'customer_id' => $customer->id,
+            'counted_visit' => true, 'status' => 'pagada', 'subtotal' => 100, 'discount' => 0, 'total' => 100,
+            'payment_method' => 'efectivo', 'created_at' => now(), 'updated_at' => now(),
+        ]));
+
+        $this->cobrar($customer)->assertStatus(409);
     }
 }

@@ -23,11 +23,28 @@ class LoyaltyService
      */
     public function preview(Customer $customer, float $baseAmount = 0, array $itemsData = []): array
     {
+        // Un sello al día: si ya lo recibió hoy, esta compra no suma visita ni
+        // gana premio nuevo (un premio pendiente de antes sí se puede cobrar).
+        if ($this->visitedToday($customer)) {
+            return [
+                'next_visit' => (int) $customer->current_visits,
+                'counts_visit' => false,
+                'type' => null,
+                'discount_amount' => 0,
+                'description' => null,
+                'free_product_id' => null,
+                'free_product_name' => null,
+                'free_product_in_cart' => false,
+                'level_id' => $customer->currentLoyaltyLevel()?->id,
+            ];
+        }
+
         $nextVisit = $customer->current_visits + 1;
         $level = $customer->currentLoyaltyLevel();
 
         $result = [
             'next_visit' => $nextVisit,
+            'counts_visit' => true,
             'type' => null,
             'discount_amount' => 0,
             'description' => null,
@@ -78,6 +95,20 @@ class LoyaltyService
             'label' => $label,
             'visits_remaining' => max(0, $target - $visits),
         ];
+    }
+
+    /**
+     * ¿Ya recibió su sello hoy? (día de calendario, hora del negocio). Las
+     * ventas deshechas no cuentan (su sello se regresó); las canceladas sí
+     * (cancelar no le quita el sello).
+     */
+    public function visitedToday(Customer $customer): bool
+    {
+        return Sale::where('customer_id', $customer->id)
+            ->where('counted_visit', true)
+            ->whereNull('revert_type')
+            ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+            ->exists();
     }
 
     /**
@@ -157,6 +188,12 @@ class LoyaltyService
      */
     public function applyVisit(Customer $customer, Sale $sale, array $preview, bool $redeemNow): void
     {
+        if (! ($preview['counts_visit'] ?? true)) {
+            return; // ya recibió su sello de hoy
+        }
+
+        $sale->forceFill(['counted_visit' => true])->save();
+
         if ($preview['type'] && $preview['level_id']) {
             $now = Carbon::now();
 

@@ -224,12 +224,18 @@ class SaleController extends Controller
         $redeemNow = $request->boolean('redeem_reward');
         $reward = null;
         $autoAddedGift = null;
+        $visitNote = null;
 
         if ($request->customer_id) {
             $customer = Customer::findOrFail($request->customer_id);
             $loyaltyService = new LoyaltyService;
             $loyaltyPreview = $loyaltyService->preview($customer, $subtotal - $discount, $itemsData);
             [$reward] = $this->resolveReward($loyaltyService, $customer, $loyaltyPreview, $subtotal - $discount, $itemsData);
+
+            // Un sello al día: que el cajero sepa por qué no suma.
+            if (! $loyaltyPreview['counts_visit']) {
+                $visitNote = "{$customer->name} ya recibió su sello de hoy: esta compra no suma visita.";
+            }
 
             if ($redeemNow && $reward && $reward['type'] === 'gift' && ! $reward['free_product_in_cart']) {
                 [$subtotal, $itemsData, , $reward, $autoAddedGift] = $this->applyGiftAutoAdd($reward, $subtotal, $itemsData, []);
@@ -255,6 +261,7 @@ class SaleController extends Controller
             'applied_promotions' => $promoResult['applied'],
             'loyalty' => $reward,
             'auto_added_gift' => $autoAddedGift,
+            'visit_note' => $visitNote,
         ]);
     }
 
@@ -457,8 +464,10 @@ class SaleController extends Controller
                     // veces). Se cancela esta venta para que se vuelva a cobrar.
                     $locked = Customer::whereKey($customer->id)->lockForUpdate()->first();
 
+                    // ...o si en ese momento otra tablet le dio su sello de hoy.
                     if (! $locked || (int) $locked->current_visits !== (int) $customer->current_visits
-                        || (int) $locked->current_level !== (int) $customer->current_level) {
+                        || (int) $locked->current_level !== (int) $customer->current_level
+                        || (($loyaltyPreview['counts_visit'] ?? true) && $loyaltyService->visitedToday($locked))) {
                         throw new LoyaltyChangedException('El cliente acaba de registrar otra visita. Vuelve a tocar Cobrar.');
                     }
 

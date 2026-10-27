@@ -108,6 +108,7 @@ class Sale extends Model
     {
         return [
             'printed_at' => 'datetime',
+            'counted_visit' => 'boolean',
             'reverted_at' => 'datetime',
             'discount_breakdown' => 'array',
         ];

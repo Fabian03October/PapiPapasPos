@@ -178,6 +178,12 @@ class SaleRevertService
             ->get()
             ->each->update(['status' => 'pending', 'redeemed_at' => null, 'redeemed_sale_id' => null, 'discount_applied' => null]);
 
+        // Un sello al día: si esta venta NO sumó sello (era la 2ª del día), no
+        // hay visita que quitar (solo el premio que se cobró en ella, arriba).
+        if (! $sale->counted_visit) {
+            return;
+        }
+
         $earned = CustomerLoyaltyRedemption::with('loyaltyLevel')->where('sale_id', $sale->id)->first();
 
         // El premio que ganó esta venta ya se cobró en OTRA venta: el cliente

@@ -178,6 +178,7 @@
         </div>
 
         <!-- Pregunta de canje de premio: solo aparece si hay uno disponible -->
+        <p id="visit-note" class="hidden text-sm text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-3 py-2 mb-4"></p>
         <div id="reward-prompt" class="hidden bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 mb-4">
             <p id="reward-prompt-text" class="text-sm text-amber-700 dark:text-amber-400 mb-1 font-medium"></p>
             <p id="reward-prompt-expires" class="text-xs text-amber-600 dark:text-amber-500 mb-2 hidden"></p>
@@ -1160,6 +1161,11 @@
                 // Pregunta de canje: aparece si hay un premio disponible
                 // (nuevo de esta visita o uno pendiente de antes) y el
                 // cajero todavía no ha contestado en este cobro.
+                // Un sello al día: avisar al cajero si esta compra no suma.
+                const visitNote = document.getElementById('visit-note');
+                visitNote.textContent = data.visit_note ? '🍟 ' + data.visit_note : '';
+                visitNote.classList.toggle('hidden', !data.visit_note);
+
                 if (data.loyalty && data.loyalty.type && rewardAnswer === null) {
                     const isPending = data.loyalty.source === 'pending';
                     rewardPromptText.textContent = isPending
