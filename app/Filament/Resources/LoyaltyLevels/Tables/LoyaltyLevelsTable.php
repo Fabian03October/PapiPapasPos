@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LoyaltyLevels\Tables;
 
+use App\Models\LoyaltyLevel;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -19,13 +20,16 @@ class LoyaltyLevelsTable
                 TextColumn::make('level_number')
                     ->label('Nivel')
                     ->sortable(),
+                TextColumn::make('repeat_times')
+                    ->label('Veces para subir')
+                    ->suffix(' tarjeta(s)'),
                 TextColumn::make('discount_description')
                     ->label('Descuento (visita 4)')
-                    ->description(fn (LoyaltyLevel|\App\Models\LoyaltyLevel $record) => $record->discount_percent . '%')
+                    ->description(fn (LoyaltyLevel $record) => $record->discount_percent.'%')
                     ->placeholder('Sin descripción'),
                 TextColumn::make('gift_description')
                     ->label('Regalo (visita 8)')
-                    ->description(fn (\App\Models\LoyaltyLevel $record) => $record->freeProduct?->name)
+                    ->description(fn (LoyaltyLevel $record) => $record->freeProduct?->name)
                     ->placeholder('Sin descripción'),
                 IconColumn::make('is_active')
                     ->label('Activo')

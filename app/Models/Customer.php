@@ -17,6 +17,7 @@ class Customer extends Model
         'qr_code',
         'current_level',
         'current_visits',
+        'cards_completed',
         'is_active',
     ];
 

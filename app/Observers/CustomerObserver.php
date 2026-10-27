@@ -10,7 +10,7 @@ class CustomerObserver
     public function updated(Customer $customer): void
     {
         // Solo lo que se ve en la tarjeta.
-        if ($customer->wasChanged(['current_visits', 'current_level', 'name', 'is_active'])) {
+        if ($customer->wasChanged(['current_visits', 'current_level', 'cards_completed', 'name', 'is_active'])) {
             app(WalletNotifier::class)->customerChanged($customer);
         }
     }

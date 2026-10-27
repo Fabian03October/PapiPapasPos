@@ -4,22 +4,27 @@ namespace App\Filament\Resources\Customers\Tables;
 
 use App\Jobs\SendWalletMessageJob;
 use App\Models\Customer;
+use App\Models\LoyaltyLevel;
 use App\Models\WalletMessage;
 use App\Services\GoogleWalletService;
+use App\Services\LoyaltyService;
 use App\Services\WebPushService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Validation\ValidationException;
 
 class CustomersTable
 {
@@ -86,6 +91,65 @@ class CustomersTable
                 // enlace ya escrito: solo falta tocar enviar.
                 // Si el cliente reenvió su enlace (o perdió el celular): nuevo
                 // código; el enlace y QR viejos dejan de servir.
+                // Corregir sellos/nivel a mano (ej. pasar su tarjeta física a la
+                // digital). Solo el manager; queda en la bitácora.
+                Action::make('adjust_loyalty')
+                    ->label('Sellos y nivel')
+                    ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
+                    ->color('gray')
+                    ->visible(fn () => auth()->user()?->esManager() ?? false)
+                    ->modalHeading(fn (Customer $record) => "Sellos y nivel de {$record->name}")
+                    ->modalDescription(fn (Customer $record) => "Hoy tiene: nivel {$record->current_level}, {$record->current_visits} sello(s), {$record->cards_completed} tarjeta(s) llena(s) en su nivel. El cambio queda en la bitácora.")
+                    ->fillForm(fn (Customer $record) => [
+                        'level' => $record->current_level,
+                        'visits' => $record->current_visits,
+                        'cards' => $record->cards_completed,
+                        'reward' => 'none',
+                        'reason' => '',
+                    ])
+                    ->schema([
+                        Select::make('level')
+                            ->label('Nivel')
+                            ->options(fn () => LoyaltyLevel::orderBy('level_number')->get()
+                                ->mapWithKeys(fn (LoyaltyLevel $l) => [$l->level_number => "Nivel {$l->level_number} (se llena {$l->timesToAdvance()} vez/veces)"]))
+                            ->required()
+                            ->live(),
+                        TextInput::make('visits')
+                            ->label('Sellos en su tarjeta actual')
+                            ->helperText('De 0 a '.(LoyaltyService::VISITS_FOR_GIFT - 1).'. Ej. si su tarjeta física tiene 4 sellos, pon 4.')
+                            ->numeric()->integer()->minValue(0)->maxValue(LoyaltyService::VISITS_FOR_GIFT - 1)->required(),
+                        TextInput::make('cards')
+                            ->label('Tarjetas ya llenas en este nivel')
+                            ->helperText(fn (Get $get) => ($l = LoyaltyLevel::forLevelNumber((int) $get('level')))
+                                ? 'De 0 a '.($l->timesToAdvance() - 1).' (este nivel se llena '.$l->timesToAdvance().' vez/veces).'
+                                : null)
+                            ->numeric()->integer()->minValue(0)
+                            ->maxValue(fn (Get $get) => max(0, (LoyaltyLevel::forLevelNumber((int) $get('level'))?->timesToAdvance() ?? 1) - 1))
+                            ->required(),
+                        Select::make('reward')
+                            ->label('Darle un premio por cobrar')
+                            ->helperText('Si ya lo ganó (ej. en su tarjeta física) y no lo ha usado. Vence en '.LoyaltyService::PENDING_REWARD_DAYS.' días.')
+                            ->options(['none' => 'No', 'discount' => 'Sí: el descuento de su nivel', 'gift' => 'Sí: el regalo de su nivel'])
+                            ->required(),
+                        Textarea::make('reason')
+                            ->label('Motivo')
+                            ->placeholder('Ej. Pasa de tarjeta física a digital')
+                            ->required()->maxLength(255)->rows(2),
+                    ])
+                    ->action(function (array $data, Customer $record): void {
+                        try {
+                            app(LoyaltyService::class)->adjust(
+                                $record, auth()->user(), (int) $data['level'], (int) $data['visits'], (int) $data['cards'],
+                                (string) $data['reason'], $data['reward'] === 'none' ? null : $data['reward'],
+                            );
+                        } catch (ValidationException $e) {
+                            Notification::make()->title('No se guardó')->body(collect($e->errors())->flatten()->implode(' '))->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Sellos y nivel actualizados')->body('Su tarjeta se actualiza sola.')->success()->send();
+                    }),
                 Action::make('regenerate_card')
                     ->label('Cambiar enlace')
                     ->icon(Heroicon::OutlinedArrowPath)

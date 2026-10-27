@@ -196,11 +196,19 @@ class SaleRevertService
         if ($customer->current_visits > 0) {
             $customer->update(['current_visits' => $customer->current_visits - 1]);
         } elseif ($earned && $earned->type === 'gift') {
-            // Esa visita era la que completaba el nivel (visita 8): se regresa
-            // al nivel de antes, con 7 visitas.
+            // Esa visita llenó la tarjeta (visita 8): se regresa a 7 visitas y
+            // se deshace lo que provocó. Si se quedó en el mismo nivel (lo
+            // estaba repitiendo), una tarjeta llena menos; si subió (o regresó
+            // al primero), vuelve al nivel donde la llenó, a una de subir.
+            $earnedLevel = $earned->loyaltyLevel;
+            $sameLevel = ! $earnedLevel || (int) $earnedLevel->level_number === (int) $customer->current_level;
+
             $customer->update([
-                'current_level' => $earned->loyaltyLevel?->level_number ?? $customer->current_level,
+                'current_level' => $earnedLevel?->level_number ?? $customer->current_level,
                 'current_visits' => LoyaltyService::VISITS_FOR_GIFT - 1,
+                'cards_completed' => $sameLevel && $customer->cards_completed > 0
+                    ? $customer->cards_completed - 1
+                    : max(0, ($earnedLevel?->timesToAdvance() ?? 1) - 1),
             ]);
         }
 

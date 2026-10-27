@@ -3,6 +3,7 @@
 namespace App\Services\Wallet;
 
 use App\Models\Customer;
+use App\Models\LoyaltyLevel;
 use App\Services\LoyaltyService;
 
 /**
@@ -47,6 +48,23 @@ class LoyaltyCardContent
                 ? "{$reward['label']} · falta 1 visita"
                 : "{$reward['label']} · faltan {$remaining} visitas",
             'pending_reward' => $pendingText,
+            // Nivel que se repite: "Tarjeta 2 de 3 para subir de nivel".
+            'cards_label' => $this->cardsLabel($customer),
         ];
+    }
+
+    /** null si el nivel no se repite (se llena una vez y sube). */
+    protected function cardsLabel(Customer $customer): ?string
+    {
+        $times = $customer->currentLoyaltyLevel()?->timesToAdvance() ?? 1;
+
+        if ($times <= 1) {
+            return null;
+        }
+
+        $actual = min($times, (int) $customer->cards_completed + 1);
+        $isLast = ! LoyaltyLevel::where('level_number', '>', (int) $customer->current_level)->exists();
+
+        return "Tarjeta {$actual} de {$times} ".($isLast ? 'para volver a empezar' : 'para subir de nivel');
     }
 }

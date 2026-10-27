@@ -60,6 +60,9 @@
             <h2 class="text-base font-semibold">Tus sellos</h2>
             <p class="text-sm text-[var(--muted)]"><span class="text-xl font-bold text-[var(--accent)]">{{ $card['visits'] }}</span> de {{ $card['goal'] }} · nivel {{ $card['level'] }}</p>
         </div>
+        @if ($card['cards_label'])
+            <p class="mt-1 text-right text-xs text-[var(--muted)]">{{ $card['cards_label'] }}</p>
+        @endif
         <ol class="mt-4 grid grid-cols-4 gap-3" aria-label="Sellos: {{ $card['visits_label'] }}">
             @foreach ($card['stamps'] as $stamp)
                 <li class="flex flex-col items-center gap-1">

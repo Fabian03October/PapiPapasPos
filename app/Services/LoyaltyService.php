@@ -4,9 +4,13 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
+use App\Models\LoyaltyAdjustment;
 use App\Models\LoyaltyLevel;
 use App\Models\Sale;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class LoyaltyService
 {
@@ -94,6 +98,94 @@ class LoyaltyService
         return [
             'label' => $label,
             'visits_remaining' => max(0, $target - $visits),
+        ];
+    }
+
+    /**
+     * Ajuste a mano de los sellos de un cliente (ej. pasar su tarjeta física
+     * a la digital). Queda en la bitácora con quién, cuándo, de cuánto a
+     * cuánto y por qué. Opcional: darle un premio por cobrar (descuento o
+     * regalo de su nivel), por si ya lo había ganado en la tarjeta física.
+     */
+    public function adjust(Customer $customer, User $by, int $level, int $visits, int $cards, string $reason, ?string $reward = null): LoyaltyAdjustment
+    {
+        $loyaltyLevel = LoyaltyLevel::forLevelNumber($level);
+
+        $errors = [];
+        if (! $loyaltyLevel) {
+            $errors['level'] = 'Ese nivel no existe.';
+        }
+        if ($visits < 0 || $visits >= self::VISITS_FOR_GIFT) {
+            $errors['visits'] = 'Los sellos van de 0 a '.(self::VISITS_FOR_GIFT - 1).'.';
+        }
+        if ($loyaltyLevel && ($cards < 0 || $cards >= $loyaltyLevel->timesToAdvance())) {
+            $errors['cards'] = 'En ese nivel las tarjetas llenas van de 0 a '.($loyaltyLevel->timesToAdvance() - 1).'.';
+        }
+        if (trim($reason) === '') {
+            $errors['reason'] = 'Escribe el motivo del ajuste.';
+        }
+        if ($reward !== null && ! in_array($reward, ['discount', 'gift'], true)) {
+            $errors['reward'] = 'Premio no válido.';
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return DB::transaction(function () use ($customer, $by, $loyaltyLevel, $visits, $cards, $reason, $reward) {
+            $customer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $before = ['level' => (int) $customer->current_level, 'visits' => (int) $customer->current_visits, 'cards' => (int) $customer->cards_completed];
+
+            $customer->update([
+                'current_level' => $loyaltyLevel->level_number,
+                'current_visits' => $visits,
+                'cards_completed' => $cards,
+            ]);
+
+            if ($reward) {
+                CustomerLoyaltyRedemption::create([
+                    'customer_id' => $customer->id,
+                    'loyalty_level_id' => $loyaltyLevel->id,
+                    'type' => $reward,
+                    'status' => 'pending',
+                    'earned_at' => now(),
+                    'expires_at' => now()->addDays(self::PENDING_REWARD_DAYS),
+                ]);
+            }
+
+            return LoyaltyAdjustment::create([
+                'customer_id' => $customer->id,
+                'user_id' => $by->id,
+                'before' => $before,
+                'after' => ['level' => $loyaltyLevel->level_number, 'visits' => $visits, 'cards' => $cards],
+                'reward_given' => $reward,
+                'reason' => trim($reason),
+            ]);
+        });
+    }
+
+    /**
+     * Tarjeta llena (visita 8): se repite el nivel las veces que diga ese
+     * nivel ("veces que se llena la tarjeta para subir"); al cumplirlas sube
+     * al siguiente, y después del último regresa al primero (ciclo).
+     *
+     * @return array{current_level: int, current_visits: int, cards_completed: int}
+     */
+    public function afterFullCard(Customer $customer): array
+    {
+        $level = $customer->currentLoyaltyLevel();
+        $cards = (int) $customer->cards_completed + 1;
+
+        if ($level && $cards < $level->timesToAdvance()) {
+            return ['current_level' => (int) $customer->current_level, 'current_visits' => 0, 'cards_completed' => $cards];
+        }
+
+        $next = LoyaltyLevel::where('level_number', '>', (int) $customer->current_level)->orderBy('level_number')->first()
+            ?? LoyaltyLevel::firstLevel();
+
+        return [
+            'current_level' => $next?->level_number ?? (int) $customer->current_level,
+            'current_visits' => 0,
+            'cards_completed' => 0,
         ];
     }
 
@@ -212,12 +304,7 @@ class LoyaltyService
         }
 
         if ($preview['next_visit'] >= self::VISITS_FOR_GIFT) {
-            $nextLevel = LoyaltyLevel::forLevelNumber($customer->current_level + 1);
-
-            $customer->update([
-                'current_level' => $nextLevel ? $nextLevel->level_number : $customer->current_level,
-                'current_visits' => 0,
-            ]);
+            $customer->update($this->afterFullCard($customer));
         } else {
             $customer->update(['current_visits' => $preview['next_visit']]);
         }
