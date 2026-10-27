@@ -18,7 +18,7 @@
                     <x-card>
                         <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">Nuevo movimiento</p>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-[110px_1fr_1fr_auto] gap-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-[110px_1fr_1fr_150px_auto] gap-2">
                             <select id="movement-type" class="h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
                                 <option value="ingreso">Ingreso</option>
                                 <option value="gasto">Gasto</option>
@@ -27,6 +27,13 @@
                                 class="h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
                             <input type="text" id="movement-reason" placeholder="Ej. compra de hielo"
                                 class="h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                            {{-- Categoría opcional: si no se elige, queda en "Otros". --}}
+                            <select id="movement-category" class="h-11 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm">
+                                <option value="">Categoría (opcional)</option>
+                                @foreach ($categories as $id => $name)
+                                    <option value="{{ $id }}">{{ $name }}</option>
+                                @endforeach
+                            </select>
                             <button id="submit-movement-btn" class="h-11 px-5 bg-primary-600 text-white rounded-lg text-sm font-medium whitespace-nowrap">
                                 Agregar
                             </button>
@@ -58,7 +65,7 @@
                                         <tr>
                                             <td class="py-2.5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{{ $movement->created_at->format('g:i a') }}</td>
                                             <td class="py-2.5 font-medium text-neutral-900 dark:text-neutral-100">{{ $movement->reason }}</td>
-                                            <td class="py-2.5 text-neutral-500 dark:text-neutral-400">{{ $movement->type === 'ingreso' ? 'Ingreso' : 'Gasto' }}</td>
+                                            <td class="py-2.5 text-neutral-500 dark:text-neutral-400">{{ $movement->type === 'ingreso' ? 'Ingreso' : 'Gasto' }}{{ $movement->category ? ' · '.$movement->category->name : '' }}</td>
                                             <td class="py-2.5 text-right font-medium {{ $movement->type === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                                 {{ $movement->type === 'ingreso' ? '+' : '-' }}${{ number_format($movement->amount, 2) }}
                                             </td>
@@ -157,6 +164,7 @@
             const type = document.getElementById('movement-type').value;
             const amount = document.getElementById('movement-amount').value;
             const reason = document.getElementById('movement-reason').value.trim();
+            const category = document.getElementById('movement-category').value || null;
 
             if (!amount || !reason) return;
 
@@ -167,7 +175,7 @@
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ type, amount, reason }),
+                body: JSON.stringify({ type, amount, reason, expense_category_id: category }),
             })
             .then(res => res.json())
             .then(data => {

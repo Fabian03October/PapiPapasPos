@@ -11,12 +11,18 @@ class CashMovement extends Model
         'type',
         'amount',
         'reason',
+        'expense_category_id',
         'user_id',
     ];
 
     public function cashSession()
     {
         return $this->belongsTo(CashSession::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
     }
 
     public function user()

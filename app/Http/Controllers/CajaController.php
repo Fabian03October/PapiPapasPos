@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\CashSessionDenomination;
+use App\Models\ExpenseCategory;
 use App\Models\Ingredient;
 use App\Models\InventoryCount;
 use App\Models\InventoryCountItem;
@@ -69,7 +70,7 @@ class CajaController extends Controller
             return redirect()->route('caja.abrir');
         }
 
-        $session->load(['movements' => fn ($q) => $q->latest(), 'movements.user']);
+        $session->load(['movements' => fn ($q) => $q->latest(), 'movements.user', 'movements.category']);
 
         $cashSales = $session->sales()->where('payment_method', 'efectivo')->sum('total');
         $cardSales = $session->sales()->where('payment_method', 'tarjeta')->sum('total');
@@ -85,6 +86,7 @@ class CajaController extends Controller
             'ingresos' => $ingresos,
             'gastos' => $gastos,
             'expected' => $session->calculateExpectedCash(),
+            'categories' => ExpenseCategory::options(),
         ]);
     }
 
@@ -110,6 +112,7 @@ class CajaController extends Controller
             'type' => 'required|in:ingreso,gasto',
             'amount' => 'required|numeric|min:0.01',
             'reason' => 'required|string|max:255',
+            'expense_category_id' => 'nullable|integer|exists:expense_categories,id',
         ]);
 
         $session = CashSession::open();
@@ -123,6 +126,8 @@ class CajaController extends Controller
             'type' => $request->type,
             'amount' => $request->amount,
             'reason' => $request->reason,
+            // Sin categoría elegida: "Otros" (así entra completo al reporte por categoría).
+            'expense_category_id' => $request->expense_category_id ?: ExpenseCategory::otherId(),
             'user_id' => auth()->id(),
         ]);
 

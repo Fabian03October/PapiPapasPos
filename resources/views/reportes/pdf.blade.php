@@ -25,6 +25,8 @@
         $ingredientMovements = $service->ingredientMovements();
         $employees = $service->salesByEmployee();
         $frequentCustomers = $service->frequentCustomers(10);
+        $finanzas = $service->finances();
+        $m = fn ($v) => '$'.number_format((float) $v, 2);
     @endphp
 
     <h2>Resumen</h2>
@@ -34,10 +36,52 @@
         <tr><th>Ticket promedio</th><td>${{ number_format($totals['average_ticket'], 2) }}</td></tr>
         <tr><th>Efectivo</th><td>${{ number_format($totals['cash'], 2) }}</td></tr>
         <tr><th>Tarjeta</th><td>${{ number_format($totals['card'], 2) }}</td></tr>
+        <tr><th>Transferencia</th><td>${{ number_format($totals['transfer'], 2) }}</td></tr>
         <tr><th>Valor de inventario</th><td>${{ number_format($service->inventoryValue(), 2) }}</td></tr>
         <tr><th>Clientes nuevos</th><td>{{ $retention['new'] }}</td></tr>
         <tr><th>Clientes recurrentes</th><td>{{ $retention['recurring'] }}</td></tr>
     </table>
+
+    <h2>Ingresos, gastos y ganancia</h2>
+    <table>
+        <tr><th></th><th>Caja (turnos)</th><th>Generales</th><th>Total</th></tr>
+        <tr><th>Ingresos</th><td>{{ $m($finanzas['caja']['ingresos']) }}</td><td>{{ $m($finanzas['general']['ingresos']) }}</td><td>{{ $m($finanzas['ingresos']) }}</td></tr>
+        <tr><th>Gastos</th><td>{{ $m($finanzas['caja']['gastos']) }}</td><td>{{ $m($finanzas['general']['gastos']) }}</td><td>{{ $m($finanzas['gastos']) }}</td></tr>
+    </table>
+    <table>
+        <tr><th>Ventas</th><td>{{ $m($finanzas['ventas']) }}</td></tr>
+        <tr><th>− Gastos</th><td>{{ $m($finanzas['gastos']) }}</td></tr>
+        <tr><th>Ganancia</th><td><strong>{{ $m($finanzas['ganancia']) }}</strong></td></tr>
+    </table>
+
+    @if (count($finanzas['turnos']))
+        <p class="muted">Por turno</p>
+        <table>
+            <tr><th>Apertura</th><th>Cajero</th><th>Ingresos</th><th>Gastos</th></tr>
+            @foreach ($finanzas['turnos'] as $turno)
+                <tr><td>{{ $turno['abrio']->format('d/m/Y H:i') }}</td><td>{{ $turno['cajero'] }}</td><td>{{ $m($turno['ingresos']) }}</td><td>{{ $m($turno['gastos']) }}</td></tr>
+            @endforeach
+        </table>
+    @endif
+
+    @if ($finanzas['generales']->isNotEmpty())
+        <p class="muted">Generales (fuera de caja)</p>
+        <table>
+            <tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th>Monto</th></tr>
+            @foreach ($finanzas['generales'] as $g)
+                <tr><td>{{ $g->occurred_on->format('d/m/Y') }}</td><td>{{ $g->type === 'gasto' ? 'Gasto' : 'Ingreso' }}</td><td>{{ $g->category?->name ?? '—' }}</td><td>{{ $g->description }}</td><td>{{ $m($g->amount) }}</td></tr>
+            @endforeach
+        </table>
+    @endif
+
+    @if (count($finanzas['por_categoria']))
+        <p class="muted">Gastos por categoría</p>
+        <table>
+            @foreach ($finanzas['por_categoria'] as $categoria => $monto)
+                <tr><th>{{ $categoria }}</th><td>{{ $m($monto) }}</td></tr>
+            @endforeach
+        </table>
+    @endif
 
     <h2>Ventas por día</h2>
     <table>

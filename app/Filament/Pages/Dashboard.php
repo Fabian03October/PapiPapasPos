@@ -3,15 +3,27 @@
 namespace App\Filament\Pages;
 
 use App\Exports\ReportExport;
+use App\Filament\Widgets\DeadStockTable;
+use App\Filament\Widgets\EmployeeSalesTable;
+use App\Filament\Widgets\ExpensesByCategory;
+use App\Filament\Widgets\FinanceStatsOverview;
+use App\Filament\Widgets\FinancialStatsOverview;
+use App\Filament\Widgets\FrequentCustomersTable;
+use App\Filament\Widgets\IngredientMovementsTable;
+use App\Filament\Widgets\InventoryStatsOverview;
+use App\Filament\Widgets\LowStockTable;
+use App\Filament\Widgets\PeakHoursChart;
+use App\Filament\Widgets\SalesTrendChart;
+use App\Filament\Widgets\TopProductsChart;
 use App\Services\ReportMetricsService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
-use Filament\Support\Icons\Heroicon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Maatwebsite\Excel\Facades\Excel;
 
 class Dashboard extends \Filament\Pages\Dashboard
@@ -78,16 +90,18 @@ class Dashboard extends \Filament\Pages\Dashboard
     public function getWidgets(): array
     {
         return [
-            \App\Filament\Widgets\FinancialStatsOverview::class,
-            \App\Filament\Widgets\SalesTrendChart::class,
-            \App\Filament\Widgets\PeakHoursChart::class,
-            \App\Filament\Widgets\TopProductsChart::class,
-            \App\Filament\Widgets\InventoryStatsOverview::class,
-            \App\Filament\Widgets\IngredientMovementsTable::class,
-            \App\Filament\Widgets\LowStockTable::class,
-            \App\Filament\Widgets\DeadStockTable::class,
-            \App\Filament\Widgets\EmployeeSalesTable::class,
-            \App\Filament\Widgets\FrequentCustomersTable::class,
+            FinancialStatsOverview::class,
+            FinanceStatsOverview::class,
+            ExpensesByCategory::class,
+            SalesTrendChart::class,
+            PeakHoursChart::class,
+            TopProductsChart::class,
+            InventoryStatsOverview::class,
+            IngredientMovementsTable::class,
+            LowStockTable::class,
+            DeadStockTable::class,
+            EmployeeSalesTable::class,
+            FrequentCustomersTable::class,
         ];
     }
 }

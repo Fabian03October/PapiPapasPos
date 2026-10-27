@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\CashMovement;
+use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\GeneralMovement;
 use App\Models\Ingredient;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -10,6 +13,7 @@ use App\Models\Sale;
 use App\Models\SaleIncident;
 use App\Models\SaleItem;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class ReportMetricsService
 {
@@ -87,7 +91,7 @@ class ReportMetricsService
         $data = [];
 
         for ($h = 0; $h < 24; $h++) {
-            $labels[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
+            $labels[] = str_pad($h, 2, '0', STR_PAD_LEFT).':00';
             $data[] = (int) ($rows[$h]->total ?? 0);
         }
 
@@ -252,5 +256,64 @@ class ReportMetricsService
             ->groupBy('users.id', 'users.name')
             ->orderByDesc('total')
             ->get();
+    }
+
+    /**
+     * Ingresos y gastos del periodo: los de caja (por turno) y los generales
+     * (fuera de caja), los gastos por categoría y la ganancia
+     * (ventas netas − todos los gastos).
+     *
+     * @return array{
+     *     caja: array{ingresos: float, gastos: float}, general: array{ingresos: float, gastos: float},
+     *     ingresos: float, gastos: float, ventas: float, ganancia: float,
+     *     por_categoria: array<string, float>, turnos: array<int, array>, generales: Collection
+     * }
+     */
+    public function finances(): array
+    {
+        $caja = CashMovement::with('category:id,name')
+            ->whereBetween('created_at', [$this->from, $this->until])->get();
+        $generales = GeneralMovement::with(['category:id,name', 'user:id,name'])
+            ->whereBetween('occurred_on', [$this->from->toDateString(), $this->until->toDateString()])
+            ->orderBy('occurred_on')->get();
+
+        $sum = fn ($rows, string $type) => round((float) $rows->where('type', $type)->sum('amount'), 2);
+        $cajaIngresos = $sum($caja, 'ingreso');
+        $cajaGastos = $sum($caja, 'gasto');
+        $genIngresos = $sum($generales, 'ingreso');
+        $genGastos = $sum($generales, 'gasto');
+        $ventas = round($this->totals()['net'], 2);
+
+        $porCategoria = $caja->where('type', 'gasto')->concat($generales->where('type', 'gasto'))
+            ->groupBy(fn ($m) => $m->category?->name ?? 'Sin categoría')
+            ->map(fn ($rows) => round((float) $rows->sum('amount'), 2))
+            ->sortDesc()
+            ->all();
+
+        $turnos = CashSession::with('user:id,name')
+            ->whereBetween('opened_at', [$this->from, $this->until])
+            ->withSum(['movements as ingresos' => fn ($q) => $q->where('type', 'ingreso')], 'amount')
+            ->withSum(['movements as gastos' => fn ($q) => $q->where('type', 'gasto')], 'amount')
+            ->orderBy('opened_at')
+            ->get()
+            ->map(fn ($s) => [
+                'abrio' => $s->opened_at,
+                'cajero' => $s->user?->name ?? '—',
+                'ingresos' => round((float) $s->ingresos, 2),
+                'gastos' => round((float) $s->gastos, 2),
+            ])
+            ->all();
+
+        return [
+            'caja' => ['ingresos' => $cajaIngresos, 'gastos' => $cajaGastos],
+            'general' => ['ingresos' => $genIngresos, 'gastos' => $genGastos],
+            'ingresos' => round($cajaIngresos + $genIngresos, 2),
+            'gastos' => round($cajaGastos + $genGastos, 2),
+            'ventas' => $ventas,
+            'ganancia' => round($ventas - $cajaGastos - $genGastos, 2),
+            'por_categoria' => $porCategoria,
+            'turnos' => $turnos,
+            'generales' => $generales,
+        ];
     }
 }
