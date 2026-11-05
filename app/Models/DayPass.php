@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class DayPass extends Model
 {
@@ -89,6 +90,28 @@ class DayPass extends Model
             'percent' => rtrim(rtrim(number_format((float) $this->value, 2), '0'), '.').'% de descuento',
             default => '$'.rtrim(rtrim(number_format((float) $this->value, 2), '0'), '.').' de descuento',
         };
+    }
+
+    /** La página del cupón (con su QR) que se manda por WhatsApp. */
+    public function publicUrl(): string
+    {
+        return route('cupon', $this->code);
+    }
+
+    /** El QR lleva el enlace: en caja se escanea en "Cliente" y con la cámara del celular abre el cupón. */
+    public function qrBase64(int $size = 240): string
+    {
+        return base64_encode(QrCode::format('svg')->size($size)->margin(1)->generate($this->publicUrl()));
+    }
+
+    /** WhatsApp con el mensaje listo; el manager escoge a quién mandarlo. */
+    public function whatsappUrl(): string
+    {
+        $text = "¡Hola! Te regalamos un cupón de Papi's Papas 🍟\n\n"
+            ."*{$this->benefitLabel()}*, vale hasta el ".$this->expires_on->locale('es')->translatedFormat('j \d\e F').".\n\n"
+            ."Muéstralo en caja: {$this->publicUrl()}\n\nSe usa una sola vez.";
+
+        return 'https://wa.me/?text='.rawurlencode($text);
     }
 
     /** "ABCD-EFGH": más fácil de leer en el papel y en pantalla. */

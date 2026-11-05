@@ -43,7 +43,7 @@
                         <div id="qr-reader" class="rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-800 aspect-square w-full lg:max-w-xs lg:mx-0 mx-auto"></div>
                         <div class="flex-1 text-center lg:text-left">
                             <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-1">Escanea el código QR</p>
-                            <p id="qr-status" class="text-sm text-neutral-400 dark:text-neutral-500">Apunta la cámara al código QR del cliente</p>
+                            <p id="qr-status" class="text-sm text-neutral-400 dark:text-neutral-500">Apunta la cámara al código QR del cliente o del cupón</p>
                         </div>
                     </div>
 
@@ -139,6 +139,14 @@
                     // poder leerlo — se veía como si nunca encontrara nada.
                     if (scanLocked) return;
                     scanLocked = true;
+
+                    // QR de cupón (el que manda el manager por WhatsApp): va a la venta y se aplica ahí.
+                    const coupon = decodedText.match(/\/cupon\/([A-Za-z0-9-]+)/);
+                    if (coupon) {
+                        qrStatus.textContent = 'Cupón encontrado…';
+                        window.location.href = '/venta/cupon/' + encodeURIComponent(coupon[1]);
+                        return;
+                    }
 
                     qrStatus.textContent = 'Buscando cliente…';
                     fetch('/venta/clientes/qr/' + encodeURIComponent(decodedText))

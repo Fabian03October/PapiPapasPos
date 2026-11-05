@@ -165,4 +165,25 @@ class DayPassTest extends TestCase
         $this->actingAs($cajero);
         $this->assertFalse(DayPassResource::canAccess());
     }
+
+    public function test_cupon_por_whatsapp_con_qr_que_se_escanea_en_caja(): void
+    {
+        $pase = $this->pase(['value' => 15]);
+
+        // La página que se manda por WhatsApp: el beneficio, el código y el QR (sin iniciar sesión).
+        $this->get('/cupon/'.strtolower($pase->code))->assertOk()
+            ->assertSee('15% de descuento')->assertSee($pase->displayCode())->assertSee('data:image/svg+xml;base64,', false);
+        $this->get('/cupon/ZZZZZZZZ')->assertNotFound();
+        $this->assertStringStartsWith('https://wa.me/?text=', $pase->whatsappUrl());
+        $this->assertStringContainsString(rawurlencode($pase->publicUrl()), $pase->whatsappUrl());
+
+        // Escanearlo lleva a la venta con el cupón listo para aplicarse.
+        $this->actingAs($this->manager)->get('/venta/cupon/'.$pase->code)->assertRedirect('/venta');
+        $this->actingAs($this->manager)->withSession(['scanned_coupon' => $pase->code])->get('/venta')
+            ->assertOk()->assertSee(json_encode($pase->code), false);
+
+        // Se usa una vez; después la página dice que ya se usó.
+        $this->cobrar($pase->code)->assertOk();
+        $this->get('/cupon/'.$pase->code)->assertOk()->assertSee('Este cupón ya se usó.')->assertDontSee('data:image/svg+xml;base64,', false);
+    }
 }

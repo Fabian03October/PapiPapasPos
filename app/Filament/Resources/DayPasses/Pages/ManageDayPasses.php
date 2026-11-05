@@ -4,6 +4,7 @@ namespace App\Filament\Resources\DayPasses\Pages;
 
 use App\Filament\Resources\DayPasses\DayPassResource;
 use App\Models\DayPass;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRecords;
@@ -28,7 +29,11 @@ class ManageDayPasses extends ManageRecords
                 ->successNotification(fn (DayPass $record) => Notification::make()
                     ->success()
                     ->title('Cupón listo: '.$record->displayCode())
-                    ->body($record->benefitLabel().' · vale hasta el '.$record->expires_on->locale('es')->translatedFormat('j \d\e F').'. Apúntalo en el papel.')
+                    ->body($record->benefitLabel().' · vale hasta el '.$record->expires_on->locale('es')->translatedFormat('j \d\e F').'. Mándalo por WhatsApp o apúntalo en un papel.')
+                    ->actions([
+                        Action::make('whatsapp')->label('Enviar por WhatsApp')->button()
+                            ->url($record->whatsappUrl(), shouldOpenInNewTab: true),
+                    ])
                     ->persistent()),
         ];
     }

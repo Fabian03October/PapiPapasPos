@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\DayPass;
 use App\Models\PushSubscription;
 use App\Models\WalletMessage;
 use App\Services\Portal\CardDesign;
@@ -20,6 +21,14 @@ use Illuminate\Support\Facades\DB;
 class CustomerPortalController extends Controller
 {
     public function __construct(protected CustomerPortal $portal) {}
+
+    /** Página del cupón: lo que da, hasta cuándo y el QR para escanear en caja. */
+    public function coupon(string $code)
+    {
+        $pass = DayPass::with('product:id,name')->where('code', DayPass::normalize($code))->firstOrFail();
+
+        return view('cupon', ['pass' => $pass]);
+    }
 
     public function show(string $qrCode)
     {

@@ -6,6 +6,7 @@ use App\Filament\Resources\DayPasses\Pages\ManageDayPasses;
 use App\Models\DayPass;
 use App\Models\Product;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -20,8 +21,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Pase del día: para gente que NO está en las tarjetas. El manager lo genera,
- * lo apunta en un papel y el cajero lo escribe en la venta (botón "Pase").
+ * Cupón (antes "pase del día"): para gente que NO está en las tarjetas. El
+ * manager lo genera y lo manda por WhatsApp (página con QR) o lo apunta en un
+ * papel; en caja se escanea en "Cliente" o se escribe (botón "Cupón").
  * Un solo uso; no se liga a un cliente ni se junta con premios de la tarjeta.
  */
 class DayPassResource extends Resource
@@ -106,7 +108,13 @@ class DayPassResource extends Resource
                     }),
             ])
             // Uno usado ya es historia de una venta: no se borra.
-            ->recordActions([DeleteAction::make()->visible(fn (DayPass $record) => $record->used_at === null)]);
+            ->recordActions([
+                Action::make('whatsapp')->label('Enviar por WhatsApp')
+                    ->icon(Heroicon::OutlinedPaperAirplane)->color('success')
+                    ->visible(fn (DayPass $record) => $record->status() === 'Disponible')
+                    ->url(fn (DayPass $record) => $record->whatsappUrl())->openUrlInNewTab(),
+                DeleteAction::make()->visible(fn (DayPass $record) => $record->used_at === null),
+            ]);
     }
 
     public static function getPages(): array

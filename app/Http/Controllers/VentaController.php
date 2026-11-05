@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashSession;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\DayPass;
 use App\Models\Product;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
@@ -93,6 +94,12 @@ class VentaController extends Controller
         ]);
 
         return redirect()->route('venta.index');
+    }
+
+    /** QR de cupón escaneado en "Cliente": la venta lo aplica al abrir (lo revisa como si lo hubieran escrito). */
+    public function scanCoupon(string $code)
+    {
+        return redirect()->route('venta.index')->with('scanned_coupon', DayPass::normalize($code));
     }
 
     public function clearCustomer()

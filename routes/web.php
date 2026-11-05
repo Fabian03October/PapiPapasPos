@@ -69,6 +69,9 @@ Route::prefix('wallet/apple')->middleware('throttle:60,1')->group(function () {
     Route::post('/v1/log', [AppleWalletController::class, 'log']);
 });
 
+// Cupón que el manager manda por WhatsApp: página con su QR (sin sesión).
+Route::get('/cupon/{code}', [CustomerPortalController::class, 'coupon'])->middleware('throttle:30,1')->name('cupon');
+
 Route::get('/registro/confirmacion/{qrCode}', [CustomerRegistrationController::class, 'confirmation'])->name('registro.confirmacion');
 
 // El vigilante del worker revisa (cada 10 min, mientras se usa el POS) que
@@ -99,6 +102,7 @@ Route::middleware(['auth', WorkerWatchdog::class])->group(function () {
 
     Route::get('/venta/cliente', [VentaController::class, 'clientePage'])->name('venta.cliente');
     Route::get('/venta/cliente/seleccionar/{customer}', [VentaController::class, 'selectCustomer'])->name('venta.customers.select');
+    Route::get('/venta/cupon/{code}', [VentaController::class, 'scanCoupon'])->name('venta.cupon');
     Route::get('/venta/cliente/quitar', [VentaController::class, 'clearCustomer'])->name('venta.customers.clear');
 
     Route::get('/venta/clientes/buscar', [VentaController::class, 'searchCustomers'])->name('venta.customers.search');

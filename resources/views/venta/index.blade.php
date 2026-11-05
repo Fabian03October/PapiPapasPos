@@ -264,7 +264,7 @@
             </button>
         </x-slot:header>
 
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Escribe el código que trae en su papel.</p>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-3">Escribe el código del cupón (en papel o en su celular). Si trae QR, escanéalo en "Cliente".</p>
         <input type="text" id="day-pass-input" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH"
                class="w-full h-14 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-2xl text-center font-mono uppercase tracking-widest">
         <p id="day-pass-error" class="hidden text-sm text-red-600 dark:text-red-400 mt-2"></p>
@@ -1381,6 +1381,14 @@
                     '🎟 Cupón ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
             }
         }
+
+        // Cupón escaneado en "Cliente": se revisa y aplica como si lo hubieran escrito.
+        @if (session('scanned_coupon'))
+            dayPassInput.value = @json(session('scanned_coupon'));
+            dayPassModal.classList.remove('hidden');
+            dayPassModal.classList.add('flex');
+            applyDayPass();
+        @endif
 
         document.getElementById('cart-pass-btn').addEventListener('click', openDayPassModal);
         document.getElementById('day-pass-btn').addEventListener('click', openDayPassModal);
