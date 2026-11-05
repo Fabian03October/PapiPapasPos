@@ -12,6 +12,9 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Ingredient;
 use App\Models\InventoryCount;
+use App\Models\Modifier;
+use App\Models\ModifierGroup;
+use App\Models\Promotion;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
@@ -161,5 +164,28 @@ class Ajustes30OctTest extends TestCase
         $this->assertSame(2, $product->recipeItems()->count());
         $this->assertEquals(150, $product->recipeItems()->where('ingredient_id', $papa->id)->value('qty'));
         $this->assertEquals(2, $product->recipeItems()->where('ingredient_id', $salchicha->id)->value('qty'));
+    }
+
+    public function test_el_martes_el_extra_gratis_sale_marcado_solo(): void
+    {
+        $product = $this->product();
+        $otro = Product::create(['category_id' => $product->category_id, 'name' => 'Papas sola', 'base_price' => 50, 'is_active' => true]);
+        $extras = ModifierGroup::create(['name' => 'Extras', 'min_select' => 0, 'max_select' => 5, 'is_required' => false, 'sort_order' => 1, 'is_active' => true]);
+        $salchicha = Modifier::create(['modifier_group_id' => $extras->id, 'name' => 'Salchicha extra', 'price_delta' => 12, 'is_active' => true]);
+        $queso = Modifier::create(['modifier_group_id' => $extras->id, 'name' => 'Doble queso', 'price_delta' => 15, 'is_active' => true]);
+        $product->modifierGroups()->attach($extras->id);
+        $otro->modifierGroups()->attach($extras->id);
+
+        $promo = Promotion::create(['name' => 'Martes de salchicha', 'type' => 'free', 'scope' => 'modifier', 'is_active' => true, 'days_of_week' => [2]]);
+        $promo->modifiers()->attach($salchicha->id);
+        $promo->products()->attach($product->id, ['qty_required' => 1]); // solo en Salchipapas
+        $cajero = $this->user('cajero', '3333');
+
+        $this->travelTo(now()->next('Tuesday')->setTime(13, 0));
+        $this->actingAs($cajero)->getJson("/venta/productos/{$product->id}")->assertJsonPath('auto_modifier_ids', [$salchicha->id]);
+        $this->actingAs($cajero)->getJson("/venta/productos/{$otro->id}")->assertJsonPath('auto_modifier_ids', []);
+
+        $this->travelTo(now()->next('Wednesday')->setTime(13, 0));
+        $this->actingAs($cajero)->getJson("/venta/productos/{$product->id}")->assertJsonPath('auto_modifier_ids', []);
     }
 }

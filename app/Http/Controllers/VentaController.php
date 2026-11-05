@@ -6,6 +6,7 @@ use App\Models\CashSession;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Services\PromotionService;
 use Illuminate\Http\Request;
 
 class VentaController extends Controller
@@ -46,6 +47,11 @@ class VentaController extends Controller
             'id' => $product->id,
             'name' => $product->name,
             'base_price' => (float) $product->base_price,
+            // Extras gratis de hoy (promoción): ya salen marcados.
+            'auto_modifier_ids' => app(PromotionService::class)->autoFreeModifierIds(
+                $product->id,
+                $product->modifierGroups->flatMap->modifiers->pluck('id')->all(),
+            ),
             'variants' => $product->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'name' => $v->name,

@@ -860,6 +860,14 @@
                                 .filter(mod => editItem.modifierIds.includes(mod.id))
                                 .map(mod => mod.id);
                         });
+                    } else {
+                        // Extra gratis de hoy por promoción (ej. martes de salchicha): ya marcado.
+                        (data.auto_modifier_ids || []).forEach(id => {
+                            const group = data.modifier_groups.find(g => g.modifiers.some(m => m.id === id));
+                            if (!group) return;
+                            (selectedModifiers[group.id] = selectedModifiers[group.id] || []).push(id);
+                            modCounts[id] = 1;
+                        });
                     }
                     modalNotes.value = editItem ? (editItem.notes || '') : '';
                     modalAddBtn.querySelector('span').textContent = editItem ? 'Guardar cambios' : 'Agregar al carrito';

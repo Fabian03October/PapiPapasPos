@@ -4,22 +4,17 @@ namespace App\Services;
 
 use App\Models\Promotion;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class PromotionService
 {
-    /**
-     * Evalúa todas las promociones activas contra el carrito y devuelve
-     * el descuento total a aplicar (sumando todas las que apliquen).
-     *
-     * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total', 'modifiers']
-     * @return array ['discount' => float, 'applied' => array de nombres de promociones aplicadas, 'details' => [['name', 'amount']]]
-     */
-    public function evaluate(array $itemsData): array
+    /** Las promociones que valen ahorita (fechas, día de la semana y horario). */
+    public function activePromotions(): Collection
     {
         $now = Carbon::now();
         $todayDow = (int) $now->format('w'); // 0=domingo ... 6=sábado, igual que guardamos en days_of_week
 
-        $activePromotions = Promotion::where('is_active', true)
+        return Promotion::where('is_active', true)
             ->where(function ($q) use ($now) {
                 $q->whereNull('valid_from')->orWhereDate('valid_from', '<=', $now);
             })
@@ -41,6 +36,36 @@ class PromotionService
 
                 return true;
             });
+    }
+
+    /**
+     * Extras gratis de hoy que le tocan a este producto (ej. "Martes de
+     * salchicha extra gratis"): la venta los marca solos al abrir el producto,
+     * porque al cajero se le olvidaba agregarlos.
+     *
+     * @param  array<int>  $modifierIdsOfProduct
+     * @return array<int>
+     */
+    public function autoFreeModifierIds(int $productId, array $modifierIdsOfProduct): array
+    {
+        return $this->activePromotions()
+            ->filter(fn (Promotion $p) => $p->scope === 'modifier' && $p->type === 'free'
+                && ($p->products->isEmpty() || $p->products->contains('id', $productId)))
+            ->flatMap(fn (Promotion $p) => $p->modifiers->pluck('id'))
+            ->intersect($modifierIdsOfProduct)
+            ->unique()->values()->all();
+    }
+
+    /**
+     * Evalúa todas las promociones activas contra el carrito y devuelve
+     * el descuento total a aplicar (sumando todas las que apliquen).
+     *
+     * @param  array  $itemsData  Cada item: ['product_id', 'variant_id', 'qty', 'unit_price', 'line_total', 'modifiers']
+     * @return array ['discount' => float, 'applied' => array de nombres de promociones aplicadas, 'details' => [['name', 'amount']]]
+     */
+    public function evaluate(array $itemsData): array
+    {
+        $activePromotions = $this->activePromotions();
 
         $totalDiscount = 0;
         $appliedNames = [];
