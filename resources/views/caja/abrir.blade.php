@@ -57,6 +57,13 @@
             </div>
         @endif
 
+        {{-- Manager y gerente pueden ver el panel (dashboard, reportes) sin abrir caja. --}}
+        @if (auth()->user()->puedeAutorizar())
+            <a href="/admin" class="block w-full h-11 mt-1 mb-2 leading-[2.75rem] text-center rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                Ir al panel
+            </a>
+        @endif
+
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="block w-full text-center text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 py-1">

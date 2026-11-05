@@ -102,11 +102,11 @@ class DayPassTest extends TestCase
         $this->cobrar($pase->code)->assertOk();
         $folio = Sale::latest('id')->value('folio');
 
-        $this->cobrar($pase->code)->assertStatus(422)->assertJsonPath('errors.day_pass_code.0', "Ese pase ya se usó (venta #{$folio}).");
+        $this->cobrar($pase->code)->assertStatus(422)->assertJsonPath('errors.day_pass_code.0', "Ese cupón ya se usó (venta #{$folio}).");
 
         $vencido = $this->pase(['expires_on' => today()->subDay()]);
         $this->cobrar($vencido->code)->assertStatus(422)->assertJsonValidationErrors('day_pass_code');
-        $this->cobrar('ZZZZZZZZ')->assertStatus(422)->assertJsonPath('errors.day_pass_code.0', 'Ese código de pase no existe. Revisa que esté bien escrito.');
+        $this->cobrar('ZZZZZZZZ')->assertStatus(422)->assertJsonPath('errors.day_pass_code.0', 'Ese código de cupón no existe. Revisa que esté bien escrito.');
         $this->assertSame(1, Sale::count());
     }
 

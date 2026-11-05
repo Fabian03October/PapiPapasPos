@@ -16,8 +16,8 @@ class ManageDayPasses extends ManageRecords
     {
         return [
             CreateAction::make()
-                ->label('Generar pase')
-                ->modalHeading('Generar pase del día')
+                ->label('Generar cupón')
+                ->modalHeading('Generar cupón')
                 ->mutateDataUsing(fn (array $data) => [
                     ...$data,
                     'created_by' => auth()->id(),
@@ -27,7 +27,7 @@ class ManageDayPasses extends ManageRecords
                 // El código, grande, para apuntarlo en el papel.
                 ->successNotification(fn (DayPass $record) => Notification::make()
                     ->success()
-                    ->title('Pase listo: '.$record->displayCode())
+                    ->title('Cupón listo: '.$record->displayCode())
                     ->body($record->benefitLabel().' · vale hasta el '.$record->expires_on->locale('es')->translatedFormat('j \d\e F').'. Apúntalo en el papel.')
                     ->persistent()),
         ];

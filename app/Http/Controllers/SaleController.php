@@ -206,7 +206,7 @@ class SaleController extends Controller
         if ($dayPass && $dayPass['discount_amount'] > 0) {
             $breakdown[] = [
                 'kind' => 'pase',
-                'label' => "Pase del día {$dayPass['code']}: {$dayPass['label']}",
+                'label' => "Cupón {$dayPass['code']}: {$dayPass['label']}",
                 'product' => null,
                 'amount' => $dayPass['discount_amount'],
             ];
@@ -251,7 +251,7 @@ class SaleController extends Controller
 
             // El pase no se junta con premios de la tarjeta: el premio queda para otra visita.
             if ($pass && $reward) {
-                $visitNote = trim($visitNote.' Con pase del día no se cobra el premio de la tarjeta: queda pendiente.');
+                $visitNote = trim($visitNote.' Con cupón no se cobra el premio de la tarjeta: queda pendiente.');
                 $reward = null;
             }
 
@@ -340,10 +340,10 @@ class SaleController extends Controller
         $pass = DayPass::with('product')->where('code', DayPass::normalize($request->day_pass_code))->first();
 
         $error = match (true) {
-            ! $pass => 'Ese código de pase no existe. Revisa que esté bien escrito.',
-            $pass->used_at !== null => 'Ese pase ya se usó'.($pass->usedSale ? " (venta #{$pass->usedSale->folio})" : '').'.',
-            $pass->isExpired() => 'Ese pase venció el '.$pass->expires_on->locale('es')->translatedFormat('j \d\e F').'.',
-            $pass->benefit_type === 'product' && ! $pass->product => 'El producto de ese pase ya no existe.',
+            ! $pass => 'Ese código de cupón no existe. Revisa que esté bien escrito.',
+            $pass->used_at !== null => 'Ese cupón ya se usó'.($pass->usedSale ? " (venta #{$pass->usedSale->folio})" : '').'.',
+            $pass->isExpired() => 'Ese cupón venció el '.$pass->expires_on->locale('es')->translatedFormat('j \d\e F').'.',
+            $pass->benefit_type === 'product' && ! $pass->product => 'El producto de ese cupón ya no existe.',
             default => null,
         };
 
@@ -528,7 +528,7 @@ class SaleController extends Controller
             $sale = DB::transaction(function () use ($request, $cashSession, $subtotal, $discount, $manualDiscount, $breakdown, $total, $itemsData, $ingredientConsumption, $customer, $loyaltyPreview, $loyaltyService, $reward, $pendingRedemption, $redeemNow, $pass) {
                 // Un solo uso: con candado, por si otra tablet lo está cobrando ahorita.
                 if ($pass && ! DayPass::whereKey($pass->id)->whereNull('used_at')->lockForUpdate()->exists()) {
-                    throw new LoyaltyChangedException('Ese pase se acaba de usar en otra venta.');
+                    throw new LoyaltyChangedException('Ese cupón se acaba de usar en otra venta.');
                 }
 
                 $sale = Sale::create([

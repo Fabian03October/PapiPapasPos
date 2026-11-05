@@ -32,11 +32,11 @@ class DayPassResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTicket;
 
-    protected static ?string $navigationLabel = 'Pases del día';
+    protected static ?string $navigationLabel = 'Cupones';
 
-    protected static ?string $modelLabel = 'pase del día';
+    protected static ?string $modelLabel = 'cupón';
 
-    protected static ?string $pluralModelLabel = 'pases del día';
+    protected static ?string $pluralModelLabel = 'cupones';
 
     protected static ?int $navigationSort = 5;
 

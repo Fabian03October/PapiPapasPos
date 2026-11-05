@@ -59,6 +59,8 @@
                     </svg>
                     Carrito
                 </p>
+                {{-- Cupón: siempre a la vista, chico para no ocupar un renglón en el teléfono. --}}
+                <button type="button" id="cart-pass-btn" class="ml-auto mr-3 h-7 px-2.5 rounded-full border border-dashed border-primary-300 dark:border-primary-500/40 text-xs font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10">🎟 Cupón</button>
                 <button id="cart-clear" type="button" class="text-xs text-red-500 dark:text-red-400 hidden">Vaciar</button>
             </div>
             <button type="button" id="undo-last-link" class="hidden -mt-1 mb-2 text-left text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">↶ Deshacer última venta</button>
@@ -78,14 +80,10 @@
                 </a>
             </div>
 
-            {{-- Pase del día: siempre a la vista (la persona puede llegar solo con su código). --}}
-            <button type="button" id="cart-pass-btn" class="w-full h-10 mb-3 rounded-lg border border-dashed border-primary-300 dark:border-primary-500/40 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10">
-                🎟 Pase del día
-            </button>
             <div id="cart-pass-chip" class="hidden mb-3">
                 <div class="flex items-center justify-between gap-2 bg-primary-50 dark:bg-primary-500/10 rounded-lg px-3 py-2">
                     <span id="cart-pass-text" class="text-xs text-primary-700 dark:text-primary-300 min-w-0"></span>
-                    <button type="button" id="cart-pass-remove" class="text-primary-400 dark:text-primary-500 shrink-0" title="Quitar pase">
+                    <button type="button" id="cart-pass-remove" class="text-primary-400 dark:text-primary-500 shrink-0" title="Quitar cupón">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -192,7 +190,7 @@
                     🏷 Descuento o cortesía a toda la venta
                 </button>
                 <button id="day-pass-btn" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                    🎟 Pase
+                    🎟 Cupón
                 </button>
             </div>
         </div>
@@ -258,7 +256,7 @@
     <!-- Pase del día: el cajero escribe el código del papel -->
     <x-modal id="day-pass-modal" max-width="sm">
         <x-slot:header>
-            <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">🎟 Pase del día</p>
+            <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">🎟 Cupón</p>
             <button id="day-pass-close" type="button" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -272,7 +270,7 @@
         <p id="day-pass-error" class="hidden text-sm text-red-600 dark:text-red-400 mt-2"></p>
 
         <x-slot:footer>
-            <button type="button" id="day-pass-apply" class="w-full h-12 rounded-lg bg-primary-600 text-white text-sm font-medium">Aplicar pase</button>
+            <button type="button" id="day-pass-apply" class="w-full h-12 rounded-lg bg-primary-600 text-white text-sm font-medium">Aplicar cupón</button>
         </x-slot:footer>
     </x-modal>
 
@@ -1237,7 +1235,7 @@
                         variantId: null,
                         variantName: null,
                         modifierIds: [],
-                        modifierNames: ['🎟 Pase del día, gratis'],
+                        modifierNames: ['🎟 Cupón, gratis'],
                         notes: '',
                         qty: 1,
                         unitPrice: 0,
@@ -1353,15 +1351,15 @@
                 if (status === 200) {
                     closeDayPassModal();
                     setDayPass(data);
-                    Toast.show('Pase aplicado: ' + data.label);
+                    Toast.show('Cupón aplicado: ' + data.label);
                     return;
                 }
                 dayPassError.textContent = status === 429
                     ? 'Demasiados intentos. Espera un minuto.'
-                    : ((data.errors && data.errors.day_pass_code && data.errors.day_pass_code[0]) || data.message || 'No se pudo revisar el pase.');
+                    : ((data.errors && data.errors.day_pass_code && data.errors.day_pass_code[0]) || data.message || 'No se pudo revisar el cupón.');
                 dayPassError.classList.remove('hidden');
             }).catch(() => {
-                dayPassError.textContent = 'No se pudo revisar el pase por la conexión.';
+                dayPassError.textContent = 'No se pudo revisar el cupón por la conexión.';
                 dayPassError.classList.remove('hidden');
             });
         }
@@ -1372,7 +1370,7 @@
             document.getElementById('day-pass-btn').classList.toggle('hidden', !!pass);
             if (pass) {
                 document.getElementById('day-pass-applied-text').textContent =
-                    '🎟 Pase ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
+                    '🎟 Cupón ' + pass.code + ': ' + pass.label + (pass.note ? ' · ' + pass.note : '');
             }
         }
 
