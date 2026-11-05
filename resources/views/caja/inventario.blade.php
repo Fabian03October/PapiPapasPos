@@ -3,7 +3,7 @@
     <div class="flex-1 min-h-0 overflow-y-auto">
         <div class="max-w-5xl">
 
-            <a href="{{ route('caja.resumen') }}" class="flex items-center gap-1.5 text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+            <a href="{{ $anytime ? '/admin/inventory-counts' : route('caja.resumen') }}" class="flex items-center gap-1.5 text-sm text-neutral-500 dark:text-neutral-400 mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
@@ -13,7 +13,7 @@
             <x-card class="mb-4">
                 <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Conteo físico de inventario</p>
                 <p class="text-xs text-neutral-400 dark:text-neutral-500 mb-4">
-                    Obligatorio antes de cerrar caja. Cuenta cada insumo y anota lo que realmente hay — cualquiera puede hacerlo.
+                    {{ $anytime ? 'Conteo fuera del cierre de caja.' : 'Antes de cerrar caja.' }} Cuenta cada insumo y anota lo que realmente hay. Las existencias se ajustan a lo que anotes.
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="ingredients-list">
@@ -36,7 +36,7 @@
                     Faltan {{ $ingredients->count() }} insumos por contar
                 </p>
                 <x-button id="submit-count-btn" disabled class="w-auto px-6 whitespace-nowrap">
-                    Guardar conteo y continuar
+                    {{ $anytime ? 'Guardar conteo' : 'Guardar conteo y continuar' }}
                 </x-button>
             </x-card>
         </div>
@@ -74,7 +74,7 @@
 
             submitBtn.disabled = true;
 
-            fetch('{{ route("caja.cerrar.inventario.store") }}', {
+            fetch('{{ $anytime ? route("inventario.contar.store") : route("caja.cerrar.inventario.store") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

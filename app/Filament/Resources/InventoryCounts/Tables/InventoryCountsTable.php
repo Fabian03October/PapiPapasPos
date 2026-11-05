@@ -22,7 +22,8 @@ class InventoryCountsTable
                     ->dateTime('d/M/Y H:i')
                     ->sortable(),
                 TextColumn::make('cashSession.user.name')
-                    ->label('Turno de'),
+                    ->label('Turno de')
+                    ->placeholder('Fuera del cierre'),
                 TextColumn::make('user.name')
                     ->label('Contado por'),
                 TextColumn::make('differences_count')

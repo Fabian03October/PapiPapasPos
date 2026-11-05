@@ -155,6 +155,7 @@ class CustomersTable
                     ->label('Cambiar enlace')
                     ->icon(Heroicon::OutlinedArrowPath)
                     ->color('warning')
+                    ->visible(fn () => auth()->user()?->esManager() ?? false)
                     ->requiresConfirmation()
                     ->modalHeading(fn (Customer $record) => "¿Cambiar el enlace de {$record->name}?")
                     ->modalDescription('Úsalo si el cliente compartió su enlace o perdió su celular. Su enlace y su QR actuales dejan de funcionar (también en caja) y se desactivan sus avisos. Sus sellos y premios NO cambian. Después mándale su enlace nuevo por WhatsApp.')
@@ -179,7 +180,7 @@ class CustomersTable
                     ->label('Mandar mensaje')
                     ->icon(Heroicon::OutlinedChatBubbleLeftRight)
                     ->color('gray')
-                    ->visible(fn () => app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled())
+                    ->visible(fn () => auth()->user()?->esManager() && (app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled()))
                     ->schema([
                         TextInput::make('title')
                             ->label('Título')

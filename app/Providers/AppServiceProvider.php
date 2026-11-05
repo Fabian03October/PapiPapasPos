@@ -5,8 +5,14 @@ namespace App\Providers;
 use App\Http\Middleware\WorkerWatchdog;
 use App\Jobs\SendWebPushJob;
 use App\Mail\Transport\BrevoApiTransport;
+use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
+use App\Models\User;
+use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use App\Observers\CustomerObserver;
 use App\Services\Wallet\WalletNotifier;
 use App\Services\WebPushService;
@@ -58,6 +64,22 @@ class AppServiceProvider extends ServiceProvider
             ->placeholder('Arrastra tu archivo aquí o <span class="filepond--label-action">búscalo</span>'));
 
         Customer::observe(CustomerObserver::class);
+
+        // Candado: en el panel el gerente solo ve; crear, editar y borrar es
+        // del manager. Filament consulta esto en todas sus pantallas (las
+        // acciones propias, como "Registrar entrada", se cierran una por una).
+        Gate::before(fn (User $user, string $ability) => $user->esGerente() && ! in_array($ability, ['viewAny', 'view'], true) ? false : null);
+
+        // Bitácora: todo lo que se crea, edita o borra DESDE EL PANEL (las
+        // ventas del POS no pasan por aquí, si no se llenaría en un día).
+        foreach (['created', 'updated', 'deleted'] as $action) {
+            Event::listen("eloquent.{$action}: *", function (string $event, array $payload) use ($action): void {
+                $model = $payload[0] ?? null;
+                if ($model instanceof Model && ! $model instanceof AuditLog && auth()->check() && Filament::isServing()) {
+                    AuditLog::record($model, $action);
+                }
+            });
+        }
 
         // "Señal de vida" del worker para el vigilante (WorkerWatchdog): a lo
         // más una escritura por minuto, mientras la cola esté trabajando.

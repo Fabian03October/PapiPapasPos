@@ -26,7 +26,7 @@ class ListCustomers extends ListRecords
                 ->label('Mandar mensaje a todos')
                 ->icon(Heroicon::OutlinedMegaphone)
                 ->color('gray')
-                ->visible(fn () => app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled())
+                ->visible(fn () => auth()->user()?->esManager() && (app(GoogleWalletService::class)->isEnabled() || app(WebPushService::class)->isEnabled()))
                 ->schema([
                     TextInput::make('title')
                         ->label('Título')

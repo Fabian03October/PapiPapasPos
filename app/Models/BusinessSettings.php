@@ -17,13 +17,19 @@ class BusinessSettings extends Model
         'thank_you_message',
         'personalize_thank_you',
         'print_delay_seconds',
+        'require_inventory_count_on_close',
+        'whatsapp_card_message',
     ];
+
+    // Valor de la base, también en la fila recién creada por current().
+    protected $attributes = ['require_inventory_count_on_close' => true];
 
     protected function casts(): array
     {
         return [
             'show_iva' => 'boolean',
             'personalize_thank_you' => 'boolean',
+            'require_inventory_count_on_close' => 'boolean',
             'iva_rate' => 'decimal:2',
         ];
     }

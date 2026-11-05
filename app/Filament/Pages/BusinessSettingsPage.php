@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\BusinessSettings;
+use App\Models\Customer;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -50,6 +51,8 @@ class BusinessSettingsPage extends Page
             'thank_you_message' => $settings->thank_you_message,
             'personalize_thank_you' => $settings->personalize_thank_you,
             'print_delay_seconds' => $settings->print_delay_seconds,
+            'require_inventory_count_on_close' => $settings->require_inventory_count_on_close,
+            'whatsapp_card_message' => $settings->whatsapp_card_message ?: Customer::WHATSAPP_CARD_MESSAGE,
         ]);
     }
 
@@ -104,6 +107,23 @@ class BusinessSettingsPage extends Page
                             ->live()
                             ->helperText('Si la venta tiene un cliente identificado, se le pone su nombre (ej. "¡Gracias, Fabian, por tu compra!"). Si no hay cliente, siempre se usa el mensaje de arriba.')
                             ->columnSpanFull(),
+                    ]),
+
+                Section::make('Mensaje de WhatsApp con Mi tarjeta')
+                    ->schema([
+                        Textarea::make('whatsapp_card_message')
+                            ->label('Mensaje')
+                            ->helperText('Se manda con "Enviar por WhatsApp" en Clientes. {nombre} se cambia por el nombre del cliente y {enlace} por el enlace de su tarjeta (si lo borras, el enlace se pone al final).')
+                            ->rows(5)
+                            ->required()
+                            ->maxLength(1000),
+                    ]),
+
+                Section::make('Inventario')
+                    ->schema([
+                        Toggle::make('require_inventory_count_on_close')
+                            ->label('Pedir conteo de inventario al cerrar caja')
+                            ->helperText('Si lo apagas, la caja se cierra sin contar. Puedes contar cuando quieras desde Inventario → Conteos de inventario → "Contar inventario".'),
                     ]),
 
                 Section::make('Impresión')

@@ -82,6 +82,8 @@ Route::middleware(['auth', WorkerWatchdog::class])->group(function () {
     Route::post('/caja/fondo', [CajaController::class, 'updateFund'])->name('caja.fondo');
     Route::get('/caja/cerrar/inventario', [CajaController::class, 'showInventoryCount'])->name('caja.cerrar.inventario');
     Route::post('/caja/cerrar/inventario', [CajaController::class, 'storeInventoryCount'])->name('caja.cerrar.inventario.store');
+    Route::get('/inventario/contar', [CajaController::class, 'showAnytimeCount'])->name('inventario.contar');
+    Route::post('/inventario/contar', [CajaController::class, 'storeAnytimeCount'])->name('inventario.contar.store');
     Route::get('/caja/cerrar', [CajaController::class, 'showClose'])->name('caja.cerrar');
     Route::post('/caja/cerrar', [CajaController::class, 'closeStore'])->name('caja.cerrar.store');
     Route::get('/caja/{session}/reporte-cierre', [CajaController::class, 'reporteCierre'])->name('caja.reporte-cierre');

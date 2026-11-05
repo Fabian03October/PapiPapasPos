@@ -29,6 +29,11 @@ class WalletCardDesign extends Page
 
     protected static ?string $title = 'Diseño de tarjeta';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->esManager() ?? false;
+    }
+
     // Escondida del menú por ahora: el guardado de imágenes sigue fallando
     // en producción (Google tarda demasiado en validarlas y la petición
     // truena). Se retoma en la v2. La página sigue funcionando si alguien

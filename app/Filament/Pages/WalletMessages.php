@@ -28,6 +28,11 @@ class WalletMessages extends Page implements HasTable
 
     protected static ?string $title = 'Mensajes Wallet';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->esManager() ?? false;
+    }
+
     public function table(Table $table): Table
     {
         return $table

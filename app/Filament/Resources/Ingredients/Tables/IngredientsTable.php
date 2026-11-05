@@ -63,6 +63,7 @@ class IngredientsTable
                     ->label('Registrar entrada')
                     ->icon(Heroicon::OutlinedPlusCircle)
                     ->color('success')
+                    ->visible(fn () => auth()->user()?->esManager() ?? false)
                     ->schema([
                         TextInput::make('qty')
                             ->label('Cantidad recibida')

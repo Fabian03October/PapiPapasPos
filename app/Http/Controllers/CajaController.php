@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashMovement;
+use App\Models\BusinessSettings;
 use App\Models\CashSession;
 use App\Models\CashSessionDenomination;
 use App\Models\ExpenseCategory;
@@ -142,7 +143,7 @@ class CajaController extends Controller
             return redirect()->route('caja.abrir');
         }
 
-        if ($session->inventoryCount()->exists()) {
+        if ($session->inventoryCount()->exists() || ! BusinessSettings::current()->require_inventory_count_on_close) {
             return redirect()->route('caja.cerrar');
         }
 
@@ -160,6 +161,7 @@ class CajaController extends Controller
         return view('caja.inventario', [
             'session' => $session,
             'ingredients' => $ingredients,
+            'anytime' => false,
         ]);
     }
 
@@ -175,6 +177,29 @@ class CajaController extends Controller
             return response()->json(['success' => false, 'message' => 'El conteo de inventario ya se registró para este turno'], 422);
         }
 
+        return $this->saveInventoryCount($request, $session->id, route('caja.cerrar'));
+    }
+
+    /** Conteo a cualquier hora (solo manager): no es de un turno, no cuenta para el cierre. */
+    public function showAnytimeCount()
+    {
+        abort_unless(auth()->user()->esManager(), 403);
+
+        return view('caja.inventario', [
+            'ingredients' => Ingredient::where('is_active', true)->orderBy('name')->get(),
+            'anytime' => true,
+        ]);
+    }
+
+    public function storeAnytimeCount(Request $request)
+    {
+        abort_unless(auth()->user()->esManager(), 403);
+
+        return $this->saveInventoryCount($request, null, '/admin/inventory-counts');
+    }
+
+    private function saveInventoryCount(Request $request, ?int $sessionId, string $redirect)
+    {
         $activeIngredientIds = Ingredient::where('is_active', true)->pluck('id');
 
         $request->validate([
@@ -188,7 +213,7 @@ class CajaController extends Controller
         }
 
         $inventoryCount = InventoryCount::create([
-            'cash_session_id' => $session->id,
+            'cash_session_id' => $sessionId,
             'user_id' => auth()->id(),
         ]);
 
@@ -223,7 +248,7 @@ class CajaController extends Controller
 
         return response()->json([
             'success' => true,
-            'redirect' => route('caja.cerrar'),
+            'redirect' => $redirect,
         ]);
     }
 
@@ -235,7 +260,7 @@ class CajaController extends Controller
             return redirect()->route('caja.abrir');
         }
 
-        if (! $session->inventoryCount()->exists()) {
+        if (BusinessSettings::current()->require_inventory_count_on_close && ! $session->inventoryCount()->exists()) {
             return redirect()->route('caja.cerrar.inventario');
         }
 

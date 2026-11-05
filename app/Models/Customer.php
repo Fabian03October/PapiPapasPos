@@ -9,6 +9,11 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class Customer extends Model
 {
+    /** El mensaje de "Enviar por WhatsApp" si el negocio no ha puesto otro (Configuración). */
+    public const WHATSAPP_CARD_MESSAGE = "¡Hola {nombre}! Tu tarjeta de sellos de Papi's Papas ya vive en tu celular 🍟\n\n"
+        ."Ábrela aquí: {enlace}\n\n"
+        .'Ahí ves tus sellos, tus premios y nuestras promos. Guárdala en tu pantalla de inicio: funciona aunque no tengas internet.';
+
     protected $fillable = [
         'name',
         'phone',
@@ -85,9 +90,11 @@ class Customer extends Model
         }
 
         $first = trim(strtok((string) $this->name, ' ') ?: '');
-        $text = "¡Hola {$first}! Tu tarjeta de sellos de Papi's Papas ya vive en tu celular 🍟\n\n"
-            ."Ábrela aquí: {$this->cardUrl()}\n\n"
-            .'Ahí ves tus sellos, tus premios y nuestras promos. Guárdala en tu pantalla de inicio: funciona aunque no tengas internet.';
+        $text = BusinessSettings::current()->whatsapp_card_message ?: self::WHATSAPP_CARD_MESSAGE;
+        if (! str_contains($text, '{enlace}')) {
+            $text .= "\n\n{enlace}";
+        }
+        $text = strtr($text, ['{nombre}' => $first, '{enlace}' => $this->cardUrl()]);
 
         return 'https://wa.me/'.$phone.'?text='.rawurlencode($text);
     }
