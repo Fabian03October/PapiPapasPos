@@ -2,7 +2,11 @@
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
+use App\Filament\Support\IngredientRows;
 use App\Models\Ingredient;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -63,6 +67,27 @@ class RecipeItemsRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make(),
+                Action::make('addMany')
+                    ->label('Agregar varios insumos')
+                    ->icon(Heroicon::OutlinedQueueList)
+                    ->authorize(fn () => auth()->user()?->esManager() ?? false)
+                    ->schema([
+                        Select::make('variant_id')
+                            ->label('Variante (opcional)')
+                            ->options(fn () => $this->getOwnerRecord()->variants()->pluck('name', 'id'))
+                            ->helperText('Déjalo vacío si aplica al producto base, sin importar la variante.')
+                            ->nullable(),
+                        ...IngredientRows::schema(),
+                    ])
+                    ->action(function (array $data): void {
+                        foreach ($data['items'] as $row) {
+                            $this->getOwnerRecord()->recipeItems()->updateOrCreate(
+                                ['variant_id' => $data['variant_id'] ?? null, 'ingredient_id' => $row['ingredient_id']],
+                                ['qty' => $row['qty']],
+                            );
+                        }
+                        Notification::make()->title(count($data['items']).' insumo(s) en la receta')->success()->send();
+                    }),
             ])
             ->recordActions([
                 EditAction::make(),

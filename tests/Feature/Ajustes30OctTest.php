@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\Products\Pages\EditProduct;
+use App\Filament\Resources\Products\RelationManagers\RecipeItemsRelationManager;
+use Filament\Actions\Testing\TestAction;
 use App\Models\AuditLog;
 use App\Models\BusinessSettings;
 use App\Models\CashSession;
@@ -127,5 +129,37 @@ class Ajustes30OctTest extends TestCase
     {
         $this->actingAs($this->user('gerente', '1111'))->get('/caja/abrir')->assertOk()->assertSee('Ir al panel');
         $this->actingAs($this->user('cajero', '3333'))->get('/caja/abrir')->assertOk()->assertDontSee('Ir al panel');
+    }
+
+    public function test_receta_con_varios_insumos_de_un_jalon(): void
+    {
+        $product = $this->product();
+        $manager = $this->user('manager', '2222');
+        $papa = Ingredient::create(['name' => 'Papa', 'unit' => 'g', 'stock_qty' => 0, 'cost_per_unit' => 1, 'is_active' => true]);
+        $salchicha = Ingredient::create(['name' => 'Salchicha', 'unit' => 'pz', 'stock_qty' => 0, 'cost_per_unit' => 1, 'is_active' => true]);
+        $product->recipeItems()->create(['ingredient_id' => $papa->id, 'qty' => 100]);
+
+        $lw = Livewire::actingAs($manager)
+            ->test(RecipeItemsRelationManager::class, ['ownerRecord' => $product, 'pageClass' => EditProduct::class])
+            ->mountAction(TestAction::make('addMany')->table())
+            ->callAction(TestAction::make('todos')->schemaComponent('pick')->table());
+
+        // "Seleccionar todos" pone un renglón por insumo; sin cantidades no guarda.
+        $items = $lw->instance()->mountedActions[0]['data']['items'];
+        $this->assertEqualsCanonicalizing([$papa->id, $salchicha->id], array_column($items, 'ingredient_id'));
+        $lw->callMountedAction()->assertHasFormErrors();
+        $this->assertSame(1, $product->recipeItems()->count());
+
+        $keys = array_keys($items);
+        $byId = array_combine(array_column($items, 'ingredient_id'), $keys);
+        $lw->set("mountedActions.0.data.items.{$byId[$papa->id]}.qty", 150)
+            ->set("mountedActions.0.data.items.{$byId[$salchicha->id]}.qty", 2)
+            ->callMountedAction()
+            ->assertHasNoFormErrors();
+
+        // La papa que ya estaba se actualiza (no se duplica); la salchicha se agrega.
+        $this->assertSame(2, $product->recipeItems()->count());
+        $this->assertEquals(150, $product->recipeItems()->where('ingredient_id', $papa->id)->value('qty'));
+        $this->assertEquals(2, $product->recipeItems()->where('ingredient_id', $salchicha->id)->value('qty'));
     }
 }
