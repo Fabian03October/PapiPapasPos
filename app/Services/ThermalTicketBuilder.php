@@ -139,7 +139,7 @@ class ThermalTicketBuilder
                 size: 'tall'
             );
 
-            // Orden del negocio (presentación, Queso, Mayonesa...); extras en
+            // Orden del negocio (presentación, extras, Queso, Mayonesa...); extras en
             // negrita y subrayado para que cocina no se los salte.
             foreach ($item->orderedModifiers() as $saleItemModifier) {
                 $isExtra = $saleItemModifier->isExtra();

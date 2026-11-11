@@ -62,9 +62,9 @@ class VentaController extends Controller
                 // Un grupo sin ningún modificador activo no sirve de nada
                 // mostrarlo (y si era obligatorio, bloquearía la venta).
                 ->filter(fn ($g) => $g->modifiers->isNotEmpty())
-                // Obligatorios primero (la presentación: Domo, Charola...) y
-                // luego el orden del admin. Mismo orden que la comanda.
-                ->sortBy(fn ($g) => [$g->is_required ? 0 : 1, $g->sort_order, $g->id])
+                // Presentación (obligatorio), luego Extras y luego el orden del
+                // admin. Mismo orden que la comanda (SaleItem::orderedModifiers).
+                ->sortBy(fn ($g) => [$g->is_required ? 0 : (str_contains(mb_strtolower($g->name), 'extra') ? 1 : 2), $g->sort_order, $g->id])
                 ->values()
                 ->map(fn ($g) => [
                     'id' => $g->id,

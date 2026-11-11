@@ -649,6 +649,12 @@ class SaleController extends Controller
             }
         }
 
+        // El cliente se olvida aquí y no con otra petición desde la pantalla:
+        // esa corría junto con la impresión Bluetooth, y si la impresión
+        // terminaba después, volvía a guardar la sesión con el cliente y la
+        // siguiente venta salía con el mismo.
+        session()->forget(['selected_customer_id', 'selected_customer_name']);
+
         return response()->json([
             'success' => true,
             'sale_id' => $sale->id,

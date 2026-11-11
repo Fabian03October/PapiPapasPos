@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\Ingredients\Pages\ListIngredients;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\RelationManagers\RecipeItemsRelationManager;
 use Filament\Actions\Testing\TestAction;
@@ -53,6 +54,15 @@ class Ajustes30OctTest extends TestCase
         $this->actingAs($gerente)->get("/admin/products/{$product->id}/edit")->assertForbidden();
         $this->actingAs($gerente)->get('/admin/customers')->assertOk()->assertDontSee('Cambiar enlace');
         $this->actingAs($gerente)->get('/admin/bitacora-de-cambios')->assertForbidden();
+
+        // Insumos: el gerente sí da de alta y registra entradas, pero no edita.
+        $papa = Ingredient::create(['name' => 'Papa', 'unit' => 'kg', 'stock_qty' => 10, 'cost_per_unit' => 20, 'is_active' => true]);
+        $this->actingAs($gerente)->get('/admin/ingredients/create')->assertOk();
+        $this->actingAs($gerente)->get("/admin/ingredients/{$papa->id}/edit")->assertForbidden();
+        Livewire::actingAs($gerente)->test(ListIngredients::class)
+            ->callTableAction('registrarEntrada', $papa, ['qty' => 5, 'unit_cost' => 20])
+            ->assertHasNoTableActionErrors();
+        $this->assertEquals(15, $papa->fresh()->stock_qty);
     }
 
     public function test_el_manager_si_crea_y_edita(): void
@@ -109,8 +119,14 @@ class Ajustes30OctTest extends TestCase
         $this->assertNull(InventoryCount::sole()->cash_session_id);
         $this->actingAs($cajero)->get('/caja/cerrar')->assertRedirect('/caja/cerrar/inventario');
 
-        // Apagado: se cierra sin contar.
-        BusinessSettings::current()->update(['require_inventory_count_on_close' => false]);
+        // Cada semana: como se contó hoy, no lo pide; si pasaron 8 días, sí.
+        BusinessSettings::current()->update(['inventory_count_every_days' => 7]);
+        $this->actingAs($cajero)->get('/caja/cerrar')->assertOk();
+        InventoryCount::query()->update(['created_at' => now()->subDays(8)]);
+        $this->actingAs($cajero)->get('/caja/cerrar')->assertRedirect('/caja/cerrar/inventario');
+
+        // Nunca: se cierra sin contar.
+        BusinessSettings::current()->update(['inventory_count_every_days' => 0]);
         $this->actingAs($cajero)->get('/caja/cerrar')->assertOk();
         $this->actingAs($cajero)->get('/caja/cerrar/inventario')->assertRedirect('/caja/cerrar');
     }
@@ -187,5 +203,23 @@ class Ajustes30OctTest extends TestCase
 
         $this->travelTo(now()->next('Wednesday')->setTime(13, 0));
         $this->actingAs($cajero)->getJson("/venta/productos/{$product->id}")->assertJsonPath('auto_modifier_ids', []);
+    }
+
+    public function test_despues_de_cobrar_la_siguiente_venta_ya_no_trae_al_cliente(): void
+    {
+        $product = $this->product();
+        $cajero = $this->user('cajero', '3333');
+        CashSession::create(['user_id' => $cajero->id, 'opening_amount' => 0, 'opened_at' => now()]);
+        $chuy = Customer::create(['name' => 'Chuy', 'phone' => '9511234567']);
+
+        $this->actingAs($cajero)->get("/venta/cliente/seleccionar/{$chuy->id}"); // como al escanear su QR
+        $this->assertSame($chuy->id, session('selected_customer_id'));
+
+        $this->actingAs($cajero)->postJson('/venta/cobrar', [
+            'items' => [['product_id' => $product->id, 'qty' => 1]], 'payment_method' => 'efectivo', 'customer_id' => $chuy->id,
+        ])->assertOk();
+
+        $this->assertNull(session('selected_customer_id'));
+        $this->actingAs($cajero)->get('/venta')->assertOk()->assertDontSee('name: "Chuy"', false);
     }
 }

@@ -93,8 +93,8 @@ class PosV2Test extends TestCase
     {
         $groups = $this->actingAs($this->cajero)->getJson('/venta/productos/'.$this->papas->id)->json('modifier_groups');
 
-        $this->assertSame(['Presentación', 'Aderezos', 'Extras'], array_column($groups, 'name'));
-        $this->assertSame(['Queso', 'Mayonesa'], array_column($groups[1]['modifiers'], 'name'));
+        $this->assertSame(['Presentación', 'Extras', 'Aderezos'], array_column($groups, 'name'));
+        $this->assertSame(['Queso', 'Mayonesa'], array_column($groups[2]['modifiers'], 'name'));
     }
 
     public function test_la_comanda_trae_cliente_orden_y_extras_destacados(): void
@@ -105,18 +105,18 @@ class PosV2Test extends TestCase
 
         $this->actingAs($this->cajero)->get("/venta/{$sale->id}/comanda")
             ->assertOk()
-            ->assertSeeInOrder(['Ana López', '+ Domo', '+ Queso', '+ Mayonesa', 'EXTRA Salchicha', 'NOTA: sin sal']);
+            ->assertSeeInOrder(['Ana López', '+ Domo', 'EXTRA Salchicha', '+ Queso', '+ Mayonesa', 'NOTA: sin sal']);
 
         $lines = (new ThermalTicketBuilder)->forKitchen($sale);
         $texts = array_column($lines, 'text');
         $this->assertContains('Ana López', $texts);
-        $this->assertSame(['  + Domo', '  + Queso', '  + Mayonesa', '  + EXTRA Salchicha'],
+        $this->assertSame(['  + Domo', '  + EXTRA Salchicha', '  + Queso', '  + Mayonesa'],
             array_values(array_filter($texts, fn ($t) => str_starts_with($t, '  + '))));
         $extra = collect($lines)->firstWhere('text', '  + EXTRA Salchicha');
         $this->assertTrue($extra['bold'] && ($extra['underline'] ?? false));
     }
 
-    public function test_queso_va_justo_despues_de_la_presentacion_aunque_en_el_catalogo_este_al_final(): void
+    public function test_primero_presentacion_luego_extras_y_luego_queso_aunque_en_el_catalogo_este_al_final(): void
     {
         $this->mod['queso']->update(['sort_order' => 99]);
         $this->cobrar(['mayonesa', 'queso', 'salchicha', 'domo'])->assertOk();
@@ -124,7 +124,7 @@ class PosV2Test extends TestCase
 
         $names = $sale->items->first()->orderedModifiers()->map(fn ($m) => $m->modifier->name)->all();
 
-        $this->assertSame(['Domo', 'Queso', 'Mayonesa', 'Salchicha'], $names);
+        $this->assertSame(['Domo', 'Salchicha', 'Queso', 'Mayonesa'], $names);
     }
 
     public function test_todo_ticket_en_efectivo_muestra_recibido_y_cambio_aunque_se_reimprima(): void

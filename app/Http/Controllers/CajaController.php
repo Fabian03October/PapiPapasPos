@@ -143,7 +143,7 @@ class CajaController extends Controller
             return redirect()->route('caja.abrir');
         }
 
-        if ($session->inventoryCount()->exists() || ! BusinessSettings::current()->require_inventory_count_on_close) {
+        if ($session->inventoryCount()->exists() || ! BusinessSettings::current()->inventoryCountDue()) {
             return redirect()->route('caja.cerrar');
         }
 
@@ -260,7 +260,7 @@ class CajaController extends Controller
             return redirect()->route('caja.abrir');
         }
 
-        if (BusinessSettings::current()->require_inventory_count_on_close && ! $session->inventoryCount()->exists()) {
+        if (! $session->inventoryCount()->exists() && BusinessSettings::current()->inventoryCountDue()) {
             return redirect()->route('caja.cerrar.inventario');
         }
 

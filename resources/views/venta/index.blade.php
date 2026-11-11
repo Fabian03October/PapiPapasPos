@@ -1548,10 +1548,7 @@
                     showLastSale({ saleId: data.sale_id, folio: data.folio, total: data.total, change });
 
                     if (selectedCustomer) {
-                        fetch('{{ route("venta.customers.clear") }}', {
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                        });
-                        selectedCustomer = null;
+                        selectedCustomer = null; // el servidor ya lo olvidó al cobrar
                         updateCustomerBadge();
                     }
                 } else {

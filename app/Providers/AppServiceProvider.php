@@ -8,6 +8,7 @@ use App\Mail\Transport\BrevoApiTransport;
 use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
+use App\Models\Ingredient;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
@@ -65,10 +66,17 @@ class AppServiceProvider extends ServiceProvider
 
         Customer::observe(CustomerObserver::class);
 
-        // Candado: en el panel el gerente solo ve; crear, editar y borrar es
-        // del manager. Filament consulta esto en todas sus pantallas (las
-        // acciones propias, como "Registrar entrada", se cierran una por una).
-        Gate::before(fn (User $user, string $ability) => $user->esGerente() && ! in_array($ability, ['viewAny', 'view'], true) ? false : null);
+        // Candado: en el panel el gerente solo ve, menos dar de alta insumos;
+        // editar y borrar es del manager. Filament consulta esto en todas sus
+        // pantallas (las acciones propias, como "Registrar entrada", se
+        // cierran una por una).
+        Gate::before(function (User $user, string $ability, array $args) {
+            if (! $user->esGerente() || in_array($ability, ['viewAny', 'view'], true)) {
+                return null;
+            }
+
+            return $ability === 'create' && ($args[0] ?? null) === Ingredient::class ? null : false;
+        });
 
         // Bitácora: todo lo que se crea, edita o borra DESDE EL PANEL (las
         // ventas del POS no pasan por aquí, si no se llenaría en un día).

@@ -7,6 +7,7 @@ use App\Models\Customer;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -51,7 +52,7 @@ class BusinessSettingsPage extends Page
             'thank_you_message' => $settings->thank_you_message,
             'personalize_thank_you' => $settings->personalize_thank_you,
             'print_delay_seconds' => $settings->print_delay_seconds,
-            'require_inventory_count_on_close' => $settings->require_inventory_count_on_close,
+            'inventory_count_every_days' => $settings->inventory_count_every_days,
             'whatsapp_card_message' => $settings->whatsapp_card_message ?: Customer::WHATSAPP_CARD_MESSAGE,
         ]);
     }
@@ -121,9 +122,11 @@ class BusinessSettingsPage extends Page
 
                 Section::make('Inventario')
                     ->schema([
-                        Toggle::make('require_inventory_count_on_close')
-                            ->label('Pedir conteo de inventario al cerrar caja')
-                            ->helperText('Si lo apagas, la caja se cierra sin contar. Puedes contar cuando quieras desde Inventario → Conteos de inventario → "Contar inventario".'),
+                        Select::make('inventory_count_every_days')
+                            ->label('¿Cada cuánto se cuenta el inventario al cerrar caja?')
+                            ->options(BusinessSettings::INVENTORY_COUNT_EVERY)
+                            ->required()
+                            ->helperText('Si escoges "Cada semana", al cerrar caja se pide contar solo si nadie ha contado en los últimos 7 días. Además puedes contar cuando quieras en Inventario → Conteos de inventario → "Contar inventario".'),
                     ]),
 
                 Section::make('Impresión')

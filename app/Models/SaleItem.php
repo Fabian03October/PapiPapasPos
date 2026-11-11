@@ -70,11 +70,15 @@ class SaleItem extends Model
         return $this->modifiers
             ->filter(fn (SaleItemModifier $m) => $m->modifier !== null)
             ->sortBy(fn (SaleItemModifier $m) => [
-                // Primero la presentación (grupo obligatorio); justo después
-                // el Queso, antes que cualquier otro aderezo o salsa; luego
-                // todo lo demás en el orden del catálogo.
-                $m->modifier->group?->is_required ? 0 : 1,
-                self::isQueso($m->modifier->name) ? 0 : 1,
+                // Orden del negocio: la presentación (Domo, Charola...), luego
+                // los EXTRAS, luego el Queso y después todo lo demás en el
+                // orden del catálogo.
+                match (true) {
+                    (bool) $m->modifier->group?->is_required => 0,
+                    $m->isExtra() => 1,
+                    self::isQueso($m->modifier->name) => 2,
+                    default => 3,
+                },
                 $m->modifier->group?->sort_order ?? PHP_INT_MAX,
                 $m->modifier->sort_order ?? 0,
                 $m->modifier->id,
