@@ -300,7 +300,7 @@ class CajaController extends Controller
             return response()->json(['success' => false, 'message' => 'No hay una caja abierta'], 422);
         }
 
-        if (! $session->inventoryCount()->exists()) {
+        if (BusinessSettings::current()->require_inventory_count_on_close && ! $session->inventoryCount()->exists()) {
             return response()->json(['success' => false, 'message' => 'Falta registrar el conteo físico de inventario'], 422);
         }
 

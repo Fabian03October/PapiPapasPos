@@ -129,6 +129,9 @@ class Ajustes30OctTest extends TestCase
         BusinessSettings::current()->update(['inventory_count_every_days' => 0]);
         $this->actingAs($cajero)->get('/caja/cerrar')->assertOk();
         $this->actingAs($cajero)->get('/caja/cerrar/inventario')->assertRedirect('/caja/cerrar');
+        // Y el corte se guarda (antes lo rechazaba: "Falta registrar el conteo").
+        $this->actingAs($cajero)->postJson('/caja/cerrar', ['fund' => ['matches' => true], 'sales' => ['matches' => true]])
+            ->assertOk()->assertJson(['success' => true]);
     }
 
     public function test_el_mensaje_de_whatsapp_se_puede_cambiar(): void
