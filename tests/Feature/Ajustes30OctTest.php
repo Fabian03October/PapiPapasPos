@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Ingredients\Pages\ListIngredients;
+use App\Filament\Pages\InventoryEntry;
 use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\RelationManagers\RecipeItemsRelationManager;
 use Filament\Actions\Testing\TestAction;
@@ -13,6 +13,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Ingredient;
 use App\Models\InventoryCount;
+use App\Models\InventoryMovement;
 use App\Models\Modifier;
 use App\Models\ModifierGroup;
 use App\Models\Promotion;
@@ -55,14 +56,26 @@ class Ajustes30OctTest extends TestCase
         $this->actingAs($gerente)->get('/admin/customers')->assertOk()->assertDontSee('Cambiar enlace');
         $this->actingAs($gerente)->get('/admin/bitacora-de-cambios')->assertForbidden();
 
-        // Insumos: el gerente sí da de alta y registra entradas, pero no edita.
+        // Insumos: el gerente solo da entradas en su pantalla; no crea ni edita insumos.
         $papa = Ingredient::create(['name' => 'Papa', 'unit' => 'kg', 'stock_qty' => 10, 'cost_per_unit' => 20, 'is_active' => true]);
-        $this->actingAs($gerente)->get('/admin/ingredients/create')->assertOk();
+        $aceite = Ingredient::create(['name' => 'Aceite', 'unit' => 'l', 'stock_qty' => 2, 'cost_per_unit' => 40, 'is_active' => true]);
+        $this->actingAs($gerente)->get('/admin/ingredients/create')->assertForbidden();
         $this->actingAs($gerente)->get("/admin/ingredients/{$papa->id}/edit")->assertForbidden();
-        Livewire::actingAs($gerente)->test(ListIngredients::class)
-            ->callTableAction('registrarEntrada', $papa, ['qty' => 5, 'unit_cost' => 20])
-            ->assertHasNoTableActionErrors();
+        $this->actingAs($gerente)->get('/admin/entrada-de-insumos')->assertOk();
+
+        Livewire::actingAs($gerente)->test(InventoryEntry::class)
+            ->set('data.rows', [
+                ['ingredient_id' => $papa->id, 'qty' => 5, 'unit_cost' => 22],
+                ['ingredient_id' => $aceite->id, 'qty' => 3, 'unit_cost' => null],
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
         $this->assertEquals(15, $papa->fresh()->stock_qty);
+        $this->assertEquals(22, $papa->fresh()->cost_per_unit);
+        $this->assertEquals(5, $aceite->fresh()->stock_qty);
+        $this->assertEquals(40, $aceite->fresh()->cost_per_unit); // sin costo, se queda el que tenía
+        $this->assertSame(2, InventoryMovement::where('type', 'compra')->where('user_id', $gerente->id)->count());
     }
 
     public function test_el_manager_si_crea_y_edita(): void

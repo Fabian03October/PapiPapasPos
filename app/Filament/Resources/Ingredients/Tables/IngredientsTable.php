@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Ingredients\Tables;
 
-use App\Models\InventoryMovement;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -63,7 +62,7 @@ class IngredientsTable
                     ->label('Registrar entrada')
                     ->icon(Heroicon::OutlinedPlusCircle)
                     ->color('success')
-                    ->visible(fn () => auth()->user()?->puedeAutorizar() ?? false) // manager y gerente
+                    ->visible(fn () => auth()->user()?->esManager() ?? false) // el gerente usa "Entrada de insumos"
                     ->schema([
                         TextInput::make('qty')
                             ->label('Cantidad recibida')
@@ -77,19 +76,7 @@ class IngredientsTable
                             ->default(fn ($record) => $record->cost_per_unit),
                     ])
                     ->action(function (array $data, $record) {
-                        InventoryMovement::create([
-                            'ingredient_id' => $record->id,
-                            'type' => 'compra',
-                            'qty' => $data['qty'],
-                            'unit_cost' => $data['unit_cost'],
-                            'user_id' => auth()->id(),
-                        ]);
-
-                        $record->increment('stock_qty', $data['qty']);
-
-                        if (filled($data['unit_cost'])) {
-                            $record->update(['cost_per_unit' => $data['unit_cost']]);
-                        }
+                        $record->registerEntry((float) $data['qty'], filled($data['unit_cost']) ? (float) $data['unit_cost'] : null, auth()->id());
 
                         Notification::make()->title('Entrada registrada')->success()->send();
                     }),

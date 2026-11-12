@@ -36,4 +36,22 @@ class Ingredient extends Model
     {
         return $this->hasMany(InventoryMovement::class);
     }
+
+    /** Entrada de insumo (compra): sube la existencia y, si se dio, actualiza el costo. */
+    public function registerEntry(float $qty, ?float $unitCost, ?int $userId): void
+    {
+        InventoryMovement::create([
+            'ingredient_id' => $this->id,
+            'type' => 'compra',
+            'qty' => $qty,
+            'unit_cost' => $unitCost ?? $this->cost_per_unit, // sin costo nuevo, el que ya tenía
+            'user_id' => $userId,
+        ]);
+
+        $this->increment('stock_qty', $qty);
+
+        if ($unitCost !== null) {
+            $this->update(['cost_per_unit' => $unitCost]);
+        }
+    }
 }
