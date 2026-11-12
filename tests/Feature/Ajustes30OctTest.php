@@ -138,6 +138,13 @@ class Ajustes30OctTest extends TestCase
         InventoryCount::query()->update(['created_at' => now()->subDays(8)]);
         $this->actingAs($cajero)->get('/caja/cerrar')->assertRedirect('/caja/cerrar/inventario');
 
+        // Ciertos días (lunes y jueves): el lunes lo pide, el martes no.
+        BusinessSettings::current()->update(['inventory_count_every_days' => BusinessSettings::INVENTORY_COUNT_ON_WEEKDAYS, 'inventory_count_weekdays' => [1, 4]]);
+        $this->travelTo(now()->next('Monday')->setTime(22, 0));
+        $this->actingAs($cajero)->get('/caja/cerrar')->assertRedirect('/caja/cerrar/inventario');
+        $this->travelTo(now()->next('Tuesday')->setTime(22, 0));
+        $this->actingAs($cajero)->get('/caja/cerrar')->assertOk();
+
         // Nunca: se cierra sin contar.
         BusinessSettings::current()->update(['inventory_count_every_days' => 0]);
         $this->actingAs($cajero)->get('/caja/cerrar')->assertOk();

@@ -7,6 +7,7 @@ use App\Models\Customer;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
@@ -53,6 +54,7 @@ class BusinessSettingsPage extends Page
             'personalize_thank_you' => $settings->personalize_thank_you,
             'print_delay_seconds' => $settings->print_delay_seconds,
             'inventory_count_every_days' => $settings->inventory_count_every_days,
+            'inventory_count_weekdays' => $settings->inventory_count_weekdays ?? [],
             'whatsapp_card_message' => $settings->whatsapp_card_message ?: Customer::WHATSAPP_CARD_MESSAGE,
         ]);
     }
@@ -126,7 +128,14 @@ class BusinessSettingsPage extends Page
                             ->label('¿Cada cuánto se cuenta el inventario al cerrar caja?')
                             ->options(BusinessSettings::INVENTORY_COUNT_EVERY)
                             ->required()
+                            ->live()
                             ->helperText('Si escoges "Cada semana", al cerrar caja se pide contar solo si nadie ha contado en los últimos 7 días. Además puedes contar cuando quieras en Inventario → Conteos de inventario → "Contar inventario".'),
+                        CheckboxList::make('inventory_count_weekdays')
+                            ->label('¿Qué días se cuenta?')
+                            ->options(BusinessSettings::WEEKDAYS)
+                            ->columns(4)
+                            ->visible(fn (Get $get) => (int) $get('inventory_count_every_days') === BusinessSettings::INVENTORY_COUNT_ON_WEEKDAYS)
+                            ->required(fn (Get $get) => (int) $get('inventory_count_every_days') === BusinessSettings::INVENTORY_COUNT_ON_WEEKDAYS),
                     ]),
 
                 Section::make('Impresión')
