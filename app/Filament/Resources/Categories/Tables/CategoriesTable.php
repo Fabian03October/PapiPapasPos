@@ -22,6 +22,9 @@ class CategoriesTable
                 TextColumn::make('sort_order')
                     ->numeric()
                     ->sortable(),
+                IconColumn::make('gives_stamp')
+                    ->label('Da sello')
+                    ->boolean(),
                 IconColumn::make('is_active')
                     ->boolean(),
                 TextColumn::make('created_at')

@@ -246,7 +246,9 @@ class SaleController extends Controller
 
             // Un sello al día: que el cajero sepa por qué no suma.
             if (! $loyaltyPreview['counts_visit']) {
-                $visitNote = "{$customer->name} ya recibió su sello de hoy: esta compra no suma visita.";
+                $visitNote = ($loyaltyPreview['no_stamp_reason'] ?? null) === 'category'
+                    ? 'Esta compra no suma sello: no trae papas ni órdenes.'
+                    : "{$customer->name} ya recibió su sello de hoy: esta compra no suma visita.";
             }
 
             // El pase no se junta con premios de la tarjeta: el premio queda para otra visita.
@@ -653,7 +655,7 @@ class SaleController extends Controller
         // esa corría junto con la impresión Bluetooth, y si la impresión
         // terminaba después, volvía a guardar la sesión con el cliente y la
         // siguiente venta salía con el mismo.
-        session()->forget(['selected_customer_id', 'selected_customer_name']);
+        session()->forget(['selected_customer_id', 'selected_customer_name', 'selected_customer_at']);
 
         return response()->json([
             'success' => true,

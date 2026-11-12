@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
-    protected $fillable = ['name', 'sort_order', 'is_active'];
+    protected $fillable = ['name', 'sort_order', 'is_active', 'gives_stamp'];
+
+    protected $casts = ['gives_stamp' => 'boolean'];
 
     public function products()
     {

@@ -22,6 +22,10 @@ class CategoryForm
                 Toggle::make('is_active')
                     ->label('Activa')
                     ->default(true),
+                Toggle::make('gives_stamp')
+                    ->label('Da sello de la tarjeta')
+                    ->helperText('La venta suma sello solo si trae algo de una categoría con esto encendido (ej. Papas, Órdenes; no Bebidas).')
+                    ->default(true),
             ]);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DayPass;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,16 @@ class VentaController extends Controller
     {
         if (! CashSession::open()) {
             return redirect()->route('caja.abrir');
+        }
+
+        // El cliente se olvida al cobrar, pero otra petición que iba en
+        // camino (la estación de impresión pregunta cada pocos segundos)
+        // podía volver a guardarlo y la siguiente venta salía con el mismo.
+        // Si ya se le cobró después de escogerlo, ya no va.
+        if (($customerId = session('selected_customer_id'))
+            && Sale::where('customer_id', $customerId)->where('user_id', auth()->id())
+                ->where('created_at', '>=', session('selected_customer_at', now()->subDay()->toDateTimeString()))->exists()) {
+            session()->forget(['selected_customer_id', 'selected_customer_name', 'selected_customer_at']);
         }
 
         $categories = Category::where('is_active', true)
@@ -88,10 +99,7 @@ class VentaController extends Controller
 
     public function selectCustomer(Customer $customer)
     {
-        session([
-            'selected_customer_id' => $customer->id,
-            'selected_customer_name' => $customer->name,
-        ]);
+        $this->rememberCustomer($customer);
 
         return redirect()->route('venta.index');
     }
@@ -102,9 +110,18 @@ class VentaController extends Controller
         return redirect()->route('venta.index')->with('scanned_coupon', DayPass::normalize($code));
     }
 
+    private function rememberCustomer(Customer $customer): void
+    {
+        session([
+            'selected_customer_id' => $customer->id,
+            'selected_customer_name' => $customer->name,
+            'selected_customer_at' => now()->toDateTimeString(),
+        ]);
+    }
+
     public function clearCustomer()
     {
-        session()->forget(['selected_customer_id', 'selected_customer_name']);
+        session()->forget(['selected_customer_id', 'selected_customer_name', 'selected_customer_at']);
 
         return redirect()->route('venta.index');
     }
@@ -129,7 +146,7 @@ class VentaController extends Controller
     {
         $customer = Customer::create($this->customerData($request));
 
-        session(['selected_customer_id' => $customer->id, 'selected_customer_name' => $customer->name]);
+        $this->rememberCustomer($customer);
 
         return response()->json(['success' => true, 'id' => $customer->id, 'name' => $customer->name]);
     }

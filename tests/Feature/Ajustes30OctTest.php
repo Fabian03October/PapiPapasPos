@@ -238,4 +238,51 @@ class Ajustes30OctTest extends TestCase
         $this->assertNull(session('selected_customer_id'));
         $this->actingAs($cajero)->get('/venta')->assertOk()->assertDontSee('name: "Chuy"', false);
     }
+
+    public function test_aunque_otra_peticion_vuelva_a_guardar_al_cliente_la_siguiente_venta_no_lo_trae(): void
+    {
+        $product = $this->product();
+        $cajero = $this->user('cajero', '3333');
+        CashSession::create(['user_id' => $cajero->id, 'opening_amount' => 0, 'opened_at' => now()]);
+        $chuy = Customer::create(['name' => 'Chuy', 'phone' => '9511234567']);
+
+        $this->actingAs($cajero)->get("/venta/cliente/seleccionar/{$chuy->id}");
+        $stale = session()->all(); // la estación de impresión leyó la sesión antes de cobrar...
+        $this->travel(2)->seconds();
+        $this->actingAs($cajero)->postJson('/venta/cobrar', [
+            'items' => [['product_id' => $product->id, 'qty' => 1]], 'payment_method' => 'efectivo', 'customer_id' => $chuy->id,
+        ])->assertOk();
+        session($stale); // ...y al terminar la volvió a guardar con el cliente
+
+        $this->actingAs($cajero)->get('/venta')->assertOk()->assertDontSee('name: "Chuy"', false);
+        $this->assertNull(session('selected_customer_id'));
+
+        // Si lo vuelven a escoger (otra compra), sí sale.
+        $this->travel(2)->seconds();
+        $this->actingAs($cajero)->get("/venta/cliente/seleccionar/{$chuy->id}");
+        $this->actingAs($cajero)->get('/venta')->assertSee('name: "Chuy"', false);
+    }
+
+    public function test_solo_da_sello_si_la_cuenta_trae_papas_u_ordenes(): void
+    {
+        $papas = $this->product();
+        $bebidas = Category::create(['name' => 'Bebidas', 'sort_order' => 2, 'is_active' => true, 'gives_stamp' => false]);
+        $refresco = Product::create(['category_id' => $bebidas->id, 'name' => 'Refresco', 'base_price' => 25, 'is_active' => true]);
+        $cajero = $this->user('cajero', '3333');
+        CashSession::create(['user_id' => $cajero->id, 'opening_amount' => 0, 'opened_at' => now()]);
+        $chuy = Customer::create(['name' => 'Chuy', 'phone' => '9511234567']);
+        $cobrar = fn (array $products) => $this->actingAs($cajero)->postJson('/venta/cobrar', [
+            'items' => array_map(fn ($p) => ['product_id' => $p->id, 'qty' => 1], $products), 'payment_method' => 'efectivo', 'customer_id' => $chuy->id,
+        ]);
+
+        // Solo un refresco: no suma, y el cajero ve por qué.
+        $this->actingAs($cajero)->postJson('/venta/promociones/preview', ['items' => [['product_id' => $refresco->id, 'qty' => 1]], 'customer_id' => $chuy->id])
+            ->assertOk()->assertJsonFragment(['Esta compra no suma sello: no trae papas ni órdenes.']);
+        $cobrar([$refresco])->assertOk();
+        $this->assertSame(0, (int) $chuy->fresh()->current_visits);
+
+        // Papas con refresco: sí suma.
+        $cobrar([$papas, $refresco])->assertOk();
+        $this->assertSame(1, (int) $chuy->fresh()->current_visits);
+    }
 }

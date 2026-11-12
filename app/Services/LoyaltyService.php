@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Models\LoyaltyAdjustment;
 use App\Models\LoyaltyLevel;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
 use Carbon\Carbon;
@@ -29,8 +30,16 @@ class LoyaltyService
     {
         // Un sello al día: si ya lo recibió hoy, esta compra no suma visita ni
         // gana premio nuevo (un premio pendiente de antes sí se puede cobrar).
-        if ($this->visitedToday($customer)) {
+        // Tampoco suma si no trae papas u órdenes (categorías que dan sello).
+        $noStamp = match (true) {
+            $this->visitedToday($customer) => 'today',
+            $itemsData !== [] && ! $this->hasStampProduct($itemsData) => 'category',
+            default => null,
+        };
+
+        if ($noStamp) {
             return [
+                'no_stamp_reason' => $noStamp,
                 'next_visit' => (int) $customer->current_visits,
                 'counts_visit' => false,
                 'type' => null,
@@ -194,6 +203,14 @@ class LoyaltyService
      * ventas deshechas no cuentan (su sello se regresó); las canceladas sí
      * (cancelar no le quita el sello).
      */
+    /** ¿Trae algo de una categoría que da sello (Papas, Órdenes...)? */
+    public function hasStampProduct(array $itemsData): bool
+    {
+        return Product::whereIn('id', array_column($itemsData, 'product_id'))
+            ->whereHas('category', fn ($q) => $q->where('gives_stamp', true))
+            ->exists();
+    }
+
     public function visitedToday(Customer $customer): bool
     {
         return Sale::where('customer_id', $customer->id)
