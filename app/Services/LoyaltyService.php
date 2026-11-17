@@ -277,8 +277,11 @@ class LoyaltyService
         if ($level->free_product_id) {
             foreach ($itemsData as $item) {
                 if ((int) $item['product_id'] === (int) $level->free_product_id) {
-                    // Se regala solo 1 unidad, aunque el carrito tenga más.
-                    $result['discount_amount'] = round((float) $item['unit_price'], 2);
+                    // Se regala solo 1 unidad, aunque el carrito tenga más, y
+                    // sin sus extras con costo (el Domo, extra queso...): esos se cobran.
+                    $extras = collect($item['modifiers'] ?? [])
+                        ->sum(fn ($m) => (float) $m->price_delta * ($item['modifier_counts'][$m->id] ?? 1));
+                    $result['discount_amount'] = round((float) $item['unit_price'] - $extras, 2);
                     $result['free_product_in_cart'] = true;
                     break;
                 }

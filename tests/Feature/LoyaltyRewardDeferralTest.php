@@ -7,6 +7,8 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerLoyaltyRedemption;
 use App\Models\LoyaltyLevel;
+use App\Models\Modifier;
+use App\Models\ModifierGroup;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
@@ -176,5 +178,32 @@ class LoyaltyRewardDeferralTest extends TestCase
         $response->assertOk();
         $response->assertJson(['success' => true]);
         $this->assertEquals(100.0, $response->json('total'));
+    }
+
+    public function test_el_producto_de_regalo_se_regala_sin_sus_extras_con_costo(): void
+    {
+        $user = $this->cajero();
+        $this->openCashSession($user);
+        $papis = $this->product(69);
+        $group = ModifierGroup::create(['name' => 'Presentación', 'min_select' => 0, 'max_select' => 1, 'is_required' => false, 'sort_order' => 1, 'is_active' => true]);
+        $papis->modifierGroups()->attach($group->id);
+        $domo = Modifier::create(['modifier_group_id' => $group->id, 'name' => 'Domo', 'price_delta' => 5, 'is_active' => true]);
+        $level = LoyaltyLevel::create(['level_number' => 1, 'discount_percent' => 10, 'free_product_id' => $papis->id]);
+        $customer = Customer::create(['name' => 'Ana', 'phone' => '5511112222', 'current_level' => 1, 'current_visits' => 2]);
+        CustomerLoyaltyRedemption::create([
+            'customer_id' => $customer->id, 'loyalty_level_id' => $level->id, 'type' => 'gift',
+            'status' => 'pending', 'earned_at' => now()->subDay(), 'expires_at' => now()->addDays(6),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/venta/cobrar', [
+            'items' => [['product_id' => $papis->id, 'qty' => 1, 'modifier_ids' => [$domo->id]]],
+            'payment_method' => 'efectivo',
+            'customer_id' => $customer->id,
+            'redeem_reward' => true,
+        ]);
+
+        $response->assertOk();
+        // Las Papis (69) van gratis; el Domo (5) se cobra.
+        $this->assertEquals(5.0, $response->json('total'));
     }
 }
