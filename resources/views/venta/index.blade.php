@@ -1504,7 +1504,9 @@
             renderPayButtons();
 
             const payload = {
-                items: cart.map(item => ({
+                // El regalo/cupón que se agregó solo no se manda: el servidor lo
+                // vuelve a agregar (y sin toppings no pasaría la validación).
+                items: cart.filter(item => item.cartId !== autoGiftCartId).map(item => ({
                     product_id: item.productId,
                     variant_id: item.variantId,
                     modifier_ids: item.modifierIds,
