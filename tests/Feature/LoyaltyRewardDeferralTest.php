@@ -206,4 +206,31 @@ class LoyaltyRewardDeferralTest extends TestCase
         // Las Papis (69) van gratis; el Domo (5) se cobra.
         $this->assertEquals(5.0, $response->json('total'));
     }
+
+    public function test_el_regalo_que_agrega_el_sistema_no_pide_toppings_obligatorios(): void
+    {
+        $user = $this->cajero();
+        $this->openCashSession($user);
+        $papis = $this->product(69);
+        $toppings = ModifierGroup::create(['name' => 'Toppings', 'min_select' => 1, 'max_select' => 6, 'is_required' => false, 'sort_order' => 1, 'is_active' => true]);
+        $papis->modifierGroups()->attach($toppings->id);
+        Modifier::create(['modifier_group_id' => $toppings->id, 'name' => 'Takis', 'price_delta' => 0, 'is_active' => true]);
+        $bebida = Product::create(['category_id' => $papis->category_id, 'name' => 'Boing', 'base_price' => 40, 'is_active' => true]);
+        $level = LoyaltyLevel::create(['level_number' => 1, 'discount_percent' => 10, 'free_product_id' => $papis->id]);
+        $customer = Customer::create(['name' => 'Oscar', 'phone' => '5511113333', 'current_level' => 1, 'current_visits' => 0]);
+        CustomerLoyaltyRedemption::create([
+            'customer_id' => $customer->id, 'loyalty_level_id' => $level->id, 'type' => 'gift',
+            'status' => 'pending', 'earned_at' => now()->subDay(), 'expires_at' => now()->addDays(6),
+        ]);
+
+        // La pantalla ya no manda las Papis que agregó sola: el servidor las agrega.
+        $this->actingAs($user)->postJson('/venta/cobrar', [
+            'items' => [['product_id' => $bebida->id, 'qty' => 1]],
+            'payment_method' => 'efectivo',
+            'customer_id' => $customer->id,
+            'redeem_reward' => true,
+        ])->assertOk()->assertJsonPath('total', 40);
+
+        $this->assertSame('redeemed', CustomerLoyaltyRedemption::first()->status);
+    }
 }
